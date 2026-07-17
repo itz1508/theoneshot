@@ -91,7 +91,7 @@ def _lock_content(analysis: Mapping[str, Any]) -> Mapping[str, Any]:
     return dict(payload)
 
 
-def accept_for_primary(analysis: Mapping[str, Any]) -> dict[str, Any]:
+def accept_for_primary(analysis: Mapping[str, Any], *, execution_contract_sha256: str | None = None) -> dict[str, Any]:
     """Accept a ready analysis and compute the primary-owned canonical lock."""
     decision = analysis.get("decision")
     if not isinstance(decision, Mapping):
@@ -108,7 +108,11 @@ def accept_for_primary(analysis: Mapping[str, Any]) -> dict[str, Any]:
         raise AflowLifecycleError("A-Flow did not provide a primary-ready analysis")
     if analysis.get("plan_gaps") not in ([], None):
         raise AflowLifecycleError("A-Flow analysis retains unresolved plan gaps")
-    content = _lock_content(analysis)
+    content = dict(_lock_content(analysis))
+    if execution_contract_sha256 is not None:
+        if not isinstance(execution_contract_sha256, str) or len(execution_contract_sha256) != 64 or any(char not in "0123456789abcdef" for char in execution_contract_sha256):
+            raise AflowLifecycleError("execution contract SHA-256 is malformed")
+        content["execution_contract_sha256"] = execution_contract_sha256
     canonical = canonical_text(content)
     return {
         "lock_version": 1,

@@ -17,6 +17,7 @@ from .contract import (
     write_lock,
 )
 from .adapter import assemble_contract, verify_contract
+from .ignition import IgnitionResult, ignite, is_mutation_task, select_candidate_plan
 
 __all__ = [
     "AflowLifecycleError",
@@ -30,4 +31,8 @@ __all__ = [
     "write_lock",
     "assemble_contract",
     "verify_contract",
+    "IgnitionResult",
+    "ignite",
+    "is_mutation_task",
+    "select_candidate_plan",
 ]

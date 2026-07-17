@@ -41,18 +41,15 @@ snapshot.
 
 ## Automatic A-Flow lifecycle
 
-For every non-trivial repository mutation task, primary Codex must inspect the
-relevant state, draft a concrete plan, then invoke the project-scoped `aflow`
-agent before the first mutation. The `aflow` agent is analysis-only: it derives
-success, trajectory, gap findings, validation cases, fixture specifications,
-and a canonical lock payload. It never writes implementation files, locks a
-plan, or authorizes execution.
-
-Primary Codex accepts or rejects the returned analysis, computes and stores the
-SHA-256 lock, implements only the accepted plan, and returns trusted build
-evidence to A-Flow before reporting completion. Missing, malformed, or changed
-analysis/lock content fails closed. Purely read-only factual and deterministic
-inspection tasks do not require the lifecycle.
+For every non-trivial repository mutation task, primary Codex must invoke the
+project-scoped `aflow` agent before the first mutation. Reuse a structurally
+usable supplied plan; create one candidate plan only when none is supplied.
+Pass task, plan, applicable authority, and repository context to A-Flow, then
+run its returned data through `openai_project/runtime/src/audisor/aflow_lifecycle/ignition.py`.
+That layer calls the existing adapter and schema; only its ready, valid contract
+permits implementation. Collect the contract-required evidence. A non-ready,
+malformed, tampered, or unresolved contract is never execution authority.
+Read-only factual or inspection tasks do not invoke the full lifecycle.
 
 ## Protected — do not touch without explicit human confirmation
 
