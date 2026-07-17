@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://audisor.local/schemas/health.schema.json",
+  "title": "Audisor process liveness",
+  "type": "object",
+  "required": ["status"],
+  "properties": {"status": {"const": "ok"}},
+  "additionalProperties": false
+}

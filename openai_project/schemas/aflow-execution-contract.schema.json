@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://audisor.local/schemas/aflow-execution-contract.schema.json",
+  "title": "External A-Flow Locked Execution Contract",
+  "type": "object",
+  "required": ["aflow_execution_contract"],
+  "additionalProperties": false,
+  "properties": {
+    "aflow_execution_contract": {
+      "type": "object",
+      "required": ["contract_version", "accepted_task_input", "authority", "success_definition", "execution_trajectory", "implementation_plan", "validation_contract", "fixture_specifications", "evidence_manifest", "post_build_acceptance", "readiness", "lock_payload"],
+      "additionalProperties": false,
+      "properties": {
+        "contract_version": {"const": "1.0.0"},
+        "accepted_task_input": {"type": "object"},
+        "authority": {"type": "object", "required": ["allowed_paths", "prohibited_paths"], "properties": {"allowed_paths": {"type": "array", "minItems": 1, "items": {"type": "string"}}, "prohibited_paths": {"type": "array", "items": {"type": "string"}}}},
+        "success_definition": {"type": "object", "required": ["requirements"], "properties": {"requirements": {"type": "array", "minItems": 1, "items": {"type": "object", "required": ["requirement_id", "source_reference", "success_predicate"], "properties": {"requirement_id": {"type": "string", "minLength": 1}, "source_reference": {"type": "string", "minLength": 1}, "success_predicate": {"type": "string", "minLength": 1}}}}}},
+        "execution_trajectory": {"type": "array", "minItems": 1},
+        "implementation_plan": {"type": "array", "minItems": 1},
+        "validation_contract": {"type": "array", "minItems": 1},
+        "fixture_specifications": {"type": "array", "minItems": 1},
+        "evidence_manifest": {"type": "object", "required": ["evidence_items"]},
+        "post_build_acceptance": {"type": "object", "required": ["acceptance_rules"]},
+        "readiness": {"type": "object", "required": ["aflow_decision", "contract_decision", "decision_mapping", "unresolved_items", "execution_permitted_when"]},
+        "lock_payload": {"type": "object", "required": ["hash_algorithm", "canonical_text", "sha256"], "properties": {"hash_algorithm": {"const": "sha256"}, "canonical_text": {"type": "string"}, "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}}
+      }
+    }
+  }
+}

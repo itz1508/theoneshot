@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://audisor.local/schemas/task-output.schema.json",
+  "title": "Audisor task output batch",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["task_id", "answer"],
+    "properties": {
+      "task_id": {"type": "string"},
+      "answer": {"type": "string"}
+    },
+    "additionalProperties": false
+  }
+}

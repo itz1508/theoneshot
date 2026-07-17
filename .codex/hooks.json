@@ -1,0 +1,15 @@
+{
+  "PreToolUse": [
+    {
+      "matcher": ".*",
+      "hooks": [
+        {
+          "type": "command",
+          "commandWindows": "uv run --directory openai_project/runtime --offline --locked python -m audisor.aflow_lifecycle.hook",
+          "timeout": 30,
+          "statusMessage": "Checking the A-Flow lock before repository mutation"
+        }
+      ]
+    }
+  ]
+}

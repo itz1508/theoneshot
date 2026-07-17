@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://audisor.local/schemas/execution-evidence.schema.json",
+  "title": "Execution evidence locator",
+  "type": "object",
+  "required": ["build_id", "execution_id", "task_id", "result_path", "evidence_path", "result_sha256", "completed_at"],
+  "properties": {
+    "build_id": {"type": "string", "minLength": 1},
+    "execution_id": {"type": "string", "minLength": 1},
+    "task_id": {"type": "string", "minLength": 1},
+    "result_path": {"type": "string", "minLength": 1},
+    "evidence_path": {"type": "string", "minLength": 1},
+    "result_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "completed_at": {"type": "string", "minLength": 1}
+  },
+  "additionalProperties": false
+}

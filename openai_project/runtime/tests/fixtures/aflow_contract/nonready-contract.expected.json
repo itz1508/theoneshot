@@ -1,0 +1,9 @@
+{
+  "source_fixture": "nonready-input.json",
+  "expected_output": {
+    "aflow_decision": "missing_evidence",
+    "contract_decision": "uncertainty",
+    "execution_permitted": false,
+    "sha256": "73de8da2b12289568a02555b0d8325c51c0488e133268105144825e3001d449a"
+  }
+}

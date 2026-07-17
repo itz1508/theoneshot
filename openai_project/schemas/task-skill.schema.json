@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://audisor.local/schemas/task-skill.schema.json",
+  "title": "AMD-compatible generated task skill",
+  "type": "object",
+  "required": ["task_id", "prompt"],
+  "properties": {
+    "task_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^(?![Cc][Oo][Nn](?:\\..*)?$)(?![Pp][Rr][Nn](?:\\..*)?$)(?![Aa][Uu][Xx](?:\\..*)?$)(?![Nn][Uu][Ll](?:\\..*)?$)(?![Cc][Oo][Mm][1-9](?:\\..*)?$)(?![Ll][Pp][Tt][1-9](?:\\..*)?$)[A-Za-z0-9](?:[A-Za-z0-9._-]{0,62}[A-Za-z0-9])?$"
+    },
+    "prompt": {
+      "type": "string",
+      "maxLength": 200000,
+      "pattern": "\\S"
+    }
+  },
+  "additionalProperties": false
+}
+

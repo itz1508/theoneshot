@@ -1,0 +1,17 @@
+{
+  "frozen_aflow_result": {"decision": "no_material_gap", "unresolved_items": []},
+  "accepted_task_input": {"task_id": "adapter-fixture", "user_request": "Assemble the external adapter."},
+  "authority": {"allowed_paths": ["openai_project/runtime/src/audisor/aflow_lifecycle"], "prohibited_paths": ["openai_project/aflow"], "allowed_tools": ["write_file"], "prohibited_tools": ["run_command"], "phase_order": ["stage-1", "stage-2"], "preserved_conditions": [{"condition_id": "frozen-tree"}]},
+  "baseline_evidence": [{"evidence_id": "baseline"}],
+  "accepted_constraints": ["No frozen-tree mutation."],
+  "required_outputs": ["schema", "fixtures", "tests"],
+  "candidate_implementation_plan": {
+    "success_definition": {"requirements": [{"requirement_id": "req-schema", "source_reference": "user item 1", "success_predicate": "schema exists"}, {"requirement_id": "req-trace", "source_reference": "user item 3", "success_predicate": "complete traceability resolves"}]},
+    "execution_trajectory": [{"stage_id": "stage-1", "exact_actions": ["action-schema"], "checkpoint": {"checkpoint_id": "checkpoint-1"}}, {"stage_id": "stage-2", "exact_actions": ["action-trace"], "checkpoint": {"checkpoint_id": "checkpoint-2"}}],
+    "implementation_plan": [{"action_id": "action-schema", "requirement_ids": ["req-schema"], "target_paths": ["openai_project/runtime/src/audisor/aflow_lifecycle/adapter.py"]}, {"action_id": "action-trace", "requirement_ids": ["req-trace"], "target_paths": ["openai_project/runtime/src/audisor/aflow_lifecycle/adapter.py"]}],
+    "validation_contract": [{"validation_id": "validation-schema", "requirement_ids": ["req-schema"], "fixture_id": "fixture-ready"}, {"validation_id": "validation-trace", "requirement_ids": ["req-trace"], "fixture_id": "fixture-ready"}],
+    "fixture_specifications": [{"fixture_id": "fixture-ready", "validation_ids": ["validation-schema", "validation-trace"]}],
+    "evidence_manifest": {"evidence_items": [{"evidence_id": "evidence-schema", "requirement_ids": ["req-schema"], "validation_ids": ["validation-schema"], "checkpoint_ids": ["checkpoint-1"]}, {"evidence_id": "evidence-trace", "requirement_ids": ["req-trace"], "validation_ids": ["validation-trace"], "checkpoint_ids": ["checkpoint-2"]}, {"evidence_id": "evidence-state", "checkpoint_ids": ["checkpoint-1", "checkpoint-2"]}], "state_checks": [{"condition_id": "frozen-tree", "evidence_id": "evidence-state"}]},
+    "post_build_acceptance": {"acceptance_rules": [{"rule_id": "rule-schema", "requirement_ids": ["req-schema"], "evidence_ids": ["evidence-schema"], "final_decision_rule": "schema evidence must exist"}, {"rule_id": "rule-trace", "requirement_ids": ["req-trace"], "evidence_ids": ["evidence-trace"], "final_decision_rule": "all references must resolve"}]}
+  }
+}

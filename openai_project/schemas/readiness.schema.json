@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://audisor.local/schemas/readiness.schema.json",
+  "title": "Audisor provider-neutral readiness",
+  "type": "object",
+  "required": ["status", "provider", "data_root_ready", "schemas_ready"],
+  "properties": {
+    "status": {"enum": ["ready", "degraded"]},
+    "provider": {
+      "type": "object",
+      "required": ["selected", "configuration", "capabilities_loaded"],
+      "properties": {
+        "selected": {"type": ["string", "null"]},
+        "configuration": {"enum": ["present", "missing", "invalid"]},
+        "capabilities_loaded": {"type": "boolean"}
+      },
+      "additionalProperties": false
+    },
+    "data_root_ready": {"type": "boolean"},
+    "schemas_ready": {"type": "boolean"}
+  },
+  "additionalProperties": false
+}

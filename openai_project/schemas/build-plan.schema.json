@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://audisor.local/schemas/build-plan.schema.json",
+  "title": "Audisor prepared build plan",
+  "$defs": {
+    "safeId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^(?![Cc][Oo][Nn](?:\\..*)?$)(?![Pp][Rr][Nn](?:\\..*)?$)(?![Aa][Uu][Xx](?:\\..*)?$)(?![Nn][Uu][Ll](?:\\..*)?$)(?![Cc][Oo][Mm][1-9](?:\\..*)?$)(?![Ll][Pp][Tt][1-9](?:\\..*)?$)[A-Za-z0-9](?:[A-Za-z0-9._-]{0,62}[A-Za-z0-9])?$"
+    },
+    "safeRelativePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096,
+      "pattern": "^(?![/\\\\])(?![A-Za-z]:)(?!.*(?:^|[/\\\\])\\.\\.(?:[/\\\\]|$))(?!.*:).+$"
+    },
+    "task": {
+      "type": "object",
+      "required": ["task_id", "title", "depends_on", "prompt", "expected_outputs", "validation"],
+      "properties": {
+        "task_id": {"$ref": "#/$defs/safeId"},
+        "title": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "\\S"
+        },
+        "depends_on": {
+          "type": "array",
+          "maxItems": 256,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/safeId"}
+        },
+        "prompt": {
+          "type": "string",
+          "maxLength": 100000,
+          "pattern": "\\S"
+        },
+        "expected_outputs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 256,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/safeRelativePath"}
+        },
+        "validation": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "items": {
+            "type": "object",
+            "required": ["argv", "working_directory", "acceptable_exit_codes", "timeout_seconds"],
+            "properties": {
+              "argv": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 128,
+                "items": {"type": "string", "minLength": 1, "maxLength": 4096}
+              },
+              "working_directory": {
+                "anyOf": [
+                  {"const": "."},
+                  {"$ref": "#/$defs/safeRelativePath"}
+                ]
+              },
+              "acceptable_exit_codes": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 16,
+                "uniqueItems": true,
+                "items": {"type": "integer", "minimum": 0, "maximum": 255}
+              },
+              "timeout_seconds": {"type": "integer", "minimum": 1, "maximum": 300}
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "type": "object",
+  "required": ["build_id", "status", "gaps", "tasks"],
+  "properties": {
+    "build_id": {"$ref": "#/$defs/safeId"},
+    "status": {"enum": ["ready", "blocked"]},
+    "gaps": {
+      "type": "array",
+      "maxItems": 100,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "maxLength": 1000,
+        "pattern": "\\S"
+      }
+    },
+    "tasks": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {"$ref": "#/$defs/task"}
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"status": {"const": "ready"}}},
+      "then": {
+        "properties": {
+          "gaps": {"maxItems": 0},
+          "tasks": {"minItems": 1}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"status": {"const": "blocked"}}},
+      "then": {
+        "properties": {
+          "gaps": {"minItems": 1},
+          "tasks": {"maxItems": 0}
+        }
+      }
+    }
+  ],
+  "additionalProperties": false
+}

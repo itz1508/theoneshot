@@ -1,0 +1,9 @@
+{
+  "source_fixture": "ready-input.json",
+  "expected_output": {
+    "aflow_decision": "no_material_gap",
+    "contract_decision": "no_material_gap",
+    "execution_permitted": true,
+    "sha256": "5dcfc88b37c079adbd60994c2a8704630a7d7e86d6cfc74ac0bed3cf46bd67c8"
+  }
+}

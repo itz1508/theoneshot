@@ -1,0 +1,15 @@
+{
+  "frozen_aflow_result": {"decision": "missing_evidence", "unresolved_items": ["collect static validation evidence"]},
+  "accepted_task_input": {"task_id": "adapter-fixture-nonready", "user_request": "Assemble but do not execute."},
+  "authority": {"allowed_paths": ["openai_project/runtime/src/audisor/aflow_lifecycle"], "prohibited_paths": ["openai_project/aflow"], "allowed_tools": ["write_file"], "prohibited_tools": ["run_command"], "phase_order": ["stage-1"], "preserved_conditions": []},
+  "baseline_evidence": [], "accepted_constraints": ["No frozen-tree mutation."], "required_outputs": ["contract"],
+  "candidate_implementation_plan": {
+    "success_definition": {"requirements": [{"requirement_id": "req-proof", "source_reference": "user", "success_predicate": "evidence is collected"}]},
+    "execution_trajectory": [{"stage_id": "stage-1", "exact_actions": ["action-proof"], "checkpoint": {"checkpoint_id": "checkpoint-1"}}],
+    "implementation_plan": [{"action_id": "action-proof", "requirement_ids": ["req-proof"], "target_paths": ["openai_project/runtime/src/audisor/aflow_lifecycle/adapter.py"]}],
+    "validation_contract": [{"validation_id": "validation-proof", "requirement_ids": ["req-proof"], "fixture_id": "fixture-proof"}],
+    "fixture_specifications": [{"fixture_id": "fixture-proof", "validation_ids": ["validation-proof"]}],
+    "evidence_manifest": {"evidence_items": [{"evidence_id": "evidence-proof", "requirement_ids": ["req-proof"], "validation_ids": ["validation-proof"], "checkpoint_ids": ["checkpoint-1"]}], "state_checks": []},
+    "post_build_acceptance": {"acceptance_rules": [{"rule_id": "rule-proof", "requirement_ids": ["req-proof"], "evidence_ids": ["evidence-proof"], "final_decision_rule": "proof must exist"}]}
+  }
+}

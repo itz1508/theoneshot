@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://audisor.local/schemas/terminal-manifest.schema.json",
+  "title": "Phase 2B terminal evidence manifest",
+  "type": "object",
+  "required": [
+    "schema_version", "build_id", "execution_id", "created_at",
+    "expected_task_ids", "tasks", "artifacts"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "build_id": {"$ref": "#/$defs/safeId"},
+    "execution_id": {"$ref": "#/$defs/safeId"},
+    "created_at": {"type": "string", "minLength": 1},
+    "expected_task_ids": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": {"$ref": "#/$defs/safeId"}
+    },
+    "tasks": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["task_id", "result_path", "evidence_paths"],
+        "properties": {
+          "task_id": {"$ref": "#/$defs/safeId"},
+          "result_path": {"$ref": "#/$defs/relativePath"},
+          "evidence_paths": {
+            "type": "array", "minItems": 1, "uniqueItems": true,
+            "items": {"$ref": "#/$defs/relativePath"}
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "artifacts": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["path", "size", "sha256"],
+        "properties": {
+          "path": {"$ref": "#/$defs/relativePath"},
+          "size": {"type": "integer", "minimum": 0},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "$defs": {
+    "safeId": {
+      "type": "string", "minLength": 1, "maxLength": 64,
+      "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,62}[A-Za-z0-9])?$"
+    },
+    "relativePath": {
+      "type": "string", "minLength": 1,
+      "pattern": "^(?![/\\\\])(?![A-Za-z]:)(?!.*(?:^|[/\\\\])\\.\\.(?:[/\\\\]|$)).+$"
+    }
+  },
+  "additionalProperties": false
+}

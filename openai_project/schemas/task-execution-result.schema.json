@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://audisor.local/schemas/task-execution-result.schema.json",
+  "title": "Durable task execution result",
+  "type": "object",
+  "required": [
+    "build_id", "execution_id", "task_id", "status", "skill_hash", "plan_hash",
+    "worker_input", "worker_dispatched", "worker_output", "requested_actions", "executed_actions",
+    "changed_paths", "validation_commands", "exit_codes", "prepared_validation_sha256",
+    "rendered_validation_sha256", "executed_validation_sha256",
+    "expected_outputs_verified", "completion_timestamp", "error"
+  ],
+  "properties": {
+    "build_id": {"type": "string"},
+    "execution_id": {"type": "string"},
+    "task_id": {"type": "string"},
+    "status": {"enum": ["completed", "failed", "blocked", "interrupted"]},
+    "skill_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "plan_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "worker_input": {
+      "type": "object",
+      "required": ["task_id", "prompt"],
+      "properties": {"task_id": {"type": "string"}, "prompt": {"type": "string"}},
+      "additionalProperties": false
+    },
+    "worker_dispatched": {"type": "boolean"},
+    "worker_output": {"type": ["object", "null"]},
+    "requested_actions": {"type": ["object", "null"]},
+    "executed_actions": {"type": "array"},
+    "changed_paths": {"type": "array"},
+    "validation_commands": {"type": "array", "maxItems": 0},
+    "exit_codes": {"type": "array", "items": {"type": "integer"}, "maxItems": 0},
+    "prepared_validation_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "rendered_validation_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "executed_validation_sha256": {"type": "null"},
+    "expected_outputs_verified": {"type": "boolean"},
+    "completion_timestamp": {"type": "string"},
+    "error": {"type": ["string", "null"]}
+  },
+  "additionalProperties": false
+}
