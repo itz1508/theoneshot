@@ -1,0 +1,15 @@
+{
+  "blocking": false,
+  "decision": "no_material_gap",
+  "execution_ready": true,
+  "finding_count": {
+    "max": 0,
+    "min": 0
+  },
+  "fixture_id": "fixture.output-quality-fails",
+  "forbid_unexpected_findings": true,
+  "minimum_rejected_findings": 0,
+  "required_gap_types": [],
+  "required_plan_locations": [],
+  "schema_version": "1.0.0"
+}

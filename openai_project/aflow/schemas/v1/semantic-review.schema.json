@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A-Flow Semantic Review",
+  "description": "Provider-neutral semantic reviewer output. Every candidate remains untrusted until deterministic substantiation accepts it.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "review_id",
+    "analysis_id",
+    "reviewer",
+    "candidate_findings",
+    "review_summary"
+  ],
+  "properties": {
+    "schema_version": {
+      "$ref": "common.schema.json#/$defs/schema_version"
+    },
+    "review_id": {
+      "$ref": "common.schema.json#/$defs/identifier"
+    },
+    "analysis_id": {
+      "$ref": "common.schema.json#/$defs/identifier"
+    },
+    "reviewer": {
+      "type": "object",
+      "required": [
+        "adapter_id",
+        "model_or_agent_id"
+      ],
+      "properties": {
+        "adapter_id": {
+          "$ref": "common.schema.json#/$defs/identifier"
+        },
+        "model_or_agent_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "candidate_findings": {
+      "type": "array",
+      "items": {
+        "$ref": "finding.schema.json"
+      }
+    },
+    "review_summary": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "additionalProperties": false,
+  "$id": "https://theoneshot.dev/schemas/aflow/v1/semantic-review.schema.json"
+}

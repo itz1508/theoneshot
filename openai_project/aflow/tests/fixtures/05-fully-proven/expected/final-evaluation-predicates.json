@@ -1,0 +1,20 @@
+{
+  "blocking": false,
+  "decision": "proven",
+  "fixture_id": "fixture.05-fully-proven",
+  "forbid_prohibited_outcomes": true,
+  "minimum_blocking_failures": 0,
+  "required_quality_statuses": {
+    "completeness": "pass",
+    "consistency": "pass",
+    "constraint_compliance": "pass",
+    "correctness": "pass",
+    "evidence_quality": "pass",
+    "reliability": "pass",
+    "usability": "pass"
+  },
+  "required_requirement_statuses": {
+    "requirement.durable-output": "proven"
+  },
+  "schema_version": "1.0.0"
+}

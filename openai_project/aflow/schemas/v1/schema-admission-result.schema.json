@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A-Flow Schema Admission Result",
+  "description": "Objective structural validation result with exact instance and schema locations.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "analysis_id",
+    "valid",
+    "errors"
+  ],
+  "properties": {
+    "schema_version": {
+      "$ref": "common.schema.json#/$defs/schema_version"
+    },
+    "analysis_id": {
+      "$ref": "common.schema.json#/$defs/identifier"
+    },
+    "valid": {
+      "type": "boolean"
+    },
+    "errors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "error_id",
+          "keyword",
+          "instance_path",
+          "schema_path",
+          "message",
+          "blocking"
+        ],
+        "properties": {
+          "error_id": {
+            "$ref": "common.schema.json#/$defs/identifier"
+          },
+          "keyword": {
+            "type": "string",
+            "minLength": 1
+          },
+          "instance_path": {
+            "$ref": "common.schema.json#/$defs/json_pointer"
+          },
+          "schema_path": {
+            "$ref": "common.schema.json#/$defs/json_pointer"
+          },
+          "message": {
+            "type": "string",
+            "minLength": 1
+          },
+          "blocking": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "valid": {
+            "const": true
+          }
+        },
+        "required": [
+          "valid"
+        ]
+      },
+      "then": {
+        "properties": {
+          "errors": {
+            "maxItems": 0
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "valid": {
+            "const": false
+          }
+        },
+        "required": [
+          "valid"
+        ]
+      },
+      "then": {
+        "properties": {
+          "errors": {
+            "minItems": 1
+          }
+        }
+      }
+    }
+  ],
+  "$id": "https://theoneshot.dev/schemas/aflow/v1/schema-admission-result.schema.json"
+}

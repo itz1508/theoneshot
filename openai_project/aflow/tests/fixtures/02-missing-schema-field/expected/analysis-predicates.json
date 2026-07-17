@@ -1,0 +1,19 @@
+{
+  "blocking": true,
+  "decision": "material_gap_found",
+  "execution_ready": false,
+  "finding_count": {
+    "max": 2,
+    "min": 1
+  },
+  "fixture_id": "fixture.02-missing-schema-field",
+  "forbid_unexpected_findings": false,
+  "minimum_rejected_findings": 0,
+  "required_gap_types": [
+    "structural_missing"
+  ],
+  "required_plan_locations": [
+    "/plan/actions/0/activation"
+  ],
+  "schema_version": "1.0.0"
+}

@@ -1,0 +1,30 @@
+{
+  "behavioral_principle": "Deterministic behavioral proof for fixture.effective-revision.",
+  "expected_files": [
+    "expected/analysis-predicates.json",
+    "expected/stage-predicates.json"
+  ],
+  "fixture_id": "fixture.effective-revision",
+  "input_files": [
+    "input/success-definition.json",
+    "input/plan.json",
+    "input/authority-evidence.json",
+    "input/repository-evidence.json",
+    "input/baseline.json",
+    "input/evidence.json",
+    "input/closure-request.json",
+    "input/prior-decision.json",
+    "input/original-plan.json",
+    "input/revised-analysis-request.json"
+  ],
+  "safety": {
+    "docker": false,
+    "git_mutation": false,
+    "network": false,
+    "subprocess": false,
+    "target_mutation": false
+  },
+  "schema_version": "1.0.0",
+  "scoring_category": "closure",
+  "stage": "gap_closure"
+}

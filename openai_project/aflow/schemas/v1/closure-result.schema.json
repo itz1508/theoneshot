@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A-Flow Closure Result",
+  "description": "Per-finding closure verification and resulting plan readiness decision.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "closure_id",
+    "prior_decision_reference",
+    "revised_plan_reference",
+    "finding_results",
+    "new_decision",
+    "content_hash"
+  ],
+  "properties": {
+    "schema_version": {
+      "$ref": "common.schema.json#/$defs/schema_version"
+    },
+    "closure_id": {
+      "$ref": "common.schema.json#/$defs/identifier"
+    },
+    "prior_decision_reference": {
+      "$ref": "common.schema.json#/$defs/artifact_ref"
+    },
+    "revised_plan_reference": {
+      "$ref": "common.schema.json#/$defs/artifact_ref"
+    },
+    "finding_results": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "finding_id",
+          "status",
+          "evidence_references",
+          "reason"
+        ],
+        "properties": {
+          "finding_id": {
+            "$ref": "common.schema.json#/$defs/identifier"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "closed",
+              "partially_closed",
+              "open",
+              "invalidated"
+            ]
+          },
+          "evidence_references": {
+            "type": "array",
+            "items": {
+              "$ref": "common.schema.json#/$defs/evidence_ref"
+            }
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "new_decision": {
+      "$ref": "analysis-decision.schema.json"
+    },
+    "content_hash": {
+      "$ref": "common.schema.json#/$defs/sha256"
+    }
+  },
+  "additionalProperties": false,
+  "$id": "https://theoneshot.dev/schemas/aflow/v1/closure-result.schema.json"
+}

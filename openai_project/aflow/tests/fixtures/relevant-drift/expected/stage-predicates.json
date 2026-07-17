@@ -1,0 +1,4 @@
+{
+  "blocking": true,
+  "decision": "scoped_revalidation_required"
+}

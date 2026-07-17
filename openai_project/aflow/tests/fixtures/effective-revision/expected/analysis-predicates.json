@@ -1,0 +1,17 @@
+{
+  "blocking": true,
+  "decision": "missing_evidence",
+  "execution_ready": false,
+  "finding_count": {
+    "max": 2,
+    "min": 1
+  },
+  "fixture_id": "fixture.effective-revision",
+  "forbid_unexpected_findings": false,
+  "minimum_rejected_findings": 0,
+  "required_gap_types": [
+    "output_environment_gap"
+  ],
+  "required_plan_locations": [],
+  "schema_version": "1.0.0"
+}

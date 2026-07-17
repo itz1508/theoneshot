@@ -1,0 +1,33 @@
+{
+  "authority_hashes": [
+    {
+      "authority_id": "authority.user",
+      "content_hash": "sha256:d3ce1562690ddf2dbe82809f308c0402b8176bb6646facd4a6c2e9f4c1fb4b37"
+    }
+  ],
+  "baseline_id": "baseline.current",
+  "captured_at": "2026-01-01T00:00:00Z",
+  "content_hash": "sha256:1f237ecfc3d49b8ae5981f2bb8e95bb38f00883b3cea7396001a46023d7b00b6",
+  "dirty_state": "untracked",
+  "entries": [
+    {
+      "classification": "relevant",
+      "content_hash": "sha256:9abf9994927acc503ec87e4433239aee75bb937357616bf8cca0290a1f3aa60a",
+      "path": "src/output.txt"
+    }
+  ],
+  "git_head": null,
+  "git_state": "unborn",
+  "repository_kind": "filesystem",
+  "repository_root": "C:\\fixture-repository",
+  "schema_version": "1.0.0",
+  "scope": {
+    "mode": "scoped",
+    "protected_paths": [
+      "AGENTS.md"
+    ],
+    "relevant_paths": [
+      "src"
+    ]
+  }
+}

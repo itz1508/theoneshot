@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A-Flow Locked Plan",
+  "description": "Immutable binding of accepted plan, success definition, authority, and repository baseline.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "lock_id",
+    "analysis_decision_reference",
+    "plan_reference",
+    "success_definition_reference",
+    "authority_bundle_reference",
+    "baseline_reference",
+    "locked_by",
+    "locked_at",
+    "lock_hash"
+  ],
+  "properties": {
+    "schema_version": {
+      "$ref": "common.schema.json#/$defs/schema_version"
+    },
+    "lock_id": {
+      "$ref": "common.schema.json#/$defs/identifier"
+    },
+    "analysis_decision_reference": {
+      "$ref": "common.schema.json#/$defs/artifact_ref"
+    },
+    "plan_reference": {
+      "$ref": "common.schema.json#/$defs/artifact_ref"
+    },
+    "success_definition_reference": {
+      "$ref": "common.schema.json#/$defs/artifact_ref"
+    },
+    "authority_bundle_reference": {
+      "$ref": "common.schema.json#/$defs/artifact_ref"
+    },
+    "baseline_reference": {
+      "$ref": "common.schema.json#/$defs/artifact_ref"
+    },
+    "locked_by": {
+      "type": "string",
+      "enum": [
+        "aflow",
+        "human"
+      ]
+    },
+    "locked_at": {
+      "$ref": "common.schema.json#/$defs/timestamp"
+    },
+    "lock_hash": {
+      "$ref": "common.schema.json#/$defs/sha256"
+    }
+  },
+  "additionalProperties": false,
+  "$id": "https://theoneshot.dev/schemas/aflow/v1/locked-plan.schema.json"
+}

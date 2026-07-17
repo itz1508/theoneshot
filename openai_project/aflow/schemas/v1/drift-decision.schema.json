@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A-Flow Drift Decision",
+  "description": "Classification of whether repository drift blocks or narrows reanalysis.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "drift_event_reference",
+    "decision",
+    "blocking",
+    "affected_requirements",
+    "affected_plan_locations",
+    "reason"
+  ],
+  "properties": {
+    "schema_version": {
+      "$ref": "common.schema.json#/$defs/schema_version"
+    },
+    "drift_event_reference": {
+      "$ref": "common.schema.json#/$defs/artifact_ref"
+    },
+    "decision": {
+      "type": "string",
+      "enum": [
+        "no_drift",
+        "nonblocking_drift_recorded",
+        "scoped_revalidation_required",
+        "full_reanalysis_required",
+        "baseline_unverifiable"
+      ]
+    },
+    "blocking": {
+      "type": "boolean"
+    },
+    "affected_requirements": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/identifier"
+      }
+    },
+    "affected_plan_locations": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/json_pointer"
+      }
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "decision": {
+            "enum": [
+              "no_drift",
+              "nonblocking_drift_recorded"
+            ]
+          }
+        },
+        "required": [
+          "decision"
+        ]
+      },
+      "then": {
+        "properties": {
+          "blocking": {
+            "const": false
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "decision": {
+            "enum": [
+              "scoped_revalidation_required",
+              "full_reanalysis_required",
+              "baseline_unverifiable"
+            ]
+          }
+        },
+        "required": [
+          "decision"
+        ]
+      },
+      "then": {
+        "properties": {
+          "blocking": {
+            "const": true
+          }
+        }
+      }
+    }
+  ],
+  "$id": "https://theoneshot.dev/schemas/aflow/v1/drift-decision.schema.json"
+}

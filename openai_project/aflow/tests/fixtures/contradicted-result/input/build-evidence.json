@@ -1,0 +1,44 @@
+[
+  {
+    "claim": "The production artifact is directly visible after restart.",
+    "collected_at": "2026-01-01T00:00:00Z",
+    "collected_by": "deterministic_local",
+    "content_hash": "sha256:dd46bcd3ed4c37d9b3967696904f16715231b11af742ff6df4abceab432652c6",
+    "evidence_id": "evidence.artifact",
+    "evidence_type": "artifact",
+    "locator": {
+      "kind": "artifact_id",
+      "value": "evidence.artifact"
+    },
+    "payload_summary": "quality:correctness=pass quality:completeness=pass quality:usability=pass quality:consistency=pass quality:reliability=pass quality:evidence_quality=pass quality:constraint_compliance=pass",
+    "schema_version": "1.0.0",
+    "source": {
+      "evidence_status": "contradicted",
+      "location": "fixture",
+      "source_id": "source.evidence.artifact",
+      "source_type": "user_intent"
+    },
+    "visibility": "build_result_input"
+  },
+  {
+    "claim": "Production-host validation completed.",
+    "collected_at": "2026-01-01T00:00:00Z",
+    "collected_by": "deterministic_local",
+    "content_hash": "sha256:480875d9934f65f53fb43f428bafad98094b5718515e19aececa5f2d22a4fb52",
+    "evidence_id": "evidence.test",
+    "evidence_type": "test_result",
+    "locator": {
+      "kind": "artifact_id",
+      "value": "evidence.test"
+    },
+    "payload_summary": "production-host boundary exercised",
+    "schema_version": "1.0.0",
+    "source": {
+      "evidence_status": "verified",
+      "location": "fixture",
+      "source_id": "source.evidence.test",
+      "source_type": "user_intent"
+    },
+    "visibility": "build_result_input"
+  }
+]

@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A-Flow Evidence",
+  "description": "Bounded, traceable evidence visible to A-Flow. Evidence records observations; they do not grant execution authority.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "evidence_id",
+    "evidence_type",
+    "claim",
+    "source",
+    "collected_by",
+    "collected_at",
+    "content_hash",
+    "visibility",
+    "locator"
+  ],
+  "properties": {
+    "schema_version": {
+      "$ref": "common.schema.json#/$defs/schema_version"
+    },
+    "evidence_id": {
+      "$ref": "common.schema.json#/$defs/identifier"
+    },
+    "evidence_type": {
+      "type": "string",
+      "enum": [
+        "file_content",
+        "file_metadata",
+        "command_result",
+        "test_result",
+        "api_response",
+        "artifact",
+        "user_confirmation",
+        "schema_result",
+        "repository_snapshot",
+        "authority_document",
+        "semantic_review",
+        "human_observation"
+      ]
+    },
+    "claim": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source": {
+      "$ref": "common.schema.json#/$defs/source_reference"
+    },
+    "collected_by": {
+      "type": "string",
+      "enum": [
+        "codex",
+        "deterministic_local",
+        "human",
+        "edge",
+        "external_harness"
+      ]
+    },
+    "collected_at": {
+      "$ref": "common.schema.json#/$defs/timestamp"
+    },
+    "content_hash": {
+      "$ref": "common.schema.json#/$defs/sha256"
+    },
+    "visibility": {
+      "type": "string",
+      "enum": [
+        "analysis_input",
+        "closure_input",
+        "build_result_input"
+      ]
+    },
+    "locator": {
+      "type": "object",
+      "required": [
+        "kind",
+        "value"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "json_pointer",
+            "path",
+            "line_range",
+            "command_id",
+            "test_id",
+            "artifact_id",
+            "url",
+            "human_statement"
+          ]
+        },
+        "value": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "payload_summary": {
+      "type": "string"
+    },
+    "raw_artifact_ref": {
+      "$ref": "common.schema.json#/$defs/artifact_ref"
+    }
+  },
+  "additionalProperties": false,
+  "$id": "https://theoneshot.dev/schemas/aflow/v1/evidence.schema.json"
+}

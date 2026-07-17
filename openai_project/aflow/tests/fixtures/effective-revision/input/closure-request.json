@@ -1,0 +1,184 @@
+{
+  "added_evidence": [
+    {
+      "claim": "Production-host restart evidence is now supplied.",
+      "collected_at": "2026-01-01T00:00:00Z",
+      "collected_by": "deterministic_local",
+      "content_hash": "sha256:3ad40fa750a5218babb0872ff5ef4c9d4fb54201ecaae4b1372499f7e2612eb7",
+      "evidence_id": "evidence.closure",
+      "evidence_type": "artifact",
+      "locator": {
+        "kind": "artifact_id",
+        "value": "evidence.closure"
+      },
+      "payload_summary": "",
+      "schema_version": "1.0.0",
+      "source": {
+        "evidence_status": "verified",
+        "location": "fixture",
+        "source_id": "source.evidence.closure",
+        "source_type": "user_intent"
+      },
+      "visibility": "closure_input"
+    }
+  ],
+  "closure_id": "closure.effective",
+  "original_plan_reference": {
+    "artifact_id": "plan.fixture",
+    "content_hash": "sha256:1cfa0ac91fd9dd3ccc7bf6eba163c4e4607ac0b0e918209aeb4d4cf33b883646",
+    "schema_id": "https://theoneshot.dev/schemas/aflow/v1/plan.schema.json",
+    "version": "1.0.0"
+  },
+  "prior_decision_reference": {
+    "artifact_id": "analysis.fixture",
+    "content_hash": "sha256:27c5a2fc6917108bbb34993a418aa2df980ca748da15fbd0356352ade5ba1102",
+    "schema_id": "https://theoneshot.dev/schemas/aflow/v1/analysis-decision.schema.json",
+    "version": "1.0.0"
+  },
+  "revised_plan": {
+    "actions": [
+      {
+        "action_id": "action.write-output",
+        "activation": {
+          "activation_source": "authority.user",
+          "activation_type": "phase_entry",
+          "currently_authorized": true
+        },
+        "capability_id": "capability.codex-write",
+        "depends_on": [],
+        "expected_outputs": [
+          {
+            "artifact_path": "src/output.txt",
+            "description": "Durable production output.",
+            "output_id": "output.durable"
+          }
+        ],
+        "objective": "Create durable output.",
+        "owner": "codex",
+        "phase": "implementation",
+        "prerequisites": [
+          {
+            "condition": "Plan is accepted.",
+            "prerequisite_id": "prerequisite.accepted",
+            "status": "satisfied"
+          }
+        ],
+        "requirement_ids": [
+          "requirement.durable-output"
+        ],
+        "target_paths": [
+          "src/output.txt"
+        ]
+      }
+    ],
+    "assumptions": [],
+    "authority_bundle_reference": {
+      "artifact_id": "authority.fixture",
+      "content_hash": "sha256:a8355b6929ba8e59a37140bcd7abd8021e23b8bc6b722172845279ef23c8913f",
+      "schema_id": "https://theoneshot.dev/schemas/aflow/v1/authority-evidence.schema.json",
+      "version": "1.0.0"
+    },
+    "authority_risks": [
+      {
+        "description": "No unresolved authority risk.",
+        "risk_id": "risk.none",
+        "status": "none_identified"
+      }
+    ],
+    "created_by": "codex",
+    "dependencies": [
+      {
+        "dependency_id": "dependency.none",
+        "description": "No external dependency is required.",
+        "source": {
+          "evidence_status": "verified",
+          "location": "fixture",
+          "source_id": "source.user",
+          "source_type": "user_intent"
+        },
+        "status": "not_required"
+      }
+    ],
+    "excluded_paths": [
+      {
+        "authority_status": "prohibited",
+        "path": "private",
+        "reason": "Outside scope"
+      }
+    ],
+    "failure_handling": [
+      {
+        "action": "return_to_codex",
+        "condition": "Required proof is absent.",
+        "failure_id": "failure.proof",
+        "recovery_condition": "Matching proof is supplied."
+      }
+    ],
+    "interpretation": "Implement only the bounded target and prove the production-host observable outcome.",
+    "objective": "Produce and prove the locked durable output.",
+    "plan_id": "plan.fixture",
+    "repository_baseline_reference": {
+      "artifact_id": "baseline.fixture",
+      "content_hash": "sha256:1c32e01163427bd8c665f642c45b3988674ce8e430d30f08560eab4754a09278",
+      "schema_id": "https://theoneshot.dev/schemas/aflow/v1/baseline.schema.json",
+      "version": "1.0.0"
+    },
+    "requirements_coverage": [
+      {
+        "action_ids": [
+          "action.write-output"
+        ],
+        "requirement_id": "requirement.durable-output",
+        "validation_ids": [
+          "validation.production"
+        ]
+      }
+    ],
+    "schema_version": "1.0.0",
+    "stop_conditions": [
+      {
+        "condition": "Authority changes.",
+        "effect": "stop_execution",
+        "resume_condition": "Reanalysis succeeds.",
+        "stop_id": "stop.authority"
+      }
+    ],
+    "success_definition_reference": {
+      "artifact_id": "success.fixture",
+      "content_hash": "sha256:dffb7f233ddb37249741052a1f074078e31f8ad5750f8caeef4751afe5327487",
+      "schema_id": "https://theoneshot.dev/schemas/aflow/v1/success-definition.schema.json",
+      "version": "1.0.0"
+    },
+    "target_paths": [
+      {
+        "authority_status": "allowed",
+        "path": "src/output.txt",
+        "reason": "Approved output"
+      }
+    ],
+    "validations": [
+      {
+        "action_ids": [
+          "action.write-output"
+        ],
+        "evidence_expected": [
+          "artifact",
+          "test_result"
+        ],
+        "executor": "codex",
+        "fail_condition": "Output is absent or only substitute behavior was tested.",
+        "pass_condition": "Output remains visible and correct after restart.",
+        "procedure": "Inspect artifact and restart behavior at the production host boundary.",
+        "proof_id": "proof.production-observation",
+        "proof_type": "artifact",
+        "required_environment": "production-host",
+        "requirement_ids": [
+          "requirement.durable-output"
+        ],
+        "validation_id": "validation.production"
+      }
+    ],
+    "version": "1.0.1"
+  },
+  "schema_version": "1.0.0"
+}

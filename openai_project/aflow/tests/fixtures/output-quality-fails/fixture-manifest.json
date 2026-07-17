@@ -1,0 +1,31 @@
+{
+  "behavioral_principle": "Deterministic behavioral proof for fixture.output-quality-fails.",
+  "expected_files": [
+    "expected/analysis-predicates.json",
+    "expected/final-evaluation-predicates.json"
+  ],
+  "fixture_id": "fixture.output-quality-fails",
+  "input_files": [
+    "input/success-definition.json",
+    "input/plan.json",
+    "input/authority-evidence.json",
+    "input/repository-evidence.json",
+    "input/baseline.json",
+    "input/evidence.json",
+    "input/locked-plan.json",
+    "input/locked-baseline.json",
+    "input/post-build-baseline.json",
+    "input/build-result.json",
+    "input/build-evidence.json"
+  ],
+  "safety": {
+    "docker": false,
+    "git_mutation": false,
+    "network": false,
+    "subprocess": false,
+    "target_mutation": false
+  },
+  "schema_version": "1.0.0",
+  "scoring_category": "output_quality",
+  "stage": "final_evaluation"
+}

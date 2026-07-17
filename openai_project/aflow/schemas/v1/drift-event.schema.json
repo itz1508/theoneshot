@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A-Flow Drift Event",
+  "description": "Difference between a locked baseline and current repository state.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "drift_event_id",
+    "baseline_reference",
+    "current_baseline",
+    "changes",
+    "observed_at"
+  ],
+  "properties": {
+    "schema_version": {
+      "$ref": "common.schema.json#/$defs/schema_version"
+    },
+    "drift_event_id": {
+      "$ref": "common.schema.json#/$defs/identifier"
+    },
+    "baseline_reference": {
+      "$ref": "common.schema.json#/$defs/artifact_ref"
+    },
+    "current_baseline": {
+      "$ref": "baseline.schema.json"
+    },
+    "changes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "path",
+          "change_type",
+          "classification",
+          "before_hash",
+          "after_hash"
+        ],
+        "properties": {
+          "path": {
+            "$ref": "common.schema.json#/$defs/relative_path"
+          },
+          "change_type": {
+            "type": "string",
+            "enum": [
+              "added",
+              "modified",
+              "deleted",
+              "authority_changed",
+              "baseline_unverifiable"
+            ]
+          },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "relevant",
+              "protected",
+              "unrelated",
+              "unknown"
+            ]
+          },
+          "before_hash": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          },
+          "after_hash": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "observed_at": {
+      "$ref": "common.schema.json#/$defs/timestamp"
+    }
+  },
+  "additionalProperties": false,
+  "$id": "https://theoneshot.dev/schemas/aflow/v1/drift-event.schema.json"
+}

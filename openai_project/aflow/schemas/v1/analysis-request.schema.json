@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A-Flow Analysis Request",
+  "description": "Complete bounded input package for deterministic admission and semantic review.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "analysis_id",
+    "success_definition",
+    "plan",
+    "authority_evidence",
+    "repository_evidence",
+    "baseline",
+    "evidence"
+  ],
+  "properties": {
+    "schema_version": {
+      "$ref": "common.schema.json#/$defs/schema_version"
+    },
+    "analysis_id": {
+      "$ref": "common.schema.json#/$defs/identifier"
+    },
+    "success_definition": {
+      "$ref": "success-definition.schema.json"
+    },
+    "plan": {
+      "$ref": "plan.schema.json"
+    },
+    "authority_evidence": {
+      "$ref": "authority-evidence.schema.json"
+    },
+    "repository_evidence": {
+      "$ref": "repository-evidence.schema.json"
+    },
+    "baseline": {
+      "$ref": "baseline.schema.json"
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "$ref": "evidence.schema.json"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$id": "https://theoneshot.dev/schemas/aflow/v1/analysis-request.schema.json"
+}

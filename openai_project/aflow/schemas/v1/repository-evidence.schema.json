@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A-Flow Repository Evidence",
+  "description": "Bounded, read-only repository facts supplied to analysis.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "repository_evidence_id",
+    "repository_root",
+    "repository_kind",
+    "state",
+    "entries",
+    "content_hash",
+    "captured_at"
+  ],
+  "properties": {
+    "schema_version": {
+      "$ref": "common.schema.json#/$defs/schema_version"
+    },
+    "repository_evidence_id": {
+      "$ref": "common.schema.json#/$defs/identifier"
+    },
+    "repository_root": {
+      "$ref": "common.schema.json#/$defs/absolute_path"
+    },
+    "repository_kind": {
+      "type": "string",
+      "enum": [
+        "git",
+        "filesystem"
+      ]
+    },
+    "state": {
+      "type": "object",
+      "required": [
+        "git_state",
+        "dirty_state"
+      ],
+      "properties": {
+        "git_head": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        },
+        "git_state": {
+          "type": "string",
+          "enum": [
+            "committed",
+            "unborn",
+            "unavailable"
+          ]
+        },
+        "dirty_state": {
+          "type": "string",
+          "enum": [
+            "clean",
+            "dirty",
+            "untracked",
+            "mixed"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "path",
+          "entry_type",
+          "active_status",
+          "content_hash",
+          "evidence_status"
+        ],
+        "properties": {
+          "path": {
+            "$ref": "common.schema.json#/$defs/relative_path"
+          },
+          "entry_type": {
+            "type": "string",
+            "enum": [
+              "file",
+              "directory",
+              "symlink"
+            ]
+          },
+          "active_status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "dormant",
+              "test_only",
+              "reference_only",
+              "proposed",
+              "unknown"
+            ]
+          },
+          "content_hash": {
+            "$ref": "common.schema.json#/$defs/sha256"
+          },
+          "evidence_status": {
+            "$ref": "common.schema.json#/$defs/evidence_status"
+          },
+          "symbols": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "content_hash": {
+      "$ref": "common.schema.json#/$defs/sha256"
+    },
+    "captured_at": {
+      "$ref": "common.schema.json#/$defs/timestamp"
+    }
+  },
+  "additionalProperties": false,
+  "$id": "https://theoneshot.dev/schemas/aflow/v1/repository-evidence.schema.json"
+}

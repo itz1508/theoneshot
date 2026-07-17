@@ -1,0 +1,372 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A-Flow Success Definition",
+  "description": "User-confirmed, versioned definition of the intended output and independent proof obligations.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "success_definition_id",
+    "version",
+    "success_statement",
+    "actors",
+    "requirements",
+    "prohibited_outcomes",
+    "non_goals",
+    "proof_obligations",
+    "confirmation"
+  ],
+  "properties": {
+    "schema_version": {
+      "$ref": "common.schema.json#/$defs/schema_version"
+    },
+    "success_definition_id": {
+      "$ref": "common.schema.json#/$defs/identifier"
+    },
+    "version": {
+      "$ref": "common.schema.json#/$defs/semver"
+    },
+    "success_statement": {
+      "type": "string",
+      "minLength": 1
+    },
+    "actors": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "actor_id",
+          "role",
+          "expected_capability"
+        ],
+        "properties": {
+          "actor_id": {
+            "$ref": "common.schema.json#/$defs/identifier"
+          },
+          "role": {
+            "type": "string",
+            "minLength": 1
+          },
+          "expected_capability": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "requirements": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "requirement_id",
+          "statement",
+          "observable_outcome",
+          "quality_dimensions",
+          "priority",
+          "source_references"
+        ],
+        "properties": {
+          "requirement_id": {
+            "$ref": "common.schema.json#/$defs/identifier"
+          },
+          "statement": {
+            "type": "string",
+            "minLength": 1
+          },
+          "observable_outcome": {
+            "type": "string",
+            "minLength": 1
+          },
+          "quality_dimensions": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "$ref": "common.schema.json#/$defs/quality_dimension"
+            }
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "blocking",
+              "major",
+              "minor"
+            ]
+          },
+          "source_references": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "common.schema.json#/$defs/source_reference"
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "prohibited_outcomes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "outcome_id",
+          "statement",
+          "blocking"
+        ],
+        "properties": {
+          "outcome_id": {
+            "$ref": "common.schema.json#/$defs/identifier"
+          },
+          "statement": {
+            "type": "string",
+            "minLength": 1
+          },
+          "blocking": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "non_goals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "non_goal_id",
+          "statement"
+        ],
+        "properties": {
+          "non_goal_id": {
+            "$ref": "common.schema.json#/$defs/identifier"
+          },
+          "statement": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "proof_obligations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "proof_id",
+          "requirement_ids",
+          "proof_type",
+          "executor",
+          "procedure",
+          "pass_condition",
+          "fail_condition"
+        ],
+        "properties": {
+          "proof_id": {
+            "$ref": "common.schema.json#/$defs/identifier"
+          },
+          "requirement_ids": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "$ref": "common.schema.json#/$defs/identifier"
+            }
+          },
+          "proof_type": {
+            "$ref": "common.schema.json#/$defs/proof_type"
+          },
+          "executor": {
+            "$ref": "common.schema.json#/$defs/executor"
+          },
+          "procedure": {
+            "type": "string",
+            "minLength": 1
+          },
+          "pass_condition": {
+            "type": "string",
+            "minLength": 1
+          },
+          "fail_condition": {
+            "type": "string",
+            "minLength": 1
+          },
+          "required_environment": {
+            "type": "string",
+            "minLength": 1
+          },
+          "required_evidence_types": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "enum": [
+                "file_content",
+                "file_metadata",
+                "command_result",
+                "test_result",
+                "api_response",
+                "artifact",
+                "user_confirmation",
+                "schema_result",
+                "repository_snapshot",
+                "authority_document",
+                "semantic_review",
+                "human_observation"
+              ]
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "confirmation": {
+      "type": "object",
+      "required": [
+        "confirmed_by",
+        "confirmed_at",
+        "content_hash"
+      ],
+      "properties": {
+        "confirmed_by": {
+          "type": "string",
+          "const": "user"
+        },
+        "confirmed_at": {
+          "$ref": "common.schema.json#/$defs/timestamp"
+        },
+        "content_hash": {
+          "$ref": "common.schema.json#/$defs/sha256"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "requirement": {
+      "type": "object",
+      "required": [
+        "requirement_id",
+        "statement",
+        "observable_outcome",
+        "quality_dimensions",
+        "priority",
+        "source_references"
+      ],
+      "properties": {
+        "requirement_id": {
+          "$ref": "common.schema.json#/$defs/identifier"
+        },
+        "statement": {
+          "type": "string",
+          "minLength": 1
+        },
+        "observable_outcome": {
+          "type": "string",
+          "minLength": 1
+        },
+        "quality_dimensions": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "common.schema.json#/$defs/quality_dimension"
+          }
+        },
+        "priority": {
+          "type": "string",
+          "enum": [
+            "blocking",
+            "major",
+            "minor"
+          ]
+        },
+        "source_references": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "common.schema.json#/$defs/source_reference"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "proof_obligation": {
+      "type": "object",
+      "required": [
+        "proof_id",
+        "requirement_ids",
+        "proof_type",
+        "executor",
+        "procedure",
+        "pass_condition",
+        "fail_condition"
+      ],
+      "properties": {
+        "proof_id": {
+          "$ref": "common.schema.json#/$defs/identifier"
+        },
+        "requirement_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "common.schema.json#/$defs/identifier"
+          }
+        },
+        "proof_type": {
+          "$ref": "common.schema.json#/$defs/proof_type"
+        },
+        "executor": {
+          "$ref": "common.schema.json#/$defs/executor"
+        },
+        "procedure": {
+          "type": "string",
+          "minLength": 1
+        },
+        "pass_condition": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fail_condition": {
+          "type": "string",
+          "minLength": 1
+        },
+        "required_environment": {
+          "type": "string",
+          "minLength": 1
+        },
+        "required_evidence_types": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": [
+              "file_content",
+              "file_metadata",
+              "command_result",
+              "test_result",
+              "api_response",
+              "artifact",
+              "user_confirmation",
+              "schema_result",
+              "repository_snapshot",
+              "authority_document",
+              "semantic_review",
+              "human_observation"
+            ]
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$id": "https://theoneshot.dev/schemas/aflow/v1/success-definition.schema.json"
+}

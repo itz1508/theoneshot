@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A-Flow Closure Request",
+  "description": "Revised plan and added evidence submitted to close a prior analysis decision.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "closure_id",
+    "prior_decision_reference",
+    "original_plan_reference",
+    "revised_plan",
+    "added_evidence"
+  ],
+  "properties": {
+    "schema_version": {
+      "$ref": "common.schema.json#/$defs/schema_version"
+    },
+    "closure_id": {
+      "$ref": "common.schema.json#/$defs/identifier"
+    },
+    "prior_decision_reference": {
+      "$ref": "common.schema.json#/$defs/artifact_ref"
+    },
+    "original_plan_reference": {
+      "$ref": "common.schema.json#/$defs/artifact_ref"
+    },
+    "revised_plan": {
+      "$ref": "plan.schema.json"
+    },
+    "added_evidence": {
+      "type": "array",
+      "items": {
+        "$ref": "evidence.schema.json"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$id": "https://theoneshot.dev/schemas/aflow/v1/closure-request.schema.json"
+}

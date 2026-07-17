@@ -1,0 +1,55 @@
+{
+  "analysis_id": "analysis.fixture",
+  "blocking": true,
+  "content_hash": "sha256:27c5a2fc6917108bbb34993a418aa2df980ca748da15fbd0356352ade5ba1102",
+  "decided_at": "2026-01-01T00:00:00Z",
+  "decision": "missing_evidence",
+  "execution_ready": false,
+  "findings": [
+    {
+      "blocking": true,
+      "evidence_references": [
+        {
+          "content_hash": "sha256:1352df765aa1ea345845595b1bc14e8034bd58d3decb69580b3beaec88060507",
+          "evidence_id": "evidence.analysis"
+        }
+      ],
+      "finding_id": "semantic.environment.validation.production",
+      "gap_type": "output_environment_gap",
+      "origin": "semantic",
+      "plan_locations": [
+        "/plan/validations/0/required_environment"
+      ],
+      "reasoning": "The visible validation boundary differs materially from the proof obligation's required environment.",
+      "required_closure": {
+        "acceptance_predicates": [
+          "Validation evidence is collected in the required environment: production-host."
+        ],
+        "closure_code": "exercise_required_environment",
+        "description": "Resolve the bounded output_environment_gap at the challenged plan location."
+      },
+      "requirement_references": [
+        "requirement.durable-output"
+      ],
+      "schema_version": "1.0.0",
+      "severity": "blocking",
+      "specific_claim": "Validation validation.production uses same-process-test while proof proof.production-observation requires production-host.",
+      "status": "open",
+      "why_it_matters": "The accepted plan could not reliably prove the locked success definition."
+    }
+  ],
+  "plan_reference": {
+    "artifact_id": "plan.fixture",
+    "content_hash": "sha256:1cfa0ac91fd9dd3ccc7bf6eba163c4e4607ac0b0e918209aeb4d4cf33b883646",
+    "schema_id": "https://theoneshot.dev/schemas/aflow/v1/plan.schema.json",
+    "version": "1.0.0"
+  },
+  "rejected_findings": [],
+  "schema_version": "1.0.0",
+  "success_definition_reference": {
+    "artifact_id": "success.fixture",
+    "content_hash": "sha256:dffb7f233ddb37249741052a1f074078e31f8ad5750f8caeef4751afe5327487",
+    "schema_id": "https://theoneshot.dev/schemas/aflow/v1/success-definition.schema.json",
+    "version": "1.0.0"
+  }
+}

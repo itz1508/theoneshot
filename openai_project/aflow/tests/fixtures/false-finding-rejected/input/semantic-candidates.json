@@ -1,0 +1,33 @@
+[
+  {
+    "blocking": true,
+    "evidence_references": [
+      {
+        "content_hash": "sha256:0e8a8f050468e06383f98773c8c65868de17254513b0ce05b6091075ac46ff4e",
+        "evidence_id": "evidence.analysis"
+      }
+    ],
+    "finding_id": "finding.false-retry-count",
+    "gap_type": "validation_evidence_gap",
+    "origin": "semantic",
+    "plan_locations": [
+      "/validations/0"
+    ],
+    "reasoning": "Only one validation exists.",
+    "required_closure": {
+      "acceptance_predicates": [
+        "More than one validation exists."
+      ],
+      "closure_code": "add_sufficient_validation",
+      "description": "Add more tests."
+    },
+    "requirement_references": [
+      "requirement.durable-output"
+    ],
+    "schema_version": "1.0.0",
+    "severity": "blocking",
+    "specific_claim": "Validation might be incomplete",
+    "status": "open",
+    "why_it_matters": "More tests might be desirable."
+  }
+]

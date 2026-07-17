@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A-Flow Requirement Evidence Trace",
+  "description": "Requirement-by-requirement mapping from locked intent to observed output evidence and quality judgment.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "trace_id",
+    "locked_plan_reference",
+    "build_result_reference",
+    "entries",
+    "content_hash"
+  ],
+  "properties": {
+    "schema_version": {
+      "$ref": "common.schema.json#/$defs/schema_version"
+    },
+    "trace_id": {
+      "$ref": "common.schema.json#/$defs/identifier"
+    },
+    "locked_plan_reference": {
+      "$ref": "common.schema.json#/$defs/artifact_ref"
+    },
+    "build_result_reference": {
+      "$ref": "common.schema.json#/$defs/artifact_ref"
+    },
+    "entries": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "requirement_id",
+          "expected_observable_outcome",
+          "evidence_references",
+          "quality_results",
+          "status",
+          "rationale"
+        ],
+        "properties": {
+          "requirement_id": {
+            "$ref": "common.schema.json#/$defs/identifier"
+          },
+          "expected_observable_outcome": {
+            "type": "string",
+            "minLength": 1
+          },
+          "evidence_references": {
+            "type": "array",
+            "items": {
+              "$ref": "common.schema.json#/$defs/evidence_ref"
+            }
+          },
+          "quality_results": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": [
+                "dimension",
+                "status",
+                "reason",
+                "evidence_references"
+              ],
+              "properties": {
+                "dimension": {
+                  "$ref": "common.schema.json#/$defs/quality_dimension"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "pass",
+                    "partial",
+                    "fail",
+                    "unproven",
+                    "not_applicable"
+                  ]
+                },
+                "reason": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "evidence_references": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "common.schema.json#/$defs/evidence_ref"
+                  }
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "status": {
+            "$ref": "common.schema.json#/$defs/requirement_status"
+          },
+          "rationale": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "content_hash": {
+      "$ref": "common.schema.json#/$defs/sha256"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "quality_result": {
+      "type": "object",
+      "required": [
+        "dimension",
+        "status",
+        "reason",
+        "evidence_references"
+      ],
+      "properties": {
+        "dimension": {
+          "$ref": "common.schema.json#/$defs/quality_dimension"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "pass",
+            "partial",
+            "fail",
+            "unproven",
+            "not_applicable"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence_references": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/evidence_ref"
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$id": "https://theoneshot.dev/schemas/aflow/v1/requirement-evidence-trace.schema.json"
+}

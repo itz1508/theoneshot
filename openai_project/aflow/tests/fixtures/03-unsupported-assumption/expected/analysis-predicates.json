@@ -1,0 +1,19 @@
+{
+  "blocking": true,
+  "decision": "missing_evidence",
+  "execution_ready": false,
+  "finding_count": {
+    "max": 2,
+    "min": 1
+  },
+  "fixture_id": "fixture.03-unsupported-assumption",
+  "forbid_unexpected_findings": false,
+  "minimum_rejected_findings": 0,
+  "required_gap_types": [
+    "output_environment_gap"
+  ],
+  "required_plan_locations": [
+    "/plan/validations/0/required_environment"
+  ],
+  "schema_version": "1.0.0"
+}

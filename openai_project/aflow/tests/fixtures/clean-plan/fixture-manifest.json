@@ -1,0 +1,25 @@
+{
+  "behavioral_principle": "Deterministic behavioral proof for fixture.clean-plan.",
+  "expected_files": [
+    "expected/analysis-predicates.json"
+  ],
+  "fixture_id": "fixture.clean-plan",
+  "input_files": [
+    "input/success-definition.json",
+    "input/plan.json",
+    "input/authority-evidence.json",
+    "input/repository-evidence.json",
+    "input/baseline.json",
+    "input/evidence.json"
+  ],
+  "safety": {
+    "docker": false,
+    "git_mutation": false,
+    "network": false,
+    "subprocess": false,
+    "target_mutation": false
+  },
+  "schema_version": "1.0.0",
+  "scoring_category": "true_negative",
+  "stage": "plan_analysis"
+}

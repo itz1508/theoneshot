@@ -1,0 +1,23 @@
+[
+  {
+    "claim": "Tests pass in a mocked runtime; the production host boundary differs and was not exercised.",
+    "collected_at": "2026-01-01T00:00:00Z",
+    "collected_by": "deterministic_local",
+    "content_hash": "sha256:59945fecec490222170f4dbc345730089963c333f1d1d8527d8d0594d3d39b40",
+    "evidence_id": "evidence.analysis",
+    "evidence_type": "authority_document",
+    "locator": {
+      "kind": "artifact_id",
+      "value": "evidence.analysis"
+    },
+    "payload_summary": "",
+    "schema_version": "1.0.0",
+    "source": {
+      "evidence_status": "verified",
+      "location": "fixture",
+      "source_id": "source.evidence.analysis",
+      "source_type": "user_intent"
+    },
+    "visibility": "analysis_input"
+  }
+]

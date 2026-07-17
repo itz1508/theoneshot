@@ -1,0 +1,23 @@
+{
+  "captured_at": "2026-01-01T00:00:00Z",
+  "content_hash": "sha256:cca10f7412ea7225d7323f7bbc28e441dcfce6b90edc6e829d88da4b857a81ff",
+  "entries": [
+    {
+      "active_status": "active",
+      "content_hash": "sha256:4f1cf8d86a66caf554db9ac662dfe98a531cc614c2c4309a5e04c5f74912d3fd",
+      "entry_type": "file",
+      "evidence_status": "verified",
+      "path": "src/output.txt",
+      "summary": "Simulated fixture output path."
+    }
+  ],
+  "repository_evidence_id": "repository.fixture",
+  "repository_kind": "filesystem",
+  "repository_root": "C:\\fixture-repository",
+  "schema_version": "1.0.0",
+  "state": {
+    "dirty_state": "untracked",
+    "git_head": null,
+    "git_state": "unborn"
+  }
+}

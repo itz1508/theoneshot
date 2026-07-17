@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A-Flow Expected Analysis Predicates",
+  "description": "Evaluator-only predicates. This artifact must never be visible to the analyzer.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "fixture_id",
+    "decision",
+    "blocking",
+    "execution_ready",
+    "finding_count",
+    "required_gap_types",
+    "forbid_unexpected_findings"
+  ],
+  "properties": {
+    "schema_version": {
+      "$ref": "common.schema.json#/$defs/schema_version"
+    },
+    "fixture_id": {
+      "$ref": "common.schema.json#/$defs/identifier"
+    },
+    "decision": {
+      "type": "string",
+      "enum": [
+        "no_material_gap",
+        "material_gap_found",
+        "missing_evidence",
+        "contradicted",
+        "drift_revalidation_required"
+      ]
+    },
+    "blocking": {
+      "type": "boolean"
+    },
+    "execution_ready": {
+      "type": "boolean"
+    },
+    "finding_count": {
+      "type": "object",
+      "required": [
+        "min",
+        "max"
+      ],
+      "properties": {
+        "min": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "required_gap_types": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string"
+      }
+    },
+    "required_requirement_references": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "common.schema.json#/$defs/identifier"
+      }
+    },
+    "required_plan_locations": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "common.schema.json#/$defs/json_pointer"
+      }
+    },
+    "required_closure_codes": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string"
+      }
+    },
+    "minimum_rejected_findings": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "forbid_unexpected_findings": {
+      "type": "boolean"
+    }
+  },
+  "additionalProperties": false,
+  "$id": "https://theoneshot.dev/schemas/aflow/v1/expected-analysis-predicates.schema.json"
+}

@@ -1,0 +1,28 @@
+{
+  "behavioral_principle": "Deterministic behavioral proof for fixture.relevant-drift.",
+  "expected_files": [
+    "expected/analysis-predicates.json",
+    "expected/stage-predicates.json"
+  ],
+  "fixture_id": "fixture.relevant-drift",
+  "input_files": [
+    "input/success-definition.json",
+    "input/plan.json",
+    "input/authority-evidence.json",
+    "input/repository-evidence.json",
+    "input/baseline.json",
+    "input/evidence.json",
+    "input/locked-baseline.json",
+    "input/current-baseline.json"
+  ],
+  "safety": {
+    "docker": false,
+    "git_mutation": false,
+    "network": false,
+    "subprocess": false,
+    "target_mutation": false
+  },
+  "schema_version": "1.0.0",
+  "scoring_category": "drift",
+  "stage": "drift"
+}

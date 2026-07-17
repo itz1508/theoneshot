@@ -1,0 +1,2 @@
+"""Deterministic acceptance-fixture construction."""
+

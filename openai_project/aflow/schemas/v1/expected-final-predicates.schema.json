@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A-Flow Expected Final Predicates",
+  "description": "Evaluator-only predicates for output-quality fixtures.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "fixture_id",
+    "decision",
+    "blocking",
+    "required_requirement_statuses",
+    "required_quality_statuses",
+    "forbid_prohibited_outcomes"
+  ],
+  "properties": {
+    "schema_version": {
+      "$ref": "common.schema.json#/$defs/schema_version"
+    },
+    "fixture_id": {
+      "$ref": "common.schema.json#/$defs/identifier"
+    },
+    "decision": {
+      "type": "string",
+      "enum": [
+        "proven",
+        "partially_proven",
+        "unproven",
+        "contradicted",
+        "invalidated_by_drift"
+      ]
+    },
+    "blocking": {
+      "type": "boolean"
+    },
+    "required_requirement_statuses": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "common.schema.json#/$defs/requirement_status"
+      }
+    },
+    "required_quality_statuses": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "enum": [
+          "pass",
+          "partial",
+          "fail",
+          "unproven",
+          "not_applicable"
+        ]
+      }
+    },
+    "minimum_blocking_failures": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "forbid_prohibited_outcomes": {
+      "type": "boolean"
+    }
+  },
+  "additionalProperties": false,
+  "$id": "https://theoneshot.dev/schemas/aflow/v1/expected-final-predicates.schema.json"
+}

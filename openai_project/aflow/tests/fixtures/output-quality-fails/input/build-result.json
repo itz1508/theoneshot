@@ -1,0 +1,65 @@
+{
+  "build_result_id": "build.fixture",
+  "content_hash": "sha256:93aa3fb9d035f2fee3987103b511ea6c49cb3ba02e983c81f49ac772645ea25f",
+  "finished_at": "2026-01-01T00:01:00Z",
+  "locked_plan_reference": {
+    "artifact_id": "lock.plan.fixture.1.0.0",
+    "content_hash": "sha256:87b06d6ca1f84ef85a70056be81f9083597e7202e5555f0360cbb3b6d3a07ad0",
+    "schema_id": "https://theoneshot.dev/schemas/aflow/v1/locked-plan.schema.json",
+    "version": "1.0.0"
+  },
+  "observed_environment": {
+    "description": "Production host",
+    "environment_id": "environment.production",
+    "matches_required_environment": true
+  },
+  "outputs": [
+    {
+      "description": "Observed durable output.",
+      "evidence_references": [
+        {
+          "content_hash": "sha256:504697275e10cf810afbb177bdb55a6450932d133722229c2a85b935cb9b1d9c",
+          "evidence_id": "evidence.artifact"
+        }
+      ],
+      "output_id": "output.durable",
+      "requirement_ids": [
+        "requirement.durable-output"
+      ]
+    }
+  ],
+  "post_build_baseline_reference": {
+    "artifact_id": "baseline.fixture",
+    "content_hash": "sha256:1c32e01163427bd8c665f642c45b3988674ce8e430d30f08560eab4754a09278",
+    "schema_id": "https://theoneshot.dev/schemas/aflow/v1/baseline.schema.json",
+    "version": "1.0.0"
+  },
+  "produced_by": "codex",
+  "prohibited_outcome_checks": [
+    {
+      "evidence_references": [
+        {
+          "content_hash": "sha256:504697275e10cf810afbb177bdb55a6450932d133722229c2a85b935cb9b1d9c",
+          "evidence_id": "evidence.artifact"
+        }
+      ],
+      "outcome_id": "outcome.data-loss",
+      "present": false
+    }
+  ],
+  "schema_version": "1.0.0",
+  "started_at": "2026-01-01T00:00:00Z",
+  "status": "completed",
+  "validation_results": [
+    {
+      "evidence_references": [
+        {
+          "content_hash": "sha256:480875d9934f65f53fb43f428bafad98094b5718515e19aececa5f2d22a4fb52",
+          "evidence_id": "evidence.test"
+        }
+      ],
+      "status": "passed",
+      "validation_id": "validation.production"
+    }
+  ]
+}

@@ -1,0 +1,183 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A-Flow Build Result",
+  "description": "Evidence package returned by Codex or an external executor after implementation. A-Flow consumes but does not execute it.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "build_result_id",
+    "locked_plan_reference",
+    "produced_by",
+    "started_at",
+    "finished_at",
+    "status",
+    "observed_environment",
+    "outputs",
+    "validation_results",
+    "prohibited_outcome_checks",
+    "post_build_baseline_reference",
+    "content_hash"
+  ],
+  "properties": {
+    "schema_version": {
+      "$ref": "common.schema.json#/$defs/schema_version"
+    },
+    "build_result_id": {
+      "$ref": "common.schema.json#/$defs/identifier"
+    },
+    "locked_plan_reference": {
+      "$ref": "common.schema.json#/$defs/artifact_ref"
+    },
+    "produced_by": {
+      "type": "string",
+      "enum": [
+        "codex",
+        "edge",
+        "human",
+        "external_harness"
+      ]
+    },
+    "started_at": {
+      "$ref": "common.schema.json#/$defs/timestamp"
+    },
+    "finished_at": {
+      "$ref": "common.schema.json#/$defs/timestamp"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "completed",
+        "failed",
+        "partial"
+      ]
+    },
+    "observed_environment": {
+      "type": "object",
+      "required": [
+        "environment_id",
+        "description"
+      ],
+      "properties": {
+        "environment_id": {
+          "$ref": "common.schema.json#/$defs/identifier"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "matches_required_environment": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "outputs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "output_id",
+          "requirement_ids",
+          "description",
+          "evidence_references"
+        ],
+        "properties": {
+          "output_id": {
+            "$ref": "common.schema.json#/$defs/identifier"
+          },
+          "requirement_ids": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "common.schema.json#/$defs/identifier"
+            }
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1
+          },
+          "artifact_references": {
+            "type": "array",
+            "items": {
+              "$ref": "common.schema.json#/$defs/artifact_ref"
+            }
+          },
+          "evidence_references": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "common.schema.json#/$defs/evidence_ref"
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "validation_results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "validation_id",
+          "status",
+          "evidence_references"
+        ],
+        "properties": {
+          "validation_id": {
+            "$ref": "common.schema.json#/$defs/identifier"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "passed",
+              "failed",
+              "not_run",
+              "inconclusive"
+            ]
+          },
+          "evidence_references": {
+            "type": "array",
+            "items": {
+              "$ref": "common.schema.json#/$defs/evidence_ref"
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "prohibited_outcome_checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "outcome_id",
+          "present",
+          "evidence_references"
+        ],
+        "properties": {
+          "outcome_id": {
+            "$ref": "common.schema.json#/$defs/identifier"
+          },
+          "present": {
+            "type": "boolean"
+          },
+          "evidence_references": {
+            "type": "array",
+            "items": {
+              "$ref": "common.schema.json#/$defs/evidence_ref"
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "post_build_baseline_reference": {
+      "$ref": "common.schema.json#/$defs/artifact_ref"
+    },
+    "content_hash": {
+      "$ref": "common.schema.json#/$defs/sha256"
+    }
+  },
+  "additionalProperties": false,
+  "$id": "https://theoneshot.dev/schemas/aflow/v1/build-result.schema.json"
+}

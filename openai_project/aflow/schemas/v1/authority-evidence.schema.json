@@ -1,0 +1,153 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A-Flow Authority Evidence",
+  "description": "Applicable long-lived authority sources and capability activation rules visible to the analysis.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "authority_bundle_id",
+    "repository_root",
+    "sources",
+    "capabilities",
+    "content_hash"
+  ],
+  "properties": {
+    "schema_version": {
+      "$ref": "common.schema.json#/$defs/schema_version"
+    },
+    "authority_bundle_id": {
+      "$ref": "common.schema.json#/$defs/identifier"
+    },
+    "repository_root": {
+      "$ref": "common.schema.json#/$defs/absolute_path"
+    },
+    "sources": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "authority_id",
+          "authority_type",
+          "path",
+          "scope",
+          "precedence",
+          "content_hash",
+          "evidence_status"
+        ],
+        "properties": {
+          "authority_id": {
+            "$ref": "common.schema.json#/$defs/identifier"
+          },
+          "authority_type": {
+            "type": "string",
+            "enum": [
+              "agents_md",
+              "skill",
+              "agent_definition",
+              "user_instruction",
+              "product_specification"
+            ]
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "scope": {
+            "type": "string",
+            "minLength": 1
+          },
+          "precedence": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "content_hash": {
+            "$ref": "common.schema.json#/$defs/sha256"
+          },
+          "evidence_status": {
+            "$ref": "common.schema.json#/$defs/evidence_status"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "capability_id",
+          "description",
+          "owner",
+          "available",
+          "activation"
+        ],
+        "properties": {
+          "capability_id": {
+            "$ref": "common.schema.json#/$defs/identifier"
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1
+          },
+          "owner": {
+            "type": "string",
+            "enum": [
+              "codex",
+              "aflow",
+              "audisor",
+              "edge",
+              "human",
+              "unknown"
+            ]
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "activation": {
+            "type": "object",
+            "required": [
+              "activation_type",
+              "currently_authorized"
+            ],
+            "properties": {
+              "activation_type": {
+                "type": "string",
+                "enum": [
+                  "automatic",
+                  "phase_entry",
+                  "explicit_user_authorization",
+                  "external_event",
+                  "not_required"
+                ]
+              },
+              "required_phase": {
+                "$ref": "common.schema.json#/$defs/phase"
+              },
+              "currently_authorized": {
+                "type": "boolean"
+              },
+              "source_authority_id": {
+                "$ref": "common.schema.json#/$defs/identifier"
+              },
+              "prerequisites": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "content_hash": {
+      "$ref": "common.schema.json#/$defs/sha256"
+    }
+  },
+  "additionalProperties": false,
+  "$id": "https://theoneshot.dev/schemas/aflow/v1/authority-evidence.schema.json"
+}

@@ -1,0 +1,23 @@
+[
+  {
+    "claim": "Only same-process behavior is visible.",
+    "collected_at": "2026-01-01T00:00:00Z",
+    "collected_by": "deterministic_local",
+    "content_hash": "sha256:1352df765aa1ea345845595b1bc14e8034bd58d3decb69580b3beaec88060507",
+    "evidence_id": "evidence.analysis",
+    "evidence_type": "authority_document",
+    "locator": {
+      "kind": "artifact_id",
+      "value": "evidence.analysis"
+    },
+    "payload_summary": "",
+    "schema_version": "1.0.0",
+    "source": {
+      "evidence_status": "verified",
+      "location": "fixture",
+      "source_id": "source.evidence.analysis",
+      "source_type": "user_intent"
+    },
+    "visibility": "analysis_input"
+  }
+]

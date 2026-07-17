@@ -1,0 +1,146 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A-Flow Repository Baseline",
+  "description": "Git-aware or filesystem-aware baseline used for drift decisions.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "baseline_id",
+    "repository_root",
+    "repository_kind",
+    "git_state",
+    "dirty_state",
+    "scope",
+    "entries",
+    "authority_hashes",
+    "captured_at",
+    "content_hash"
+  ],
+  "properties": {
+    "schema_version": {
+      "$ref": "common.schema.json#/$defs/schema_version"
+    },
+    "baseline_id": {
+      "$ref": "common.schema.json#/$defs/identifier"
+    },
+    "repository_root": {
+      "$ref": "common.schema.json#/$defs/absolute_path"
+    },
+    "repository_kind": {
+      "type": "string",
+      "enum": [
+        "git",
+        "filesystem"
+      ]
+    },
+    "git_head": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "git_state": {
+      "type": "string",
+      "enum": [
+        "committed",
+        "unborn",
+        "unavailable"
+      ]
+    },
+    "dirty_state": {
+      "type": "string",
+      "enum": [
+        "clean",
+        "dirty",
+        "untracked",
+        "mixed"
+      ]
+    },
+    "scope": {
+      "type": "object",
+      "required": [
+        "mode",
+        "relevant_paths",
+        "protected_paths"
+      ],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "global",
+            "scoped"
+          ]
+        },
+        "relevant_paths": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/relative_path"
+          }
+        },
+        "protected_paths": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/relative_path"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "path",
+          "content_hash",
+          "classification"
+        ],
+        "properties": {
+          "path": {
+            "$ref": "common.schema.json#/$defs/relative_path"
+          },
+          "content_hash": {
+            "$ref": "common.schema.json#/$defs/sha256"
+          },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "relevant",
+              "protected",
+              "unrelated",
+              "unknown"
+            ]
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "authority_hashes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "authority_id",
+          "content_hash"
+        ],
+        "properties": {
+          "authority_id": {
+            "$ref": "common.schema.json#/$defs/identifier"
+          },
+          "content_hash": {
+            "$ref": "common.schema.json#/$defs/sha256"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "captured_at": {
+      "$ref": "common.schema.json#/$defs/timestamp"
+    },
+    "content_hash": {
+      "$ref": "common.schema.json#/$defs/sha256"
+    }
+  },
+  "additionalProperties": false,
+  "$id": "https://theoneshot.dev/schemas/aflow/v1/baseline.schema.json"
+}

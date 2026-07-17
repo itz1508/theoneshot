@@ -1,0 +1,74 @@
+{
+  "actors": [
+    {
+      "actor_id": "actor.codex",
+      "expected_capability": "Implement the approved plan.",
+      "role": "builder"
+    }
+  ],
+  "confirmation": {
+    "confirmed_at": "2026-01-01T00:00:00Z",
+    "confirmed_by": "user",
+    "content_hash": "sha256:dffb7f233ddb37249741052a1f074078e31f8ad5750f8caeef4751afe5327487"
+  },
+  "non_goals": [
+    {
+      "non_goal_id": "nongoal.container",
+      "statement": "Container execution is outside A-Flow."
+    }
+  ],
+  "prohibited_outcomes": [
+    {
+      "blocking": true,
+      "outcome_id": "outcome.data-loss",
+      "statement": "Existing user data is deleted."
+    }
+  ],
+  "proof_obligations": [
+    {
+      "executor": "codex",
+      "fail_condition": "The artifact is absent, substituted, contradicted, or quality evidence is incomplete.",
+      "pass_condition": "Artifact and restart evidence prove every declared quality dimension.",
+      "procedure": "Observe the produced artifact and restart behavior at the production host boundary.",
+      "proof_id": "proof.production-observation",
+      "proof_type": "artifact",
+      "required_environment": "production-host",
+      "required_evidence_types": [
+        "artifact",
+        "test_result"
+      ],
+      "requirement_ids": [
+        "requirement.durable-output"
+      ]
+    }
+  ],
+  "requirements": [
+    {
+      "observable_outcome": "The output survives restart and behaves correctly at the production host boundary.",
+      "priority": "blocking",
+      "quality_dimensions": [
+        "correctness",
+        "completeness",
+        "usability",
+        "consistency",
+        "reliability",
+        "evidence_quality",
+        "constraint_compliance"
+      ],
+      "requirement_id": "requirement.durable-output",
+      "source_references": [
+        {
+          "evidence_status": "verified",
+          "location": "fixture",
+          "source_id": "source.user",
+          "source_type": "user_intent"
+        }
+      ],
+      "statement": "Produce durable output with the required observable behavior."
+    }
+  ],
+  "schema_version": "1.0.0",
+  "success_definition_id": "success.fixture",
+  "success_statement": "The requested durable output exists and is independently proven in its required environment.",
+  "version": "1.0.0"
+}

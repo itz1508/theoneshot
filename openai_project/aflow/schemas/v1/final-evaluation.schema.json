@@ -1,0 +1,227 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A-Flow Final Evaluation",
+  "description": "Output-quality decision against the locked success definition.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "evaluation_id",
+    "locked_plan_reference",
+    "build_result_reference",
+    "trace_reference",
+    "decision",
+    "blocking",
+    "quality_summary",
+    "blocking_failures",
+    "prohibited_outcomes_present",
+    "decided_at",
+    "content_hash"
+  ],
+  "properties": {
+    "schema_version": {
+      "$ref": "common.schema.json#/$defs/schema_version"
+    },
+    "evaluation_id": {
+      "$ref": "common.schema.json#/$defs/identifier"
+    },
+    "locked_plan_reference": {
+      "$ref": "common.schema.json#/$defs/artifact_ref"
+    },
+    "build_result_reference": {
+      "$ref": "common.schema.json#/$defs/artifact_ref"
+    },
+    "trace_reference": {
+      "$ref": "common.schema.json#/$defs/artifact_ref"
+    },
+    "decision": {
+      "type": "string",
+      "enum": [
+        "proven",
+        "partially_proven",
+        "unproven",
+        "contradicted",
+        "invalidated_by_drift"
+      ]
+    },
+    "blocking": {
+      "type": "boolean"
+    },
+    "quality_summary": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "dimension",
+          "status",
+          "reason",
+          "evidence_references"
+        ],
+        "properties": {
+          "dimension": {
+            "$ref": "common.schema.json#/$defs/quality_dimension"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "partial",
+              "fail",
+              "unproven",
+              "not_applicable"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          },
+          "evidence_references": {
+            "type": "array",
+            "items": {
+              "$ref": "common.schema.json#/$defs/evidence_ref"
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "blocking_failures": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "failure_id",
+          "requirement_ids",
+          "reason",
+          "evidence_references"
+        ],
+        "properties": {
+          "failure_id": {
+            "$ref": "common.schema.json#/$defs/identifier"
+          },
+          "requirement_ids": {
+            "type": "array",
+            "items": {
+              "$ref": "common.schema.json#/$defs/identifier"
+            }
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          },
+          "evidence_references": {
+            "type": "array",
+            "items": {
+              "$ref": "common.schema.json#/$defs/evidence_ref"
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "prohibited_outcomes_present": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/identifier"
+      }
+    },
+    "decided_at": {
+      "$ref": "common.schema.json#/$defs/timestamp"
+    },
+    "content_hash": {
+      "$ref": "common.schema.json#/$defs/sha256"
+    }
+  },
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "decision": {
+            "const": "proven"
+          }
+        },
+        "required": [
+          "decision"
+        ]
+      },
+      "then": {
+        "properties": {
+          "blocking": {
+            "const": false
+          },
+          "blocking_failures": {
+            "maxItems": 0
+          },
+          "prohibited_outcomes_present": {
+            "maxItems": 0
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "decision": {
+            "enum": [
+              "unproven",
+              "contradicted",
+              "invalidated_by_drift"
+            ]
+          }
+        },
+        "required": [
+          "decision"
+        ]
+      },
+      "then": {
+        "properties": {
+          "blocking": {
+            "const": true
+          },
+          "blocking_failures": {
+            "minItems": 1
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "quality_result": {
+      "type": "object",
+      "required": [
+        "dimension",
+        "status",
+        "reason",
+        "evidence_references"
+      ],
+      "properties": {
+        "dimension": {
+          "$ref": "common.schema.json#/$defs/quality_dimension"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "pass",
+            "partial",
+            "fail",
+            "unproven",
+            "not_applicable"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence_references": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/evidence_ref"
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$id": "https://theoneshot.dev/schemas/aflow/v1/final-evaluation.schema.json"
+}

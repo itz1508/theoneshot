@@ -1,0 +1,37 @@
+{
+  "analysis_decision_reference": {
+    "artifact_id": "analysis.fixture",
+    "content_hash": "sha256:aee4bad386a567dca9165d4aab985029be31aeb0c6352afa6277cdca4fb15097",
+    "schema_id": "https://theoneshot.dev/schemas/aflow/v1/analysis-decision.schema.json",
+    "version": "1.0.0"
+  },
+  "authority_bundle_reference": {
+    "artifact_id": "authority.fixture",
+    "content_hash": "sha256:a8355b6929ba8e59a37140bcd7abd8021e23b8bc6b722172845279ef23c8913f",
+    "schema_id": "https://theoneshot.dev/schemas/aflow/v1/authority-evidence.schema.json",
+    "version": "1.0.0"
+  },
+  "baseline_reference": {
+    "artifact_id": "baseline.fixture",
+    "content_hash": "sha256:1c32e01163427bd8c665f642c45b3988674ce8e430d30f08560eab4754a09278",
+    "schema_id": "https://theoneshot.dev/schemas/aflow/v1/baseline.schema.json",
+    "version": "1.0.0"
+  },
+  "lock_hash": "sha256:87b06d6ca1f84ef85a70056be81f9083597e7202e5555f0360cbb3b6d3a07ad0",
+  "lock_id": "lock.plan.fixture.1.0.0",
+  "locked_at": "2026-01-01T00:00:00Z",
+  "locked_by": "aflow",
+  "plan_reference": {
+    "artifact_id": "plan.fixture",
+    "content_hash": "sha256:9a6ce720c0edbc194e9864f316560b050477677f1c4170a24032c1788334bf63",
+    "schema_id": "https://theoneshot.dev/schemas/aflow/v1/plan.schema.json",
+    "version": "1.0.0"
+  },
+  "schema_version": "1.0.0",
+  "success_definition_reference": {
+    "artifact_id": "success.fixture",
+    "content_hash": "sha256:dffb7f233ddb37249741052a1f074078e31f8ad5750f8caeef4751afe5327487",
+    "schema_id": "https://theoneshot.dev/schemas/aflow/v1/success-definition.schema.json",
+    "version": "1.0.0"
+  }
+}

@@ -1,0 +1,197 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://theoneshot.dev/schemas/aflow/v1/common.schema.json",
+  "title": "A-Flow Common Definitions",
+  "$defs": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "identifier": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z][A-Za-z0-9._:-]*$"
+    },
+    "semver": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "relative_path": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "not": {
+        "pattern": "^(?:[A-Za-z]:[\\\\/]|/|\\\\\\\\)"
+      }
+    },
+    "absolute_path": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2048
+    },
+    "json_pointer": {
+      "type": "string",
+      "pattern": "^(?:/(?:[^~/]|~0|~1)*)*$"
+    },
+    "evidence_status": {
+      "type": "string",
+      "enum": [
+        "verified",
+        "user_supplied",
+        "inferred",
+        "proposed",
+        "unknown",
+        "stale",
+        "contradicted"
+      ]
+    },
+    "artifact_ref": {
+      "type": "object",
+      "required": [
+        "artifact_id",
+        "schema_id",
+        "version",
+        "content_hash"
+      ],
+      "properties": {
+        "artifact_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "schema_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "$ref": "#/$defs/semver"
+        },
+        "content_hash": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "additionalProperties": false
+    },
+    "source_reference": {
+      "type": "object",
+      "required": [
+        "source_type",
+        "source_id",
+        "location",
+        "evidence_status"
+      ],
+      "properties": {
+        "source_type": {
+          "type": "string",
+          "enum": [
+            "user_intent",
+            "agents_md",
+            "skill",
+            "agent_definition",
+            "repository_file",
+            "repository_snapshot",
+            "schema",
+            "plan",
+            "build_result",
+            "human_confirmation",
+            "external_document"
+          ]
+        },
+        "source_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "location": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence_status": {
+          "$ref": "#/$defs/evidence_status"
+        },
+        "content_hash": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "additionalProperties": false
+    },
+    "evidence_ref": {
+      "type": "object",
+      "required": [
+        "evidence_id",
+        "content_hash"
+      ],
+      "properties": {
+        "evidence_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "content_hash": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "additionalProperties": false
+    },
+    "quality_dimension": {
+      "type": "string",
+      "enum": [
+        "correctness",
+        "completeness",
+        "usability",
+        "consistency",
+        "reliability",
+        "evidence_quality",
+        "constraint_compliance"
+      ]
+    },
+    "proof_type": {
+      "type": "string",
+      "enum": [
+        "command",
+        "artifact",
+        "schema",
+        "api_response",
+        "static_check",
+        "edge_simulation",
+        "human_confirmation"
+      ]
+    },
+    "executor": {
+      "type": "string",
+      "enum": [
+        "codex",
+        "deterministic_local",
+        "edge",
+        "human"
+      ]
+    },
+    "phase": {
+      "type": "string",
+      "enum": [
+        "discovery",
+        "design",
+        "implementation",
+        "focused_validation",
+        "final_validation",
+        "packaging",
+        "release",
+        "cleanup"
+      ]
+    },
+    "requirement_status": {
+      "type": "string",
+      "enum": [
+        "proven",
+        "partially_proven",
+        "unproven",
+        "contradicted",
+        "invalidated_by_drift"
+      ]
+    }
+  }
+}

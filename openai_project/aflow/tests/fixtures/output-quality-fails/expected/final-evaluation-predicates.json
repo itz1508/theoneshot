@@ -1,0 +1,14 @@
+{
+  "blocking": true,
+  "decision": "contradicted",
+  "fixture_id": "fixture.output-quality-fails",
+  "forbid_prohibited_outcomes": true,
+  "minimum_blocking_failures": 1,
+  "required_quality_statuses": {
+    "usability": "fail"
+  },
+  "required_requirement_statuses": {
+    "requirement.durable-output": "contradicted"
+  },
+  "schema_version": "1.0.0"
+}

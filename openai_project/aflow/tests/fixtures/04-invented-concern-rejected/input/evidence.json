@@ -1,0 +1,23 @@
+[
+  {
+    "claim": "The plan and proof consistently define one initial attempt plus up to three retries, maximum four total calls, with delays of 1s, 2s, and 4s.",
+    "collected_at": "2026-01-01T00:00:00Z",
+    "collected_by": "deterministic_local",
+    "content_hash": "sha256:0e8a8f050468e06383f98773c8c65868de17254513b0ce05b6091075ac46ff4e",
+    "evidence_id": "evidence.analysis",
+    "evidence_type": "authority_document",
+    "locator": {
+      "kind": "artifact_id",
+      "value": "evidence.analysis"
+    },
+    "payload_summary": "",
+    "schema_version": "1.0.0",
+    "source": {
+      "evidence_status": "verified",
+      "location": "fixture",
+      "source_id": "source.evidence.analysis",
+      "source_type": "user_intent"
+    },
+    "visibility": "analysis_input"
+  }
+]

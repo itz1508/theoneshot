@@ -1,0 +1,182 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A-Flow Finding",
+  "description": "Substantiated structural or semantic material gap.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "finding_id",
+    "gap_type",
+    "origin",
+    "severity",
+    "blocking",
+    "requirement_references",
+    "plan_locations",
+    "specific_claim",
+    "evidence_references",
+    "reasoning",
+    "why_it_matters",
+    "required_closure",
+    "status"
+  ],
+  "properties": {
+    "schema_version": {
+      "$ref": "common.schema.json#/$defs/schema_version"
+    },
+    "finding_id": {
+      "$ref": "common.schema.json#/$defs/identifier"
+    },
+    "gap_type": {
+      "type": "string",
+      "enum": [
+        "structural_missing",
+        "structural_invalid",
+        "broken_reference",
+        "coverage_gap",
+        "dependency_gap",
+        "unsupported_assumption",
+        "terminology_drift",
+        "interpretation_drift",
+        "capability_gap",
+        "system_boundary_gap",
+        "similarity_overlap_gap",
+        "sequence_activation_gap",
+        "validation_evidence_gap",
+        "output_environment_gap",
+        "authority_ambiguity",
+        "contradiction",
+        "relevant_drift",
+        "other_material"
+      ]
+    },
+    "origin": {
+      "type": "string",
+      "enum": [
+        "deterministic",
+        "semantic"
+      ]
+    },
+    "severity": {
+      "type": "string",
+      "enum": [
+        "blocking",
+        "major",
+        "minor"
+      ]
+    },
+    "blocking": {
+      "type": "boolean"
+    },
+    "requirement_references": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/identifier"
+      }
+    },
+    "plan_locations": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "common.schema.json#/$defs/json_pointer"
+      }
+    },
+    "specific_claim": {
+      "type": "string",
+      "minLength": 1
+    },
+    "evidence_references": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "common.schema.json#/$defs/evidence_ref"
+      }
+    },
+    "reasoning": {
+      "type": "string",
+      "minLength": 1
+    },
+    "why_it_matters": {
+      "type": "string",
+      "minLength": 1
+    },
+    "required_closure": {
+      "type": "object",
+      "required": [
+        "closure_code",
+        "description",
+        "acceptance_predicates"
+      ],
+      "properties": {
+        "closure_code": {
+          "type": "string",
+          "enum": [
+            "add_required_field",
+            "correct_invalid_value",
+            "repair_reference",
+            "cover_requirement",
+            "resolve_dependency",
+            "substantiate_or_remove_assumption",
+            "align_terminology",
+            "correct_interpretation",
+            "assign_valid_capability",
+            "restore_system_boundary",
+            "resolve_overlap",
+            "correct_sequence_or_activation",
+            "add_sufficient_validation",
+            "exercise_required_environment",
+            "resolve_authority_ownership",
+            "resolve_contradiction",
+            "revalidate_after_drift",
+            "other_bounded"
+          ]
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "acceptance_predicates": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "open",
+        "closed",
+        "rejected",
+        "invalidated"
+      ]
+    }
+  },
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "severity": {
+            "const": "blocking"
+          }
+        },
+        "required": [
+          "severity"
+        ]
+      },
+      "then": {
+        "properties": {
+          "blocking": {
+            "const": true
+          }
+        }
+      }
+    }
+  ],
+  "$id": "https://theoneshot.dev/schemas/aflow/v1/finding.schema.json"
+}

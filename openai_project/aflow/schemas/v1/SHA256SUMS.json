@@ -1,0 +1,26 @@
+{
+  "analysis-decision.schema.json": "e8ddfae934b60432b3d5bfd6540b1cfb2c019b9a6435131a8e1705e285dcbcaf",
+  "analysis-request.schema.json": "c7bf829190d8fdf07283fef42a564bf802b49eb7a228a0ac9e252aa798c694f2",
+  "authority-evidence.schema.json": "98d9c2dbf37c0de8116e4fdb8ca80451934d094b0a456262adb5563db39f3fe6",
+  "baseline.schema.json": "6445a9e5b88ed69cb3759ff34679c977f425c3c004583c22e5df4ca9e4257f7d",
+  "build-result.schema.json": "9f1fb5d716c00558bbf2f53f3039efcd14aceedcb41da96c0642c616cf60bcb3",
+  "closure-request.schema.json": "b9535fbc7b4da6fddc431e4009598d4520379467d5eae771fe9584c0a51ce6da",
+  "closure-result.schema.json": "409875f487d05b7e6f00d2a6303f3eca1be2344cb68eaaf3ec1ca67d15be9e95",
+  "common.schema.json": "61d703873a2f2906f14bc6eec190f14f6f73f3fe9ce74e1ac9a4128c320240aa",
+  "drift-decision.schema.json": "620f7b435a39bb1194534cb2f2a3fe806dd041bdfe429b4d55499eca912de162",
+  "drift-event.schema.json": "c0b15de1bf9e929c9d6c7db708bce2ae6cc3332808674db9122842dd44a716b1",
+  "evidence.schema.json": "1b1632ee9a0acb0d8838c114f80a7cc616004f8057d5f38c97f596cd09daf062",
+  "expected-analysis-predicates.schema.json": "1c61fd4ff9c2f3ac18f5c68ce7b2943d48aa41cfeac0d1d9460d206b37e5aeab",
+  "expected-final-predicates.schema.json": "83072582a7025835cf09c145f4d728b7a473fc230bf65fd6900d3d33f3784d74",
+  "final-evaluation.schema.json": "4cc0a9ca8310a3d5faefbf753fba05912f0bab53619c2406bf28bade5be4b724",
+  "finding.schema.json": "4a9b85c5095f7f71ee6a13d33c6a708407ea86fe7097905dbd23b73cb343377d",
+  "fixture-manifest.schema.json": "e422cc0ac3720e6ca38e4c00934c862949745e1f25dce055b187ce52ff50a6e8",
+  "locked-plan.schema.json": "ab76529509043e9b218f029385114d8e4296246617dcd55bb90c4022a406cfe6",
+  "plan.schema.json": "2f511ff3adfa430d79acfd6ea54b902528b0a36e10a004ced42c183ef12fa6d5",
+  "repository-evidence.schema.json": "fffd39d92288e5bef08162936427051e0ec01c9f2e9805ec9ff9aa017ac2a171",
+  "requirement-evidence-trace.schema.json": "c1966226c75d11616ce0efa20d062c7ad8c244d93477020ea760294f78d3193a",
+  "schema-admission-result.schema.json": "f8c8d20492efe0f063a2a9bb80213804bd82817de7015412ef06626461f7f16a",
+  "semantic-review.schema.json": "79393fe0f671d5535a76b83c5c230cc5d6941cd6d802c2bc13b0ff21bf0d3cb3",
+  "success-definition.schema.json": "ec55345d4b193c4e8c2aba02396905123c92e3f4ab57f7185ce29cb037657943"
+}
+

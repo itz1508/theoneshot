@@ -1,0 +1,23 @@
+[
+  {
+    "claim": "The visible test proves persistence only within the same process; restart recovery is not exercised.",
+    "collected_at": "2026-01-01T00:00:00Z",
+    "collected_by": "deterministic_local",
+    "content_hash": "sha256:c741a3a6bce438d9152717223d2722c03635fb07959ad5888449bc425256fab0",
+    "evidence_id": "evidence.analysis",
+    "evidence_type": "authority_document",
+    "locator": {
+      "kind": "artifact_id",
+      "value": "evidence.analysis"
+    },
+    "payload_summary": "",
+    "schema_version": "1.0.0",
+    "source": {
+      "evidence_status": "verified",
+      "location": "fixture",
+      "source_id": "source.evidence.analysis",
+      "source_type": "user_intent"
+    },
+    "visibility": "analysis_input"
+  }
+]

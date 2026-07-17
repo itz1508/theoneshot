@@ -1,0 +1,34 @@
+{
+  "authority_bundle_id": "authority.fixture",
+  "capabilities": [
+    {
+      "activation": {
+        "activation_type": "phase_entry",
+        "currently_authorized": true,
+        "prerequisites": [
+          "plan accepted"
+        ],
+        "required_phase": "implementation",
+        "source_authority_id": "authority.user"
+      },
+      "available": true,
+      "capability_id": "capability.codex-write",
+      "description": "Codex may implement files in the target.",
+      "owner": "codex"
+    }
+  ],
+  "content_hash": "sha256:a8355b6929ba8e59a37140bcd7abd8021e23b8bc6b722172845279ef23c8913f",
+  "repository_root": "C:\\fixture-repository",
+  "schema_version": "1.0.0",
+  "sources": [
+    {
+      "authority_id": "authority.user",
+      "authority_type": "user_instruction",
+      "content_hash": "sha256:d3ce1562690ddf2dbe82809f308c0402b8176bb6646facd4a6c2e9f4c1fb4b37",
+      "evidence_status": "verified",
+      "path": "fixture:user",
+      "precedence": 0,
+      "scope": "src/**"
+    }
+  ]
+}
