@@ -10,10 +10,10 @@ from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Any, Callable
 
-from audisor.aflow_lifecycle.artifacts import aflow_operation_artifact
-from audisor.aflow_lifecycle.analysis_package import package_from_context
-from audisor.aflow_lifecycle.ignition import ignite
-from audisor.aflow_lifecycle.operation import AFlowOperationContext, FrozenAFlowPolicy, make_operation_context, read_frozen_aflow_policy
+from audisor.audisor_lifecycle.artifacts import audisor_operation_artifact
+from audisor.audisor_lifecycle.analysis_package import package_from_context
+from audisor.audisor_lifecycle.ignition import ignite
+from audisor.audisor_lifecycle.operation import AudisorOperationContext, FrozenAudisorPolicy, make_operation_context, read_frozen_audisor_policy
 from audisor.workers.local import LocalWorker
 
 from audisor_backend.schemas.fix.models import FixScopedManifest, FindingsList, ImplementationPlan, Statement
@@ -95,7 +95,7 @@ def _plain(value: Any) -> Any:
 
 
 class AcceptedFixDispatcher:
-    def __init__(self, store: FixOperationStore, *, policy_reader=read_frozen_aflow_policy, aflow_igniter=ignite, worker_factory=LocalWorker):
+    def __init__(self, store: FixOperationStore, *, policy_reader=read_frozen_audisor_policy, aflow_igniter=ignite, worker_factory=LocalWorker):
         self.store = store
         self.policy_reader = policy_reader
         self.aflow_igniter = aflow_igniter
@@ -169,7 +169,7 @@ class AcceptedFixDispatcher:
                     workspace_identity=workspace_identity,
                     authority_context=operation.authority_context,
                 )
-                artifact = aflow_operation_artifact(context, policy, status="package_validation_failed", error=exc)
+                artifact = audisor_operation_artifact(context, policy, status="package_validation_failed", error=exc)
                 self.store.persist(operation.operation_id, artifact)
                 return finalize_unresolved(operation, artifact)
         context = make_operation_context(
@@ -183,7 +183,7 @@ class AcceptedFixDispatcher:
             analysis_package=analysis_package,
         )
         if not policy.enabled:
-            artifact = aflow_operation_artifact(context, policy, status="skipped_disabled")
+            artifact = audisor_operation_artifact(context, policy, status="skipped_disabled")
             self.store.persist(operation.operation_id, artifact)
             return continue_implementation(operation, artifact)
         worker = self.worker_factory(policy.base_url, policy.model_id, timeout_seconds=policy.timeout_seconds)
@@ -193,10 +193,10 @@ class AcceptedFixDispatcher:
             else:
                 result = self.aflow_igniter(operation_context=context, policy=policy, worker=worker)
         except Exception as exc:
-            artifact = aflow_operation_artifact(context, policy, status="provider_failed" if getattr(exc, "code", "").startswith("provider") else "validation_failed", error=exc)
+            artifact = audisor_operation_artifact(context, policy, status="provider_failed" if getattr(exc, "code", "").startswith("provider") else "validation_failed", error=exc)
             self.store.persist(operation.operation_id, artifact)
             return finalize_unresolved(operation, artifact)
-        artifact = aflow_operation_artifact(context, policy, status="accepted" if result.implementation_eligible else "rejected", result=result)
+        artifact = audisor_operation_artifact(context, policy, status="accepted" if result.implementation_eligible else "rejected", result=result)
         if result.implementation_eligible:
             artifact["handoff_path"] = self.store.persist_handoff(operation, result)
         self.store.persist(operation.operation_id, artifact)

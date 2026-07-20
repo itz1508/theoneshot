@@ -1,5 +1,5 @@
-from audisor.aflow_lifecycle.ignition import IgnitionResult
-from audisor.aflow_lifecycle.operation import FrozenAFlowPolicy
+from audisor.audisor_lifecycle.ignition import IgnitionResult
+from audisor.audisor_lifecycle.operation import FrozenAudisorPolicy
 
 from audisor_backend.controllers.fix_controller import FixController
 from audisor_backend.controllers.fix_host import AcceptedFixDispatcher, AcceptedFixOperation, FixOperationStore
@@ -25,7 +25,7 @@ def test_enabled_fix_invokes_once_persists_and_duplicate_does_not_reinvoke(tmp_p
 
     dispatcher = AcceptedFixDispatcher(
         FixOperationStore(tmp_path),
-        policy_reader=lambda: FrozenAFlowPolicy(True, "local-openai-compatible", "qwen2.5-coder:7b", "http://127.0.0.1:11434"),
+        policy_reader=lambda: FrozenAudisorPolicy(True, "local-openai-compatible", "qwen2.5-coder:7b", "http://127.0.0.1:11434"),
         aflow_igniter=igniter,
         worker_factory=lambda *args, **kwargs: object(),
     )
@@ -47,7 +47,7 @@ def test_disabled_fix_skips_ignite_and_continues(tmp_path):
     calls = []
     dispatcher = AcceptedFixDispatcher(
         FixOperationStore(tmp_path),
-        policy_reader=lambda: FrozenAFlowPolicy(False, "local-openai-compatible", "qwen2.5-coder:7b", "http://127.0.0.1:11434"),
+        policy_reader=lambda: FrozenAudisorPolicy(False, "local-openai-compatible", "qwen2.5-coder:7b", "http://127.0.0.1:11434"),
         aflow_igniter=lambda **kwargs: calls.append(kwargs),
         worker_factory=lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("worker constructed")),
     )
