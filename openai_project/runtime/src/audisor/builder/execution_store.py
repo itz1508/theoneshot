@@ -450,6 +450,13 @@ class ExecutionStore:
         except OSError:
             raise ExecutionStoreError("Worker input persistence failed") from None
 
+    def persist_audisor_result(self, execution_path: Path, artifact: object) -> None:
+        """Persist the host-owned Audisor result before worker dispatch."""
+        try:
+            atomic_write_json(execution_path / "evidence" / "aflow-operation-result.json", artifact)
+        except OSError:
+            raise ExecutionStoreError("Audisor result persistence failed") from None
+
     def persist_worker_output(
         self, execution_path: Path, task_id: str, output: object
     ) -> None:

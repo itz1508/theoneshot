@@ -1,0 +1,182 @@
+"""Deterministic primary-Codex controls around frozen Audisor artifacts."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+from pathlib import Path
+from typing import Any, Mapping
+
+
+QUALIFYING_TASK_KINDS = frozenset(
+    {
+        "implementation",
+        "repair",
+        "refactor",
+        "dependency_change",
+        "configuration_change",
+        "integration",
+        "schema_change",
+        "test_change",
+        "build_change",
+        "repository_mutation",
+    }
+)
+FROZEN_ANALYSIS_READY = "no_material_gap"
+FROZEN_FINAL_PROVEN = "proven"
+FROZEN_TO_CONTRACT_READINESS = {
+    "no_material_gap": "no_material_gap",
+    "material_gap_found": "revision_required",
+    "missing_evidence": "uncertainty",
+    "contradicted": "contradicted",
+    "drift_revalidation_required": "drift_revalidation_required",
+}
+
+
+class AudisorLifecycleError(RuntimeError):
+    """Raised when an Audisor lifecycle transition cannot safely proceed."""
+
+
+def requires_audisor_analysis(task_kind: str) -> bool:
+    """Return whether a classified task must complete the Audisor preflight."""
+    return task_kind in QUALIFYING_TASK_KINDS
+
+
+def frozen_readiness_decision(readiness: str) -> str:
+    """Map the locked-contract readiness language to the frozen Audisor enum."""
+    for frozen, contract in FROZEN_TO_CONTRACT_READINESS.items():
+        if contract == readiness:
+            return frozen
+    raise AudisorLifecycleError("Audisor contract readiness decision is unknown")
+
+
+def normalize_frozen_readiness(aflow_decision: str) -> dict[str, str]:
+    """Preserve a frozen decision and its explicit locked-contract meaning."""
+    try:
+        return {
+            "aflow_decision": aflow_decision,
+            "contract_decision": FROZEN_TO_CONTRACT_READINESS[aflow_decision],
+        }
+    except KeyError as exc:
+        raise AudisorLifecycleError("Frozen Audisor readiness decision is unknown") from exc
+
+
+def canonical_text(value: Any) -> str:
+    """Produce UTF-8-safe, LF-normalized deterministic canonical text."""
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n"
+
+
+def _sha256(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _lock_content(analysis: Mapping[str, Any]) -> Mapping[str, Any]:
+    required = {
+        "immutable_user_task_canonical_text",
+        "accepted_plan_canonical_text",
+        "success_definition_canonical_text",
+        "required_trajectory_canonical_text",
+        "validation_cases_canonical_text",
+        "fixture_specifications_canonical_text",
+        "hash_algorithm",
+    }
+    payload = analysis.get("lock_payload")
+    if not isinstance(payload, Mapping) or set(payload) != required:
+        raise AudisorLifecycleError("Audisor lock payload is missing or malformed")
+    if payload["hash_algorithm"] != "sha256":
+        raise AudisorLifecycleError("Audisor lock payload must use sha256")
+    if any(not isinstance(payload[key], str) for key in required - {"hash_algorithm"}):
+        raise AudisorLifecycleError("Audisor canonical lock fields must be text")
+    return dict(payload)
+
+
+def accept_for_primary(analysis: Mapping[str, Any], *, execution_contract_sha256: str | None = None, locked_by: str = "primary_codex") -> dict[str, Any]:
+    """Accept a ready analysis and compute the agent-owned canonical lock.
+
+    Args:
+        analysis: The Audisor analysis result containing decision and lock_payload.
+        execution_contract_sha256: Optional SHA-256 of the execution contract.
+        locked_by: Identity of the agent owning this lock. Defaults to
+            ``"primary_codex"`` for backward compatibility.
+    """
+    decision = analysis.get("decision")
+    if not isinstance(decision, Mapping):
+        raise AudisorLifecycleError("Audisor readiness decision is missing")
+    aflow_decision = decision.get("aflow_decision")
+    contract_decision = decision.get("contract_decision")
+    if not isinstance(aflow_decision, str) or not isinstance(contract_decision, str):
+        raise AudisorLifecycleError("Audisor readiness must retain frozen and contract decisions")
+    if normalize_frozen_readiness(aflow_decision)["contract_decision"] != contract_decision:
+        raise AudisorLifecycleError("Audisor readiness decision mapping is inconsistent")
+    if aflow_decision != FROZEN_ANALYSIS_READY:
+        raise AudisorLifecycleError("Audisor analysis is not ready for primary decision")
+    if decision.get("plan_ready_for_primary_decision") is not True:
+        raise AudisorLifecycleError("Audisor did not provide a primary-ready analysis")
+    if analysis.get("plan_gaps") not in ([], None):
+        raise AudisorLifecycleError("Audisor analysis retains unresolved plan gaps")
+    content = dict(_lock_content(analysis))
+    if execution_contract_sha256 is not None:
+        if not isinstance(execution_contract_sha256, str) or len(execution_contract_sha256) != 64 or any(char not in "0123456789abcdef" for char in execution_contract_sha256):
+            raise AudisorLifecycleError("execution contract SHA-256 is malformed")
+        content["execution_contract_sha256"] = execution_contract_sha256
+    canonical = canonical_text(content)
+    return {
+        "lock_version": 1,
+        "locked_by": locked_by,
+        "hash_algorithm": "sha256",
+        "canonical_payload": content,
+        "lock_hash": _sha256(canonical),
+    }
+
+
+def verify_lock(lock: Mapping[str, Any], *, expected_locked_by: str | None = None) -> bool:
+    """Verify the agent-owned lock without trusting a stored boolean.
+
+    Args:
+        lock: The lock dictionary to verify.
+        expected_locked_by: If provided, verify the lock is owned by this
+            specific agent identity. If ``None``, accepts any non-empty
+            ``locked_by`` value.
+    """
+    try:
+        locked_by = lock.get("locked_by")
+        if not isinstance(locked_by, str) or not locked_by:
+            return False
+        if expected_locked_by is not None and locked_by != expected_locked_by:
+            return False
+        if lock.get("hash_algorithm") != "sha256":
+            return False
+        content = lock["canonical_payload"]
+        if not isinstance(content, Mapping):
+            return False
+        return lock.get("lock_hash") == _sha256(canonical_text(content))
+    except (AttributeError, TypeError):
+        return False
+
+
+def write_lock(path: Path, lock: Mapping[str, Any]) -> None:
+    """Atomically persist only a verified, primary-owned lock."""
+    if not verify_lock(lock):
+        raise AudisorLifecycleError("Refusing to store an unverifiable Audisor lock")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(json.dumps(lock, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
+    os.replace(temporary, path)
+
+
+def completion_allowed(post_build_evaluation: Mapping[str, Any]) -> bool:
+    """Only a frozen Audisor proven result permits a completion claim."""
+    return post_build_evaluation.get("state") == FROZEN_FINAL_PROVEN
+
+
+def frozen_tree_digest(root: Path) -> str:
+    """Hash every frozen source file while excluding local runtime by-products."""
+    ignored = {".venv", ".pytest_cache", "__pycache__"}
+    rows: list[str] = []
+    for path in sorted(item for item in root.rglob("*") if item.is_file()):
+        relative = path.relative_to(root)
+        if any(part in ignored for part in relative.parts):
+            continue
+        rows.append(f"{relative.as_posix()}\0{hashlib.sha256(path.read_bytes()).hexdigest()}")
+    return hashlib.sha256(("\n".join(rows) + "\n").encode("utf-8")).hexdigest()

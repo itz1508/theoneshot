@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import hashlib
 import os
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -66,12 +67,50 @@ def task_input(prompt: str = "prompt") -> TaskInput:
 
 def test_router_has_no_default_when_selector_is_absent(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("AUDISOR_PROVIDER", raising=False)
+    monkeypatch.setenv("AUDISOR_CONFIG_PATH", str(Path.cwd() / ".missing-audisor-config"))
     get_provider_router.cache_clear()
     try:
         router = get_provider_router()
         assert router.selected_provider_id is None
         with pytest.raises(ProviderConfigurationError, match="AUDISOR_PROVIDER"):
             router.select_provider()
+    finally:
+        get_provider_router.cache_clear()
+
+
+def test_router_loads_persisted_local_setup_without_provider_environment(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from audisor.config import set_provider_config
+
+    path = tmp_path / "config.json"
+    set_provider_config("local-openai-compatible", "http://127.0.0.1:11434", "qwen2.5-coder:7b", path)
+    monkeypatch.setenv("AUDISOR_CONFIG_PATH", str(path))
+    monkeypatch.delenv("AUDISOR_PROVIDER", raising=False)
+    monkeypatch.delenv("LOCAL_MODEL_BASE_URL", raising=False)
+    monkeypatch.delenv("LOCAL_MODEL_ID", raising=False)
+    get_provider_router.cache_clear()
+    try:
+        router = get_provider_router()
+        provider = router.select_provider()
+        assert router.selected_provider_id == "local-openai-compatible"
+        assert isinstance(provider, LocalWorker)
+        assert provider.base_url == "http://127.0.0.1:11434"
+        assert provider.model_id == "qwen2.5-coder:7b"
+        assert provider.structured_output is True
+    finally:
+        get_provider_router.cache_clear()
+
+
+def test_explicit_provider_environment_precedes_persisted_setup(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from audisor.config import set_provider_config
+
+    path = tmp_path / "config.json"
+    set_provider_config("local-openai-compatible", "http://persisted", "persisted-model", path)
+    monkeypatch.setenv("AUDISOR_CONFIG_PATH", str(path))
+    monkeypatch.setenv("AUDISOR_PROVIDER", "fireworks")
+    monkeypatch.setenv("FIREWORKS_API_KEY", "test-key")
+    get_provider_router.cache_clear()
+    try:
+        assert get_provider_router().selected_provider_id == "fireworks"
     finally:
         get_provider_router.cache_clear()
 
@@ -113,7 +152,7 @@ def test_fireworks_adapter_receives_complete_prompt_and_expected_transport_shape
 
     def request(url: str, **kwargs: Any) -> FakeResponse:
         calls.append({"url": url, **kwargs})
-        return FakeResponse(200, {"choices": [{"message": {"content": "ready"}}]})
+        return FakeResponse(200, {"choices": [{"text": "ready"}]})
 
     prompt = "Complete executable task instruction\nwith every line preserved."
     worker = FireworksWorker(
@@ -124,12 +163,13 @@ def test_fireworks_adapter_receives_complete_prompt_and_expected_transport_shape
         request=request,
     )
     assert worker.execute(task_input(prompt)) == TaskOutput(task_id="task-001", answer="ready")
-    assert calls[0]["url"] == "https://example.test/inference/v1/chat/completions"
+    assert calls[0]["url"] == "https://example.test/inference/v1/completions"
     assert calls[0]["headers"]["Authorization"] == "Bearer not-a-real-credential"
     assert calls[0]["json"] == {
         "model": "accounts/example/models/test",
-        "messages": [{"role": "user", "content": prompt}],
+        "prompt": prompt,
         "max_tokens": 4096,
+        "top_k": 40,
         "temperature": 0.0,
     }
 
@@ -174,7 +214,7 @@ def test_local_configuration_failure_is_clear(base_url: str, model_id: str) -> N
 def test_fireworks_transient_status_is_retried_within_bound() -> None:
     responses = [
         FakeResponse(500),
-        FakeResponse(200, {"choices": [{"message": {"content": "ready"}}]}),
+        FakeResponse(200, {"choices": [{"text": "ready"}]}),
     ]
     calls: list[int] = []
 

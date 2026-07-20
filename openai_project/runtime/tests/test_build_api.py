@@ -157,7 +157,7 @@ def test_required_builder_proof_through_fastapi(tmp_path: Path) -> None:
     assert other.calls == []
 
     build_root = data_dir / "builds" / "builder-proof-001"
-    assert json.loads((build_root / "instruction.json").read_text(encoding="utf-8")) == request
+    assert json.loads((build_root / "instruction.json").read_text(encoding="utf-8")) == {**request, "execution_context": None}
     assert json.loads((build_root / "plan.json").read_text(encoding="utf-8")) == body
     skill_files = sorted((build_root / "skills").glob("*/SKILL.md"))
     assert len(skill_files) == len(body["tasks"])

@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
+from pathlib import Path
 import re
 from pathlib import PurePosixPath, PureWindowsPath
 from typing import Annotated, Literal, Self
@@ -112,6 +115,70 @@ class TaskValidationCommand(BaseModel):
         return values
 
 
+class BuildExecutionContext(BaseModel):
+    """Host-owned authority inputs sealed into a prepared Build."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    schema_version: Literal[1] = 1
+    target_root: Annotated[str, Field(strict=True, min_length=1, max_length=32767)]
+    repository_identity: dict[str, str]
+    allowed_write_paths: list[
+        Annotated[str, Field(strict=True, min_length=1, max_length=4096)]
+    ] = Field(min_length=1, max_length=256)
+    authority_limits: dict[str, bool]
+    workspace_identity: dict[str, str]
+    success_definition: dict[str, object]
+    validation_requirements: list[dict[str, object]]
+    execution_context_sha256: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
+
+    @field_validator("target_root")
+    @classmethod
+    def validate_target_root(cls, value: str) -> str:
+        if not value.strip() or "\x00" in value or not Path(value).expanduser().is_absolute():
+            raise ValueError("target_root must be a non-empty path")
+        return value
+
+    @field_validator("allowed_write_paths")
+    @classmethod
+    def validate_allowed_write_paths(cls, values: list[str]) -> list[str]:
+        seen: set[str] = set()
+        for value in values:
+            validate_task_relative_path(value, "allowed_write_paths")
+            key = value.replace("\\", "/").casefold()
+            if key in seen:
+                raise ValueError("allowed_write_paths must be unique")
+            seen.add(key)
+        return values
+
+    @model_validator(mode="after")
+    def validate_context_hash(self) -> Self:
+        required_repository = {"root_reference", "revision", "dirty_state"}
+        required_workspace = {"workspace_id", "root_reference"}
+        required_authority = {"mutation_authorized", "execution_authorized", "apply_authorized", "completion_claimed"}
+        if not required_repository <= set(self.repository_identity):
+            raise ValueError("repository identity is incomplete")
+        if self.repository_identity["dirty_state"] not in {"clean", "dirty"}:
+            raise ValueError("repository dirty_state is invalid")
+        if not required_workspace <= set(self.workspace_identity):
+            raise ValueError("workspace identity is incomplete")
+        if not required_authority <= set(self.authority_limits):
+            raise ValueError("authority limits are incomplete")
+        if not self.success_definition or not self.validation_requirements:
+            raise ValueError("success and validation requirements are incomplete")
+        body = self.model_dump(mode="json", exclude={"execution_context_sha256"})
+        encoded = json.dumps(body, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        expected = hashlib.sha256(encoded).hexdigest()
+        if expected != self.execution_context_sha256:
+            raise ValueError("execution_context_sha256 does not match context")
+        return self
+
+    @classmethod
+    def seal(cls, **values: object) -> "BuildExecutionContext":
+        body = {"schema_version": 1, **values}
+        encoded = json.dumps(body, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        return cls(**body, execution_context_sha256=hashlib.sha256(encoded).hexdigest())
+
 class BuildRequest(BaseModel):
     """One build instruction accepted by the preparation API."""
 
@@ -119,6 +186,7 @@ class BuildRequest(BaseModel):
 
     build_id: SafeIdentifier
     instruction: Annotated[str, Field(strict=True, max_length=100_000)]
+    execution_context: BuildExecutionContext | None = None
 
     @field_validator("build_id")
     @classmethod
@@ -229,7 +297,7 @@ class BuildPlan(BaseModel):
 
 
 class TaskSkill(BaseModel):
-    """Exact AMD-compatible mapping for one generated SKILL.md."""
+    """Exact Audisor mapping for one generated SKILL.md."""
 
     model_config = ConfigDict(extra="forbid", strict=True)
 

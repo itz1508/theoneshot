@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from pathlib import PurePosixPath, PureWindowsPath
-from typing import Annotated, Literal, Self, Union
+from typing import Annotated, Any, Literal, Self, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -67,6 +67,9 @@ class BuildExecutionRequest(BaseModel):
     allowed_write_paths: list[
         Annotated[str, Field(strict=True, min_length=1, max_length=4096)]
     ] = Field(min_length=1, max_length=64)
+    # Exact frozen A-Flow analysis-request document supplied by the accepted
+    # operation. It is validated by the host package assembler, not here.
+    aflow_analysis_request: dict[str, Any] | None = None
 
     @field_validator("execution_id", "idempotency_key")
     @classmethod
@@ -266,7 +269,7 @@ WorkerMutation = Annotated[
 
 
 class WorkerActionPlan(BaseModel):
-    """Closed JSON protocol returned inside the AMD-compatible answer string."""
+    """Closed JSON protocol returned inside the Audisor worker answer string."""
 
     model_config = ConfigDict(extra="forbid", strict=True)
 

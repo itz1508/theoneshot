@@ -20,6 +20,7 @@ from provider_testkit import provider_router
 from audisor.schemas.build import BuildPlan, BuildRequest
 from audisor.schemas.task_input import TaskInput
 from audisor.workers.base import ProviderConfigurationError
+from audisor.audisor_lifecycle.operation import FrozenAudisorPolicy
 
 
 class Worker:
@@ -130,6 +131,7 @@ def configured(tmp_path: Path) -> tuple[BuildExecutor, Path, Worker]:
             approved_target_roots=(tmp_path,),
         ),
         store=ExecutionStore(data_dir=data),
+        aflow_policy_reader=lambda: FrozenAudisorPolicy(False, "local-openai-compatible", "qwen2.5-coder:7b", "http://127.0.0.1:11434"),
     )
     return executor, target, worker
 

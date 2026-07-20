@@ -113,11 +113,12 @@ class FireworksWorker:
     def execute(self, task: TaskInput) -> TaskOutput:
         self._validate_configuration()
         attempts = max(1, self.max_attempts)
-        endpoint = f"{self.normalize_base_url(self.base_url)}/chat/completions"
+        endpoint = f"{self.normalize_base_url(self.base_url)}/completions"
         payload = {
             "model": self.model,
-            "messages": [{"role": "user", "content": task.prompt}],
+            "prompt": task.prompt,
             "max_tokens": self.max_tokens,
+            "top_k": 40,
             "temperature": 0.0,
         }
         headers = {
@@ -162,11 +163,14 @@ class FireworksWorker:
 
             try:
                 data = response.json()
-                content = data["choices"][0]["message"]["content"]
+                choice = data["choices"][0]
+                content = choice.get("text")
+                if content is None:
+                    content = choice["message"]["content"]
             except (KeyError, IndexError, TypeError, ValueError):
                 raise ProviderInvalidResponseError(
                     "Selected provider returned an invalid response",
-                    internal_detail="shape=invalid_chat_completion",
+                    internal_detail="shape=invalid_completion",
                 ) from None
             if content is None or isinstance(content, (dict, list)):
                 raise ProviderInvalidResponseError(

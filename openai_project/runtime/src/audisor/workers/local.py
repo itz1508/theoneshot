@@ -43,6 +43,7 @@ class LocalWorker:
     api_key: str = field(default="", repr=False)
     timeout_seconds: float = 300.0
     max_tokens: int = 4096
+    structured_output: bool = False
     request: RequestFunction = field(default=requests.post, repr=False)
 
     provider_id = "local-openai-compatible"
@@ -112,6 +113,8 @@ class LocalWorker:
             "max_tokens": self.max_tokens,
             "temperature": 0.0,
         }
+        if self.structured_output:
+            payload["response_format"] = {"type": "json_object"}
         headers = {"Content-Type": "application/json"}
         if self.api_key.strip():
             headers["Authorization"] = f"Bearer {self.api_key}"
@@ -135,7 +138,12 @@ class LocalWorker:
             raise self._http_failure(response.status_code)
         try:
             data = response.json()
-            content = data["choices"][0]["message"]["content"]
+            choices = data["choices"]
+            choice = choices[0]
+            message = choice["message"]
+            content = message["content"]
+            finish_reason = choice.get("finish_reason")
+            tool_call_present = bool(message.get("tool_calls"))
         except (KeyError, IndexError, TypeError, ValueError):
             raise ProviderInvalidResponseError(
                 "Selected provider returned an invalid response",
@@ -152,4 +160,10 @@ class LocalWorker:
                 "Selected provider returned an invalid response",
                 internal_detail="content=empty",
             )
-        return TaskOutput(task_id=task.task_id, answer=answer)
+        return TaskOutput(task_id=task.task_id, answer=answer).set_response_metadata(
+            http_status=response.status_code,
+            transport_succeeded=True,
+            finish_reason=finish_reason if isinstance(finish_reason, str) else None,
+            tool_call_present=tool_call_present,
+            choice_count=len(choices) if isinstance(choices, list) else None,
+        )

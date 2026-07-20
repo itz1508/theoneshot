@@ -83,8 +83,10 @@ def test_shipped_adapter_success_contract(provider_id: str) -> None:
 
     def request(url: str, **kwargs: Any) -> FakeResponse:
         endpoints.append(url)
-        prompts.append(kwargs["json"]["messages"][0]["content"])
-        return FakeResponse(200, {"choices": [{"message": {"content": "ready"}}]})
+        body = kwargs["json"]
+        prompts.append(body["prompt"] if "prompt" in body else body["messages"][0]["content"])
+        response = {"choices": [{"text": "ready"}]} if provider_id == "fireworks" else {"choices": [{"message": {"content": "ready"}}]}
+        return FakeResponse(200, response)
 
     provider = adapter(provider_id, request)
     task = TaskInput(task_id="task-001", prompt="complete prompt")
@@ -95,7 +97,7 @@ def test_shipped_adapter_success_contract(provider_id: str) -> None:
     assert prompts == ["complete prompt"]
     assert endpoints == {
         "fake": ["fake://provider"],
-        "fireworks": ["https://provider.example/v1/chat/completions"],
+        "fireworks": ["https://provider.example/v1/completions"],
         "local-openai-compatible": ["http://127.0.0.1:11435/v1/chat/completions"],
     }[provider_id]
 

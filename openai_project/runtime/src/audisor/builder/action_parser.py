@@ -1,4 +1,4 @@
-"""Strict AMD envelope normalization and bounded structured-action parsing."""
+"""Strict Audisor envelope normalization and bounded action parsing."""
 
 from __future__ import annotations
 

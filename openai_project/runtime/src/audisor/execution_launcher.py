@@ -1,6 +1,6 @@
-"""Fail-closed external launcher for already locked A-Flow contracts.
+"""Fail-closed external launcher for already locked Audisor contracts.
 
-This module deliberately has no plan, A-Flow, assembly, acceptance, or lock
+This module deliberately has no plan, Audisor, assembly, acceptance, or lock
 creation entrypoint.  It consumes those artifacts, reproduces their accepted
 baseline outside the primary repository, and records only observable facts.
 """
@@ -17,8 +17,8 @@ from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any, Mapping
 
-from audisor.aflow_lifecycle.adapter import verify_contract
-from audisor.aflow_lifecycle.contract import canonical_text, verify_lock
+from audisor.audisor_lifecycle.adapter import verify_contract
+from audisor.audisor_lifecycle.contract import canonical_text, verify_lock
 
 
 class LauncherError(RuntimeError):

@@ -235,8 +235,10 @@ def test_both_real_adapters_produce_same_amd_compatible_api_shape(selected: str)
     calls: list[str] = []
 
     def request(_url: str, **kwargs: Any) -> FakeHttpResponse:
-        calls.append(kwargs["json"]["messages"][0]["content"])
-        return FakeHttpResponse(200, {"choices": [{"message": {"content": 123}}]})
+        body = kwargs["json"]
+        calls.append(body["prompt"] if "prompt" in body else body["messages"][0]["content"])
+        response = {"choices": [{"text": 123}]} if selected == "fireworks" else {"choices": [{"message": {"content": 123}}]}
+        return FakeHttpResponse(200, response)
 
     worker: WorkerProvider = (
         FireworksWorker("credential", "https://example.test", "model", request=request)
@@ -261,14 +263,16 @@ def test_both_real_adapters_preserve_batch_ids_and_input_order(selected: str) ->
 
     def request(_url: str, **kwargs: Any) -> FakeHttpResponse:
         nonlocal active, peak
-        prompt = kwargs["json"]["messages"][0]["content"]
+        body = kwargs["json"]
+        prompt = body["prompt"] if "prompt" in body else body["messages"][0]["content"]
         delay, answer = prompt.split("|", 1)
         with lock:
             active += 1
             peak = max(peak, active)
         try:
             time.sleep(float(delay))
-            return FakeHttpResponse(200, {"choices": [{"message": {"content": answer}}]})
+            response = {"choices": [{"text": answer}]} if selected == "fireworks" else {"choices": [{"message": {"content": answer}}]}
+            return FakeHttpResponse(200, response)
         finally:
             with lock:
                 active -= 1

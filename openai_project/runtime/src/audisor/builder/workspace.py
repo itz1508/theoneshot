@@ -58,3 +58,11 @@ class WorkspaceManager:
             excluded_paths=[".git"],
         )
 
+    @staticmethod
+    def cleanup(destination: Path) -> None:
+        """Release a failed operation's isolated workspace after terminal evidence."""
+        try:
+            if destination.exists():
+                shutil.rmtree(destination)
+        except OSError:
+            raise WorkspaceError("Execution workspace cleanup failed") from None

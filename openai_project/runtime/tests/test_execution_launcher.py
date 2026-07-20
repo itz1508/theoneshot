@@ -11,8 +11,8 @@ from pathlib import Path
 
 import pytest
 
-from audisor.aflow_lifecycle.adapter import assemble_contract
-from audisor.aflow_lifecycle.contract import accept_for_primary, frozen_tree_digest, write_lock
+from audisor.audisor_lifecycle.adapter import assemble_contract
+from audisor.audisor_lifecycle.contract import accept_for_primary, frozen_tree_digest, write_lock
 from audisor.execution_launcher import _changes, launch_execution
 
 

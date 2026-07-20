@@ -83,6 +83,7 @@ def test_runtime_models_accept_exact_ready_and_blocked_shapes() -> None:
     assert request.model_dump() == {
         "build_id": "build-001",
         "instruction": "Complete build instruction.",
+        "execution_context": None,
     }
     assert ready.status == "ready"
     assert blocked.status == "blocked"

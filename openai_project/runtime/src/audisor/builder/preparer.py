@@ -83,9 +83,18 @@ class BuildPreparer:
 
     @staticmethod
     def _parse_plan(raw_result: str) -> BuildPlan:
+        cleaned = raw_result.strip()
+        if cleaned.startswith("```") and cleaned.endswith("```"):
+            lines = cleaned.splitlines()
+            if len(lines) < 3 or lines[0].strip().casefold() not in {"```", "```json"}:
+                raise ProviderInvalidResponseError(
+                    "Selected provider returned an invalid build plan",
+                    internal_detail="plan_json=framing",
+                )
+            cleaned = "\n".join(lines[1:-1]).strip()
         try:
             payload = json.loads(
-                raw_result,
+                cleaned,
                 object_pairs_hook=_reject_duplicate_keys,
                 parse_constant=_reject_non_finite,
             )

@@ -17,11 +17,9 @@ beyond the listing itself — file contents were not inspected.
   application code of its own.
 * `tests/` — currently empty. No test command established.
 * `bin/` — currently empty.
-* `.codex/config.toml` — workspace-level, **intentionally minimal by
-  design**. Confirmed via the file's own header comments (user-supplied,
-  not independently executed): it exists specifically to avoid conflicting
-  with `audisor/.codex/config.toml`'s agent definitions, not to define
-  agents itself.
+* `.codex/config.toml` — workspace-level Codex configuration. Defines the
+  `aflow` agent and enables `hooks = true`. This is the root authority
+  surface for the A-Flow lifecycle hook integration.
 * `audisor/.codex/config.toml` + `audisor/.codex/agents/{explorer,reviewer,validator}.toml`
   — the actual agent-definition source of truth. Role authority lives here,
   not at root.
@@ -87,10 +85,11 @@ before treating this table as authoritative.
 
 ## Agent roles (Codex)
 
-Root `.codex/config.toml` defines no agents by design (see Repo layout).
-Role authority is `audisor/.codex/agents/` only — treat root config as a
-non-authoritative pass-through, not an alternate or fallback agent
-definition.
+Root `.codex/config.toml` defines the `aflow` agent and enables hooks.
+`audisor/.codex/agents/` defines `explorer`, `reviewer`, and `validator`.
+Both surfaces are authoritative: root config for A-Flow lifecycle hook
+integration, `audisor/.codex/agents/` for the explorer/reviewer/validator
+agent triad.
 
 `audisor/.codex/agents/` defines three roles:
 

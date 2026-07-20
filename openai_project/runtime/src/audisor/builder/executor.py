@@ -20,6 +20,16 @@ from audisor.builder.idempotency import IdempotencyConflictError, fingerprint_re
 from audisor.builder.scheduler import DeterministicScheduler
 from audisor.builder.task_loader import LoadedPreparedBuild, PreparedBuildLoader
 from audisor.builder.tool_runtime import ToolRuntime, ToolRuntimeError
+from audisor.audisor_lifecycle.artifacts import audisor_operation_artifact
+from audisor.audisor_lifecycle.ignition import ignite
+from audisor.audisor_lifecycle.analysis_package import package_from_context
+from audisor.audisor_lifecycle.operation import (
+    AudisorOperationContext,
+    FrozenAudisorPolicy,
+    make_operation_context,
+    read_frozen_audisor_policy,
+)
+from audisor.workers.local import LocalWorker
 from audisor.routing.router import ProviderRouter
 from audisor.schemas.build import BuildTask
 from audisor.schemas.execution import (
@@ -46,11 +56,17 @@ class BuildExecutor:
         loader: PreparedBuildLoader,
         authority: TargetAuthorityResolver,
         store: ExecutionStore,
+        aflow_policy_reader=read_frozen_audisor_policy,
+        aflow_igniter=ignite,
+        aflow_worker_factory=LocalWorker,
     ) -> None:
         self.router = router
         self.loader = loader
         self.authority = authority
         self.store = store
+        self.aflow_policy_reader = aflow_policy_reader
+        self.aflow_igniter = aflow_igniter
+        self.aflow_worker_factory = aflow_worker_factory
 
     @staticmethod
     def _validation_hash(task: BuildTask) -> str:
@@ -129,6 +145,60 @@ class BuildExecutor:
             expected_outputs_verified=expected_outputs_verified,
             completion_timestamp=utc_now(),
             error=message,
+        )
+
+    def _finalize_audisor_failure(self, *, prepared, request, state, claim, global_claim, error) -> BuildExecutionState:
+        """Route pre-worker Audisor failure through the existing terminal path."""
+        failed_tasks = []
+        root_task_ids = {task.task_id for task in prepared.plan.tasks if not task.depends_on}
+        for task in prepared.plan.tasks:
+            task_status = "failed" if task.task_id in root_task_ids else "blocked"
+            result = self._result(
+                prepared=prepared,
+                request=request,
+                task=task,
+                status=task_status,
+                worker_input={"aflow_failure": type(error).__name__},
+                worker_dispatched=False,
+                worker_output=None,
+                plan=None,
+                actions=[],
+                commands=[],
+                changes=[],
+                expected_outputs_verified=False,
+                executed_validation_sha256=None,
+                error=error,
+            )
+            self.store.persist_terminal_result(claim.path, result)
+            failed_tasks.append(task.task_id)
+        failed_state = state.model_copy(
+            update={
+                "tasks": [item.model_copy(update={"status": "failed" if item.task_id in root_task_ids else "blocked"}) for item in state.tasks],
+                "status": "running",
+            }
+        )
+        terminal = self.store.finalize_terminal(
+            claim.path,
+            failed_state,
+            global_claim=global_claim,
+            prepared_plan=prepared.plan,
+            expected_task_ids=failed_tasks,
+        )
+        release_evidence = self.store.global_authority.prepare_release_evidence(
+            global_claim, terminal_status=terminal.status
+        )
+        self.store.global_authority.release(
+            global_claim,
+            terminal_status=terminal.status,
+            terminal_manifest_sha256=terminal.terminal_manifest_sha256 or "",
+            release_evidence_sha256=release_evidence.sha256,
+            reconciliation_verified=True,
+        )
+        self.store.workspace_manager.cleanup(claim.path / "workspace")
+        return self.store.final_state(
+            claim.path,
+            prepared_plan=prepared.plan,
+            expected_task_ids=[task.task_id for task in prepared.plan.tasks],
         )
 
     def execute(self, build_id: str, request: BuildExecutionRequest) -> BuildExecutionState:
@@ -210,6 +280,124 @@ class BuildExecutor:
 
             state = claim.state
             workspace = claim.path / "workspace"
+            policy: FrozenAudisorPolicy = self.aflow_policy_reader()
+            accepted_task = {"id": prepared.instruction.build_id, **prepared.instruction.model_dump(mode="json")}
+            accepted_plan = prepared.plan.model_dump(mode="json")
+            authority_context = resolved.record.model_dump(mode="json")
+            repository_context = {
+                "authority": authority_context,
+                "baseline_evidence": resolved.baseline.model_dump(mode="json"),
+                "accepted_constraints": {"build_id": build_id, "execution_id": request.execution_id},
+                "required_outputs": sorted({path for task in prepared.plan.tasks for path in task.expected_outputs}),
+                "success_definition": prepared.instruction.execution_context.success_definition if prepared.instruction.execution_context else {},
+                "validation_requirements": prepared.instruction.execution_context.validation_requirements if prepared.instruction.execution_context else [],
+                "build_tasks": [task.model_dump(mode="json") for task in prepared.plan.tasks],
+            }
+            if request.aflow_analysis_request is not None:
+                repository_context["aflow_analysis_request"] = request.aflow_analysis_request
+            workspace_identity = {"path": str(workspace.resolve()), "build_id": build_id}
+            analysis_package = None
+            if policy.enabled and self.aflow_igniter is ignite:
+                try:
+                    analysis_package = package_from_context(
+                        operation_id=request.execution_id,
+                        operation_type="build",
+                        accepted_task=accepted_task,
+                        accepted_plan=accepted_plan,
+                        authority_context=authority_context,
+                        repository_context=repository_context,
+                        workspace_identity=workspace_identity,
+                        provider_policy={
+                            "provider": policy.provider,
+                            "base_url": policy.base_url,
+                            "model_id": policy.model_id,
+                            "timeout_seconds": policy.timeout_seconds,
+                        },
+                    )
+                except Exception as exc:
+                    operation_context = make_operation_context(
+                        operation_id=request.execution_id,
+                        operation_type="build",
+                        accepted_task=accepted_task,
+                        accepted_plan=accepted_plan,
+                        repository_context=repository_context,
+                        workspace_identity=workspace_identity,
+                        authority_context=authority_context,
+                    )
+                    failure = audisor_operation_artifact(
+                        operation_context,
+                        policy,
+                        status="package_validation_failed",
+                        error=exc,
+                    )
+                    self.store.persist_audisor_result(claim.path, failure)
+                    return self._finalize_audisor_failure(
+                        prepared=prepared,
+                        request=request,
+                        state=state,
+                        claim=claim,
+                        global_claim=global_claim,
+                        error=exc,
+                    )
+            operation_context: AudisorOperationContext = make_operation_context(
+                operation_id=request.execution_id,
+                operation_type="build",
+                accepted_task=accepted_task,
+                accepted_plan=accepted_plan,
+                repository_context=repository_context,
+                workspace_identity=workspace_identity,
+                authority_context=authority_context,
+                analysis_package=analysis_package,
+            )
+            if not policy.enabled:
+                skipped = audisor_operation_artifact(operation_context, policy, status="skipped_disabled")
+                self.store.persist_audisor_result(claim.path, skipped)
+            else:
+                worker = self.aflow_worker_factory(
+                    policy.base_url,
+                    policy.model_id,
+                    timeout_seconds=policy.timeout_seconds,
+                )
+                try:
+                    audisor_result = self.aflow_igniter(
+                        operation_context=operation_context,
+                        policy=policy,
+                        worker=worker,
+                    )
+                except Exception as exc:
+                    failure = audisor_operation_artifact(
+                        operation_context,
+                        policy,
+                        status="provider_failed" if getattr(exc, "code", "").startswith("provider") else "validation_failed",
+                        error=exc,
+                    )
+                    self.store.persist_audisor_result(claim.path, failure)
+                    return self._finalize_audisor_failure(
+                        prepared=prepared,
+                        request=request,
+                        state=state,
+                        claim=claim,
+                        global_claim=global_claim,
+                        error=exc,
+                    )
+                # Build Audisor is analysis-only: a valid result enriches the
+                # original plan and never becomes an approval or execution
+                # contract.  The host remains responsible for the next step.
+                if audisor_result.build_analysis is not None:
+                    status = "analysis_completed"
+                else:
+                    status = "accepted" if audisor_result.implementation_eligible else "rejected"
+                artifact = audisor_operation_artifact(operation_context, policy, status=status, result=audisor_result)
+                self.store.persist_audisor_result(claim.path, artifact)
+                if audisor_result.build_analysis is None and not audisor_result.implementation_eligible:
+                    return self._finalize_audisor_failure(
+                        prepared=prepared,
+                        request=request,
+                        state=state,
+                        claim=claim,
+                        global_claim=global_claim,
+                        error=ExecutionConflictError("Audisor rejected the operation"),
+                    )
             while state.status == "running":
                 task = scheduler.next_ready(state)
                 if task is None:

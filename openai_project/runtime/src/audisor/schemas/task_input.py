@@ -1,4 +1,4 @@
-"""AMD-compatible task input schemas."""
+"""Audisor task input schemas."""
 
 from typing import Annotated, Self
 

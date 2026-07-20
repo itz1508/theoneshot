@@ -14,6 +14,8 @@ from provider_testkit import provider_router
 from audisor.schemas.build import BuildPlan, BuildRequest
 from audisor.schemas.execution import BuildExecutionRequest
 from audisor.schemas.task_input import TaskInput
+from audisor.audisor_lifecycle.operation import FrozenAudisorPolicy
+from audisor.audisor_lifecycle.ignition import IgnitionResult
 
 
 class QueueWorker:
@@ -135,7 +137,7 @@ def request(root: Path) -> BuildExecutionRequest:
     )
 
 
-def make_executor(tmp_path: Path, worker: QueueWorker) -> tuple[BuildExecutor, BuildStore]:
+def make_executor(tmp_path: Path, worker: QueueWorker, *, enabled: bool = False, aflow_igniter=None, aflow_worker_factory=None, events: list | None = None) -> tuple[BuildExecutor, BuildStore]:
     store = prepare(tmp_path / "data")
     execution_store = ExecutionStore(data_dir=store.data_dir)
     return (
@@ -149,9 +151,58 @@ def make_executor(tmp_path: Path, worker: QueueWorker) -> tuple[BuildExecutor, B
                 approved_target_roots=(tmp_path,),
             ),
             store=execution_store,
+            aflow_policy_reader=lambda: (events.append("policy") if events is not None else None) or FrozenAudisorPolicy(enabled, "local-openai-compatible", "qwen2.5-coder:7b", "http://127.0.0.1:11434"),
+            aflow_igniter=aflow_igniter,
+            aflow_worker_factory=aflow_worker_factory or (lambda *args, **kwargs: object()),
         ),
         store,
     )
+
+
+def test_enabled_build_invokes_once_persists_before_implementation_and_replays(tmp_path: Path) -> None:
+    events: list = []
+    aflow_calls: list = []
+
+    def aflow(operation_context, policy, worker):
+        events.append("ignite")
+        aflow_calls.append((operation_context, policy, worker))
+        return IgnitionResult(True, "supplied", operation_context.accepted_plan, {"readiness": {"aflow_decision": "no_material_gap"}}, True)
+
+    worker = QueueWorker(success_answers())
+    original_execute = worker.execute
+    def execute(task):
+        events.append("implementation")
+        return original_execute(task)
+    worker.execute = execute
+    executor, store = make_executor(tmp_path, worker, enabled=True, aflow_igniter=aflow, events=events)
+    original_persist = executor.store.persist_audisor_result
+    def persist(path, artifact):
+        events.append("persist")
+        return original_persist(path, artifact)
+    executor.store.persist_audisor_result = persist
+    first = executor.execute("builder-proof-001", request(target(tmp_path)))
+    second = executor.execute("builder-proof-001", request(target(tmp_path)))
+    assert first.status == second.status == "completed"
+    assert len(aflow_calls) == 1
+    assert events.index("persist") < events.index("implementation")
+    assert events.count("policy") == 1
+    assert (store.build_path("builder-proof-001") / "executions" / "execution-001" / "evidence" / "aflow-operation-result.json").is_file()
+
+
+def test_audisor_rejection_terminalizes_releases_authority_and_cleans_workspace(tmp_path: Path) -> None:
+    events: list = []
+    def reject(**kwargs):
+        events.append("ignite")
+        return IgnitionResult(True, "supplied", kwargs["operation_context"].accepted_plan, {"readiness": {}}, False)
+    worker = QueueWorker(success_answers())
+    executor, store = make_executor(tmp_path, worker, enabled=True, aflow_igniter=reject, events=events)
+    state = executor.execute("builder-proof-001", request(target(tmp_path)))
+    execution = store.build_path("builder-proof-001") / "executions" / "execution-001"
+    assert state.status == "failed"
+    assert events == ["policy", "ignite"]
+    assert worker.calls == []
+    assert (execution / "evidence" / "aflow-operation-result.json").is_file()
+    assert not (execution / "workspace").exists()
 
 
 def test_three_task_success_is_manifest_bound_and_target_unchanged(tmp_path: Path) -> None:

@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://audisor.local/schemas/fix/workflow.schema.json",
+  "title": "Audisor Fix Workflow",
+  "description": "The authoritative ordered phase sequence for an Audisor Fix operation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["workflow_id", "operation", "phases", "authority_boundaries", "fix_rules"],
+  "properties": {
+    "workflow_id": {
+      "const": "audisor.fix"
+    },
+    "operation": {
+      "const": "Fix"
+    },
+    "phases": {
+      "type": "array",
+      "minItems": 13,
+      "maxItems": 13,
+      "prefixItems": [
+        { "$ref": "#/$defs/scan" },
+        { "$ref": "#/$defs/findingsList" },
+        { "$ref": "#/$defs/scopedSnapshot" },
+        { "$ref": "#/$defs/normalizeFindings" },
+        { "$ref": "#/$defs/dossier" },
+        { "$ref": "#/$defs/handoff" },
+        { "$ref": "#/$defs/llmStatement" },
+        { "$ref": "#/$defs/aflowEvaluation" },
+        { "$ref": "#/$defs/scoring" },
+        { "$ref": "#/$defs/partition" },
+        { "$ref": "#/$defs/simulation" },
+        { "$ref": "#/$defs/inspection" },
+        { "$ref": "#/$defs/finalResult" }
+      ],
+      "items": false
+    },
+    "authority_boundaries": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["aflow_evaluation", "scoring", "partition"],
+      "properties": {
+        "aflow_evaluation": {
+          "const": "advisory analysis only; does not score or partition items"
+        },
+        "scoring": {
+          "const": "Fix controller recomputes the authoritative score"
+        },
+        "partition": {
+          "const": "Fix controller owns the authoritative ready/isolated partition"
+        }
+      }
+    },
+    "fix_rules": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["score_formula", "ready_threshold", "critical_blocker_override", "item_identity", "snapshot_scope", "aflow_invocations"],
+      "properties": {
+        "score_formula": { "const": "completeness*0.25 + traceability*0.20 + scope_and_boundary*0.15 + simulation_executability*0.20 + safety_and_reversibility*0.15 + determinism*0.05" },
+        "ready_threshold": { "const": 93.91 },
+        "critical_blocker_override": { "const": true },
+        "item_identity": { "const": "originating_finding_id" },
+        "snapshot_scope": { "const": "issue-linked files and minimum required dependency closure only" },
+        "aflow_invocations": { "const": "exactly one per accepted Fix operation" }
+      }
+    }
+  },
+  "$defs": {
+    "phase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "consumes", "produces", "owner", "mutates_repository"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "consumes": { "type": "array", "items": { "type": "string" } },
+        "produces": { "type": "array", "items": { "type": "string" } },
+        "owner": { "const": "Fix controller" },
+        "mutates_repository": { "const": false }
+      }
+    },
+    "scan": { "$ref": "#/$defs/scanPhase" },
+    "findingsList": { "$ref": "#/$defs/findingsListPhase" },
+    "scopedSnapshot": { "$ref": "#/$defs/scopedSnapshotPhase" },
+    "normalizeFindings": { "$ref": "#/$defs/normalizeFindingsPhase" },
+    "dossier": { "$ref": "#/$defs/dossierPhase" },
+    "handoff": { "$ref": "#/$defs/handoffPhase" },
+    "llmStatement": { "$ref": "#/$defs/llmStatementPhase" },
+    "aflowEvaluation": { "$ref": "#/$defs/aflowEvaluationPhase" },
+    "scoring": { "$ref": "#/$defs/scoringPhase" },
+    "partition": { "$ref": "#/$defs/partitionPhase" },
+    "simulation": { "$ref": "#/$defs/simulationPhase" },
+    "inspection": { "$ref": "#/$defs/inspectionPhase" },
+    "finalResult": { "$ref": "#/$defs/finalResultPhase" },
+    "scanPhase": { "allOf": [{ "$ref": "#/$defs/phase" }, { "properties": { "id": { "const": "scan" }, "name": { "const": "Scan" }, "consumes": { "const": ["repository_root", "accepted_fix_operation"] }, "produces": { "const": ["scan_report"] } } }] },
+    "findingsListPhase": { "allOf": [{ "$ref": "#/$defs/phase" }, { "properties": { "id": { "const": "findings_list" }, "name": { "const": "FindingsList" }, "consumes": { "const": ["scan_report"] }, "produces": { "const": ["FindingsList"] } } }] },
+    "scopedSnapshotPhase": { "allOf": [{ "$ref": "#/$defs/phase" }, { "properties": { "id": { "const": "scoped_snapshot" }, "name": { "const": "scoped snapshot" }, "consumes": { "const": ["FindingsList", "dependency_evidence"] }, "produces": { "const": ["FixScopedManifest", "snapshot_hash", "per_file_sha256"] } } }] },
+    "normalizeFindingsPhase": { "allOf": [{ "$ref": "#/$defs/phase" }, { "properties": { "id": { "const": "normalize_findings" }, "name": { "const": "normalize findings" }, "consumes": { "const": ["FindingsList", "FixScopedManifest"] }, "produces": { "const": ["normalized_findings"] } } }] },
+    "dossierPhase": { "allOf": [{ "$ref": "#/$defs/phase" }, { "properties": { "id": { "const": "dossier" }, "name": { "const": "dossier" }, "consumes": { "const": ["normalized_findings", "FixScopedManifest"] }, "produces": { "const": ["dossier"] } } }] },
+    "handoffPhase": { "allOf": [{ "$ref": "#/$defs/phase" }, { "properties": { "id": { "const": "handoff" }, "name": { "const": "handoff" }, "consumes": { "const": ["dossier"] }, "produces": { "const": ["handoff_statement"] } } }] },
+    "llmStatementPhase": { "allOf": [{ "$ref": "#/$defs/phase" }, { "properties": { "id": { "const": "llm_statement" }, "name": { "const": "LLM statement" }, "consumes": { "const": ["dossier", "handoff_statement"] }, "produces": { "const": ["llm_statement"] } } }] },
+    "aflowEvaluationPhase": { "allOf": [{ "$ref": "#/$defs/phase" }, { "properties": { "id": { "const": "aflow_evaluation" }, "name": { "const": "one A-Flow evaluation" }, "consumes": { "const": ["FindingsList", "FixScopedManifest", "dossier", "handoff_statement", "llm_statement", "fix_validation_context"] }, "produces": { "const": ["aflow_advisory_output"] } } }] },
+    "scoringPhase": { "allOf": [{ "$ref": "#/$defs/phase" }, { "properties": { "id": { "const": "scoring" }, "name": { "const": "scoring" }, "consumes": { "const": ["normalized_findings", "aflow_advisory_output", "FixScopedManifest"] }, "produces": { "const": ["authoritative_item_scores"] } } }] },
+    "partitionPhase": { "allOf": [{ "$ref": "#/$defs/phase" }, { "properties": { "id": { "const": "ready_isolated_partition" }, "name": { "const": "ready/isolated partition" }, "consumes": { "const": ["authoritative_item_scores", "dependency_evidence"] }, "produces": { "const": ["ready_items", "isolated_items", "isolation_reasons"] } } }] },
+    "simulationPhase": { "allOf": [{ "$ref": "#/$defs/phase" }, { "properties": { "id": { "const": "simulation" }, "name": { "const": "simulation" }, "consumes": { "const": ["ready_items", "FixScopedManifest", "validation_specifications"] }, "produces": { "const": ["simulation_results"] } } }] },
+    "inspectionPhase": { "allOf": [{ "$ref": "#/$defs/phase" }, { "properties": { "id": { "const": "inspection" }, "name": { "const": "inspection" }, "consumes": { "const": ["simulation_results", "isolated_items", "FixScopedManifest", "validation_specifications"] }, "produces": { "const": ["inspection_result"] } } }] },
+    "finalResultPhase": { "allOf": [{ "$ref": "#/$defs/phase" }, { "properties": { "id": { "const": "final_result" }, "name": { "const": "final result" }, "consumes": { "const": ["inspection_result", "ready_items", "isolated_items"] }, "produces": { "const": ["final_result"] } } }] }
+  }
+}

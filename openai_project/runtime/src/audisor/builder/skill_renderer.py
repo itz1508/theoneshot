@@ -27,7 +27,7 @@ class RenderedSkill:
     content: str
 
     def as_worker_task(self) -> TaskSkill:
-        """Return the exact AMD-compatible task boundary."""
+        """Return the exact Audisor task boundary."""
         return TaskSkill(task_id=self.task_id, prompt=self.content)
 
 

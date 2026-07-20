@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -23,13 +24,16 @@ from audisor.builder.task_loader import (
     PreparedBuildNotFoundError,
 )
 from audisor.api.provider_errors import provider_http_exception
+from audisor.operations.models import OperationRequest
+from audisor.operations.transport import canonical_operation_service
 from audisor.routing.configuration import get_provider_router
 from audisor.schemas.build import validate_safe_identifier
-from audisor.schemas.execution import BuildExecutionRequest, BuildExecutionState
 from audisor.schemas.errors import Declared422Response, ErrorResponse
+from audisor.schemas.execution import BuildExecutionRequest, BuildExecutionState
 from audisor.workers.base import ProviderError
 
 router = APIRouter(prefix="/v1/builds", tags=["build-executions"])
+canonical_router = APIRouter(prefix="/v1/operations", tags=["canonical-operations"])
 
 
 @lru_cache(maxsize=1)
@@ -114,5 +118,51 @@ def execute_prepared_build(
             detail={
                 "code": "execution_storage_error",
                 "message": "Execution storage failed",
+            },
+        ) from exc
+
+
+@lru_cache(maxsize=1)
+def get_canonical_operation_service() -> Any:
+    """Return the host-agnostic canonical operation service."""
+    return canonical_operation_service()
+
+
+@canonical_router.post(
+    "",
+    response_model=dict,
+    responses={
+        422: {"model": Declared422Response, "description": "Invalid operation request"},
+        500: {"model": ErrorResponse, "description": "Operation execution failed"},
+    },
+)
+def execute_canonical_operation(
+    request: OperationRequest,
+    service: Any = Depends(get_canonical_operation_service),
+) -> dict[str, Any]:
+    """Host-agnostic operation execution endpoint.
+
+    Accepts a legacy OperationRequest envelope, routes it through the
+    AudisorOperationExecutor, and returns a canonical JSON response.
+    """
+    try:
+        response = service.accept(request)
+        if response.status in ("blocked", "failed"):
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    "code": "operation_execution_failed",
+                    "message": response.failure.get("error_detail", {}).get("message", f"Operation {response.status}"),
+                },
+            )
+        return response.as_dict()
+    except Exception as exc:
+        if isinstance(exc, HTTPException):
+            raise
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "code": "operation_execution_failed",
+                "message": f"{type(exc).__name__}: {exc}",
             },
         ) from exc

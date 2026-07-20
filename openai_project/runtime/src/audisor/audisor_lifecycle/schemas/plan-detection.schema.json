@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://theoneshot.dev/schemas/aflow/v1/plan-detection.schema.json",
+  "title": "A-Flow Plan Detection",
+  "description": "Defines a completed valid plan that automatically triggers A-Flow review. No hashing or task-kind classification is used for detection. The host validates plan structure only.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["plan_id", "source_kind", "expects_mutation", "read_only", "steps", "original_plan"],
+  "properties": {
+    "plan_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Stable, non-empty identifier for this plan."
+    },
+    "source_kind": {
+      "enum": ["plan"],
+      "description": "Must be 'plan'. Raw tasks use source_kind='task' and do NOT trigger automatic A-Flow review."
+    },
+    "expects_mutation": {
+      "type": "boolean",
+      "description": "Must be true. Indicates the plan expects to mutate the repository (write files, change configuration, etc.)."
+    },
+    "read_only": {
+      "type": "boolean",
+      "description": "Must be false. Read-only work never triggers A-Flow review."
+    },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Ordered list of planned actions. Must contain at least one step.",
+      "items": {
+        "type": "object",
+        "required": ["action_id", "objective"],
+        "properties": {
+          "action_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "objective": {
+            "type": "string",
+            "minLength": 1
+          },
+          "target_paths": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "evidence_gates": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "original_plan": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The full immutable plan text passed verbatim to aflow_review."
+    },
+    "evidence_gates": {
+      "type": "array",
+      "description": "Optional validation checkpoints that must be satisfied before the plan is considered complete.",
+      "items": {
+        "type": "object",
+        "required": ["gate_id", "criterion"],
+        "properties": {
+          "gate_id": { "type": "string", "minLength": 1 },
+          "criterion": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "source_kind": { "const": "plan" },
+          "expects_mutation": { "const": true },
+          "read_only": { "const": false }
+        }
+      },
+      "then": {
+        "properties": {
+          "trigger_action": { "enum": ["auto_review", "direct_review"] }
+        }
+      }
+    },
+    {
+      "if": {
+        "anyOf": [
+          { "properties": { "source_kind": { "const": "task" } } },
+          { "properties": { "expects_mutation": { "const": false } } },
+          { "properties": { "read_only": { "const": true } } }
+        ]
+      },
+      "then": {
+        "properties": {
+          "trigger_action": { "const": "skip" }
+        }
+      }
+    }
+  ]
+}

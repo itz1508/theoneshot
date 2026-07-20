@@ -15,6 +15,9 @@ dependencies = [
     "uvicorn>=0.35,<1",
 ]
 
+[project.scripts]
+audisor = "audisor.cli:main"
+
 [project.optional-dependencies]
 dev = [
     "httpx>=0.28,<1",

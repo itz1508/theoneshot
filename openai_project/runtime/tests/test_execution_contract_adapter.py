@@ -9,8 +9,8 @@ from pathlib import Path
 import jsonschema
 import pytest
 
-from audisor.aflow_lifecycle.adapter import assemble_contract, verify_contract
-from audisor.aflow_lifecycle.contract import AflowLifecycleError
+from audisor.audisor_lifecycle.adapter import assemble_contract, verify_contract
+from audisor.audisor_lifecycle.contract import AudisorLifecycleError
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -31,7 +31,7 @@ def expected(name: str) -> dict:
 
 
 def invalid(value: dict, message: str) -> None:
-    with pytest.raises(AflowLifecycleError, match=message):
+    with pytest.raises(AudisorLifecycleError, match=message):
         assemble_contract(value)
 
 
