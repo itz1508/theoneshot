@@ -203,9 +203,7 @@ class CanonicalOperationService:
                 "request": request.build.request.model_dump(mode="json"),
             }
         if request.fix is not None:
-            canonical_request_payload["fix"] = {
-                "operation_id": getattr(request.fix.operation, "operation_id", request.operation_id),
-            }
+            canonical_request_payload["fix"] = self._serialize_fix_operation(request.fix.operation, request.operation_id)
 
         # Idempotency from delivery or operation_id
         idempotency = None
@@ -250,6 +248,46 @@ class CanonicalOperationService:
         if host_identity == "responses_compatible":
             return ResponsesCompatibleCapabilities()
         return CLICapabilities()
+
+    def _serialize_fix_operation(self, operation: Any, fallback_operation_id: str) -> dict[str, Any]:
+        """Serialize a Fix operation into a JSON-compatible dictionary.
+
+        Preserves the complete accepted Fix package including findings,
+        manifest, statements, plan, workspace_identity, authority_context,
+        and the optional aflow_analysis_request compatibility field.
+        """
+        from dataclasses import asdict, is_dataclass
+
+        def _jsonable(value: Any) -> Any:
+            if hasattr(value, "model_dump"):
+                return value.model_dump(mode="json")
+            if is_dataclass(value):
+                return {key: _jsonable(item) for key, item in asdict(value).items()}
+            if isinstance(value, dict):
+                return {str(key): _jsonable(item) for key, item in value.items()}
+            if isinstance(value, (list, tuple)):
+                return [_jsonable(item) for item in value]
+            return value
+
+        operation_id = getattr(operation, "operation_id", fallback_operation_id)
+        findings = getattr(operation, "findings", [])
+        manifest = getattr(operation, "manifest", None)
+        statements = getattr(operation, "statements", [])
+        plan = getattr(operation, "plan", None)
+        workspace_identity = getattr(operation, "workspace_identity", {})
+        authority_context = getattr(operation, "authority_context", {})
+        aflow_analysis_request = getattr(operation, "aflow_analysis_request", None)
+
+        return {
+            "operation_id": operation_id,
+            "findings": _jsonable(findings),
+            "manifest": _jsonable(manifest) if manifest is not None else None,
+            "statements": _jsonable(statements),
+            "plan": _jsonable(plan) if plan is not None else None,
+            "workspace_identity": _jsonable(workspace_identity),
+            "authority_context": _jsonable(authority_context),
+            "aflow_analysis_request": _jsonable(aflow_analysis_request) if aflow_analysis_request is not None else None,
+        }
 
     def _to_operation_response(
         self,
