@@ -21,7 +21,7 @@ import json
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Literal, Mapping
+from typing import Any, Callable, Literal, Mapping, Protocol
 
 from audisor.adapters.protocol import (
     AudisorOperationRequest,
@@ -51,6 +51,36 @@ from .store import AudisorOperationStore
 WorkerFactory = Callable[[AudisorConfig | None], LocalWorker]
 
 
+class FixDispatcher(Protocol):
+    """Protocol for routing Fix operations to the backend Fix dispatcher.
+
+    Defined here so the canonical runtime does not import audisor_backend
+    at module load time.  The transport layer provides a lazy concrete
+    implementation that imports audisor_backend only when a Fix request
+    is actually dispatched.
+    """
+
+    def dispatch(
+        self,
+        operation: Any,
+        continue_implementation: Callable[..., Any],
+        finalize_unresolved: Callable[..., Any],
+    ) -> Any: ...
+
+
+@dataclass
+class FixRouteConfig:
+    """Configuration for routing Fix operations to the backend dispatcher.
+
+    When present on ExecutorConfig, Fix operations are dispatched through
+    fix_dispatcher instead of the generic LocalWorker mutation path.
+    """
+
+    fix_dispatcher: FixDispatcher
+    continue_callback: Callable[..., Any]
+    finalize_callback: Callable[..., Any]
+
+
 @dataclass
 class ExecutorConfig:
     """Configuration for the AudisorOperationExecutor."""
@@ -60,6 +90,7 @@ class ExecutorConfig:
     mutation_enforcer: MutationEnforcer
     model_failure_policy: ModelFailurePolicy = field(default_factory=lambda: DEFAULT_MODEL_FAILURE_POLICY)
     worker_factory: WorkerFactory | None = None
+    fix_route: FixRouteConfig | None = None
     aflow_enabled: bool = True
 
 
@@ -76,6 +107,7 @@ class AudisorOperationExecutor:
         self._enforcer = config.mutation_enforcer
         self._policy = config.model_failure_policy
         self._worker_factory = config.worker_factory
+        self._fix_route = config.fix_route
         self._aflow_enabled = config.aflow_enabled
 
     # ------------------------------------------------------------------
@@ -144,7 +176,21 @@ class AudisorOperationExecutor:
 
         # 5. Dispatch by mode
         try:
-            if context.mode in ("build", "fix"):
+            if context.mode == "fix":
+                # Fix must never enter the generic LocalWorker mutation path.
+                # When no fix_route is configured, block immediately with a
+                # configuration/contract error — do not construct a worker,
+                # do not call _execute_mutation, do not persist a
+                # mutation-completed result.
+                if self._fix_route is None:
+                    raise AudisorRuntimeError(
+                        category="configuration",
+                        stage="request_translation",
+                        code="fix_route_unavailable",
+                        message="Fix operation received but no Fix route is configured",
+                    )
+                result = self._execute_fix(context, receipt)
+            elif context.mode == "build":
                 result = self._execute_mutation(context, receipt, audisor_config=audisor_config)
             elif context.mode in ("analyze", "validate"):
                 result = self._execute_read_only(context, receipt, audisor_config=audisor_config)
@@ -156,6 +202,11 @@ class AudisorOperationExecutor:
                     message=f"Unsupported operation mode: {context.mode}",
                 )
         except AudisorRuntimeError as exc:
+            # Validation, contract, and configuration errors block the
+            # operation; provider/internal/network errors fail it.
+            if exc.category in ("validation", "contract", "configuration"):
+                self._store.block(context.operation_id, f"{exc.code}: {exc.message}", idempotency_key=idem_key)
+                return AudisorOperationResult.from_error(context.operation_id, exc, status="blocked")
             self._store.fail(context.operation_id, exc.code, exc.message, idempotency_key=idem_key)
             return AudisorOperationResult.from_error(context.operation_id, exc)
         except Exception as exc:
@@ -293,6 +344,180 @@ class AudisorOperationExecutor:
                 _add(plan.get(key))
 
         return paths if paths else None
+
+    # ------------------------------------------------------------------
+    # Internal: Fix dispatch
+    # ------------------------------------------------------------------
+
+    def _execute_fix(
+        self,
+        context: AudisorOperationContext,
+        receipt: MutationReceipt,
+    ) -> AudisorOperationResult:
+        """Execute a Fix operation through the backend Fix dispatcher.
+
+        Reconstructs the typed Fix package from the serialized request,
+        invokes the AcceptedFixDispatcher, and translates the result into
+        an AudisorOperationResult.  The generic LocalWorker is NOT used.
+        """
+        assert self._fix_route is not None
+        fix_package = context.request.get("fix")
+        if not fix_package:
+            raise AudisorRuntimeError(
+                category="validation",
+                stage="request_translation",
+                code="fix_payload_missing",
+                message="Fix mode request does not contain a fix payload",
+            )
+        operation = self._reconstruct_fix_operation(fix_package)
+
+        # Wrap callbacks to capture which path the dispatcher took.
+        dispatched_result: dict[str, Any] = {"value": None, "path": None}
+
+        def _continue(op: Any, result: Any) -> Any:
+            dispatched_result["path"] = "continue"
+            dispatched_result["value"] = self._fix_route.continue_callback(op, result)  # type: ignore[misc]
+            return dispatched_result["value"]
+
+        def _finalize(op: Any, result: Any) -> Any:
+            dispatched_result["path"] = "finalize"
+            dispatched_result["value"] = self._fix_route.finalize_callback(op, result)  # type: ignore[misc]
+            return dispatched_result["value"]
+
+        try:
+            self._fix_route.fix_dispatcher.dispatch(operation, _continue, _finalize)
+        except Exception as exc:
+            raise AudisorRuntimeError(
+                category="provider",
+                stage="execution",
+                code="fix_dispatch_failed",
+                message=f"Fix dispatcher failed: {exc}",
+                detail=type(exc).__name__,
+            ) from exc
+
+        if dispatched_result["path"] == "continue":
+            return self._fix_continue(operation, dispatched_result["value"], receipt)
+        return self._fix_finalize(operation, dispatched_result["value"], receipt)
+
+    def _fix_continue(
+        self,
+        operation: Any,
+        result: Any,
+        receipt: MutationReceipt,
+    ) -> AudisorOperationResult:
+        """Translate an accepted Fix dispatcher result to canonical result."""
+        handoff_path: str | None = None
+        if isinstance(result, dict):
+            handoff_path = result.get("handoff_path")
+        else:
+            handoff_path = getattr(result, "handoff_path", None)
+        artifacts: list[Mapping[str, Any]] = []
+        if handoff_path:
+            artifacts.append({
+                "artifact_id": "qualified-fix-handoff",
+                "artifact_type": "handoff",
+                "reference": handoff_path,
+            })
+        return AudisorOperationResult(
+            operation_id=operation.operation_id,
+            status="accepted",
+            summary="Fix operation accepted",
+            artifacts=artifacts,
+            execution={
+                "fix_dispatched": True,
+                "receipt_id": receipt.receipt_id,
+                "receipt_digest": receipt.digest,
+                "handoff_path": handoff_path,
+            },
+        )
+
+    def _fix_finalize(
+        self,
+        operation: Any,
+        result: Any,
+        receipt: MutationReceipt,
+    ) -> AudisorOperationResult:
+        """Translate an unresolved Fix dispatcher result to canonical result."""
+        error_info: dict[str, Any] = {}
+        if isinstance(result, dict):
+            error_info = result.get("error") or {}
+        status: Literal["blocked", "failed"] = "blocked"
+        code = error_info.get("code", "fix_unresolved") if error_info else "fix_unresolved"
+        message = error_info.get("message", "Fix operation could not be resolved") if error_info else "Fix operation could not be resolved"
+        evidence_ref: str | None = None
+        if isinstance(result, dict):
+            evidence_ref = result.get("evidence_reference")
+        error = AudisorRuntimeError(
+            category="contract",
+            stage="execution",
+            code=code,
+            message=message,
+        )
+        return AudisorOperationResult(
+            operation_id=operation.operation_id,
+            status=status,
+            error=error.to_error(),
+            summary=f"Fix {status}: {message}",
+            evidence=[
+                OperationEvidence(
+                    evidence_id="fix-evidence",
+                    evidence_type="execution",
+                    source="fix_dispatcher",
+                    payload={"reference": evidence_ref} if evidence_ref else {},
+                ).to_mapping()
+            ],
+            execution={
+                "fix_dispatched": True,
+                "receipt_id": receipt.receipt_id,
+                "receipt_digest": receipt.digest,
+            },
+        )
+
+    def _reconstruct_fix_operation(self, package: Mapping[str, Any]) -> Any:
+        """Reconstruct typed Fix objects from the serialized Fix package.
+
+        Imports from audisor_backend are lazy so that importing the
+        canonical runtime does not fail when no Fix request is processed.
+        """
+        from audisor_backend.controllers.fix_host import AcceptedFixOperation
+        from audisor_backend.schemas.fix.models import (
+            Finding,
+            FixScopedManifest,
+            ImplementationPlan,
+            MinorIssue,
+            PlanStep,
+            Statement,
+        )
+
+        try:
+            operation_id = package["operation_id"]
+            findings = [Finding(**item) for item in package["findings"]]
+            manifest = FixScopedManifest(**package["manifest"])
+            statements = tuple(Statement(**item) for item in package["statements"])  # type: ignore[assignment]
+            plan_value = package["plan"]
+            plan = ImplementationPlan(
+                steps=[PlanStep(**item) for item in plan_value["steps"]],
+                target_files=plan_value["target_files"],
+                is_qualified=plan_value["is_qualified"],
+                minor_issues=[MinorIssue(**item) for item in plan_value.get("minor_issues", [])],
+            )
+            return AcceptedFixOperation(  # type: ignore[arg-type]
+                operation_id=operation_id,
+                findings=findings,
+                manifest=manifest,
+                statements=statements,
+                plan=plan,
+                workspace_identity=package["workspace_identity"],
+                authority_context=package["authority_context"],
+                aflow_analysis_request=package.get("aflow_analysis_request"),
+            )
+        except (KeyError, TypeError, ValueError, ImportError) as exc:
+            raise AudisorRuntimeError(
+                category="validation",
+                stage="request_translation",
+                code="fix_contract_invalid",
+                message=f"Fix payload is not a valid typed operation: {exc}",
+            ) from exc
 
     # ------------------------------------------------------------------
     # Internal: execution dispatch

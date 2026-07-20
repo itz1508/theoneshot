@@ -169,25 +169,47 @@ def canonical_operation_service():
     Uses AudisorOperationExecutor as the execution core and the new
     AudisorOperationStore for persistence.  This is the production path
     for the host-agnostic runtime; it does not depend on BuildExecutor.
+
+    Fix operations are routed to the existing audisor_backend Fix
+    dispatcher via FixRouteConfig so they never enter the generic
+    LocalWorker mutation path.
     """
     from audisor.operations import AudisorOperationExecutor
     from audisor.operations.artifacts import ArtifactStore
-    from audisor.operations.executor import ExecutorConfig
+    from audisor.operations.executor import ExecutorConfig, FixRouteConfig
     from audisor.operations.mutation_enforcer import MutationEnforcer
     from audisor.operations.service import CanonicalOperationService
     from audisor.operations.store import AudisorOperationStore
 
     data_dir = Path(os.environ.get("AUDISOR_OPERATION_DATA_DIR", Path.home() / ".audisor" / "operations"))
     artifact_dir = Path(os.environ.get("AUDISOR_ARTIFACT_DATA_DIR", Path.home() / ".audisor" / "artifacts"))
+    fix_data_dir = Path(os.environ.get("AUDISOR_FIX_DATA_DIR", Path.home() / ".audisor" / "fix-operations"))
 
     store = AudisorOperationStore(data_dir)
     artifact_store = ArtifactStore(artifact_dir)
     enforcer = MutationEnforcer(base_dir=Path.cwd())
+
+    # Lazy Fix dispatcher: imports audisor_backend only when a Fix
+    # request is actually dispatched.
+    class _LazyFixDispatcher:
+        def dispatch(self, operation, continue_implementation, finalize_unresolved):
+            from audisor_backend.controllers.fix_host import AcceptedFixDispatcher, FixOperationStore
+            return AcceptedFixDispatcher(FixOperationStore(fix_data_dir)).dispatch(
+                operation, continue_implementation, finalize_unresolved
+            )
+
+    fix_route = FixRouteConfig(
+        fix_dispatcher=_LazyFixDispatcher(),
+        continue_callback=lambda operation, result: result,
+        finalize_callback=lambda operation, result: result,
+    )
+
     executor = AudisorOperationExecutor(
         config=ExecutorConfig(
             operation_store=store,
             artifact_store=artifact_store,
             mutation_enforcer=enforcer,
+            fix_route=fix_route,
         )
     )
     return CanonicalOperationService(executor)
