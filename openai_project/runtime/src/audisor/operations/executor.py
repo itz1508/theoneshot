@@ -74,11 +74,15 @@ class FixRouteConfig:
 
     When present on ExecutorConfig, Fix operations are dispatched through
     fix_dispatcher instead of the generic LocalWorker mutation path.
+
+    If fix_continuation is set, an accepted Fix automatically launches
+    Codex under the same operation ID (automatic host continuation).
     """
 
     fix_dispatcher: FixDispatcher
     continue_callback: Callable[..., Any]
     finalize_callback: Callable[..., Any]
+    fix_continuation: Any | None = None
 
 
 @dataclass
@@ -405,7 +409,11 @@ class AudisorOperationExecutor:
         result: Any,
         receipt: MutationReceipt,
     ) -> AudisorOperationResult:
-        """Translate an accepted Fix dispatcher result to canonical result."""
+        """Translate an accepted Fix dispatcher result to canonical result.
+
+        If a fix_continuation is configured, automatically launch Codex
+        under the same operation ID after the handoff is persisted.
+        """
         handoff_path: str | None = None
         if isinstance(result, dict):
             handoff_path = result.get("handoff_path")
@@ -418,17 +426,66 @@ class AudisorOperationExecutor:
                 "artifact_type": "handoff",
                 "reference": handoff_path,
             })
+
+        execution: dict[str, Any] = {
+            "fix_dispatched": True,
+            "receipt_id": receipt.receipt_id,
+            "receipt_digest": receipt.digest,
+            "handoff_path": handoff_path,
+            "codex_launched": False,
+        }
+
+        # Automatic host continuation: launch Codex if configured
+        if handoff_path and self._fix_route is not None and self._fix_route.fix_continuation is not None:
+            try:
+                continuation_result = self._fix_route.fix_continuation.run(
+                    operation_id=operation.operation_id,
+                    handoff_path=handoff_path,
+                    receipt=receipt,
+                    allowed_target_paths=self._extract_target_paths({"fix": {
+                        "plan": getattr(operation, "plan", None).__dict__ if hasattr(getattr(operation, "plan", None), "__dict__") else {},
+                    }}) or list(receipt.authorized_paths),
+                    working_directory=Path.cwd(),
+                )
+                execution["codex_launched"] = True
+                execution["codex_result_reference"] = continuation_result.codex_result_reference
+                execution["codex_envelope_path"] = continuation_result.codex_envelope_path
+                execution["codex_exit_code"] = continuation_result.exit_code
+                execution["codex_outcome"] = continuation_result.outcome
+                # Add the Codex result as an artifact reference
+                artifacts.append({
+                    "artifact_id": "codex-fix-result",
+                    "artifact_type": "execution",
+                    "reference": continuation_result.codex_result_reference,
+                })
+            except Exception as exc:
+                # Codex launch failure → status = "failed", continuation not permitted
+                error = AudisorRuntimeError(
+                    category="provider",
+                    stage="execution",
+                    code="codex_launch_failed",
+                    message=f"Codex launch failed: {exc}",
+                    detail=type(exc).__name__,
+                )
+                return AudisorOperationResult(
+                    operation_id=operation.operation_id,
+                    status="failed",
+                    error=error.to_error(),
+                    summary=f"Fix failed: Codex launch failed: {exc}",
+                    artifacts=artifacts,
+                    execution={
+                        **execution,
+                        "codex_launched": False,
+                        "codex_failure": str(exc),
+                    },
+                )
+
         return AudisorOperationResult(
             operation_id=operation.operation_id,
             status="accepted",
             summary="Fix operation accepted",
             artifacts=artifacts,
-            execution={
-                "fix_dispatched": True,
-                "receipt_id": receipt.receipt_id,
-                "receipt_digest": receipt.digest,
-                "handoff_path": handoff_path,
-            },
+            execution=execution,
         )
 
     def _fix_finalize(

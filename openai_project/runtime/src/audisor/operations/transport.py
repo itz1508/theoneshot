@@ -198,10 +198,18 @@ def canonical_operation_service():
                 operation, continue_implementation, finalize_unresolved
             )
 
+    # Automatic host continuation: launch Codex after an accepted Fix.
+    from audisor.codex.fix_continuation import CodexFixContinuation
+
+    fix_continuation = CodexFixContinuation(
+        launch_result_store_root=data_dir,
+    )
+
     fix_route = FixRouteConfig(
         fix_dispatcher=_LazyFixDispatcher(),
         continue_callback=lambda operation, result: result,
         finalize_callback=lambda operation, result: result,
+        fix_continuation=fix_continuation,
     )
 
     executor = AudisorOperationExecutor(
