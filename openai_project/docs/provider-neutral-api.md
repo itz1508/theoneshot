@@ -50,8 +50,14 @@ Set `AUDISOR_DATA_DIR` to a safe external directory when an explicit location is
 - `POST /v1/tasks` executes a validated batch of typed text tasks.
 - `POST /v1/builds/prepare` requests and validates a typed build plan before atomic persistence.
 - `POST /v1/builds/{build_id}/executions` requests mutation-only action plans and applies locally enforced structured filesystem mutations in an isolated workspace.
+- `POST /v1/operations` accepts a host-agnostic canonical operation request and routes it through `AudisorOperationExecutor`.
+- `POST /v1/operations/tasks` accepts a batch of `TaskInput` items, submits each as a canonical `analyze` operation, and returns consolidated results.
 
 Provider-backed endpoints do not execute arbitrary commands, tests, scripts, or shells. Executable validation remains deferred until a separately authorized sandbox service exists.
+
+## Host-agnostic canonical operations
+
+The `/v1/operations` endpoints are the canonical entry point for all hosts (Codex, generic MCP, CLI, Responses-compatible). They translate legacy `OperationRequest` envelopes into `AudisorOperationRequest`, execute through `AudisorOperationExecutor`, and normalize results back into the legacy `OperationResponse` shape. All paths share the same executor instance and enforce authority, mutation policy, idempotency, artifact persistence, and canonical result normalization.
 
 ## Capabilities and errors
 

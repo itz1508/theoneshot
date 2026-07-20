@@ -2,7 +2,7 @@
 
 For qualifying repository mutations, Codex follows `Agents.md`: reuse a
 supplied candidate plan or create one once, invoke the project `aflow` custom
-agent, and pass its adapter-ready result to `audisor.aflow_lifecycle.ignite`.
+agent, and pass its adapter-ready result to `audisor.audisor_lifecycle.ignite`.
 The ignition layer delegates contract validation to the existing adapter and
 allows implementation only when the returned contract is ready and verifiable.
 
