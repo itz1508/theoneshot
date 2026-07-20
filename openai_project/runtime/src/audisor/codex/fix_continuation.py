@@ -120,10 +120,16 @@ class CodexFixContinuation:
         # 1. Validate the handoff exists and is well-formed
         handoff = self._load_and_validate_handoff(handoff_path, operation_id)
 
-        # 2. Validate plan targets are inside authorized paths
+        # 2. Validate the verification contract is present and complete
+        self._validate_verification_contract(handoff)
+
+        # 3. Validate the verification grounding is present and complete
+        self._validate_verification_grounding(handoff)
+
+        # 4. Validate plan targets are inside authorized paths
         self._validate_plan_targets(handoff, allowed_target_paths)
 
-        # 3. Build the host-owned Codex launch envelope
+        # 5. Build the host-owned Codex launch envelope
         envelope_root = codex_envelope_root or self._default_envelope_root(operation_id)
         envelope = self._build_codex_envelope(
             operation_id=operation_id,
@@ -134,10 +140,10 @@ class CodexFixContinuation:
         )
         envelope_path = self._persist_envelope(envelope_root, envelope)
 
-        # 4. Build Codex stdin from the envelope
+        # 6. Build Codex stdin from the envelope
         stdin_bytes = self._build_codex_stdin(envelope)
 
-        # 5. Launch Codex once
+        # 7. Launch Codex once
         try:
             pid, exit_code, outcome, argv = self._launcher(
                 stdin_bytes=stdin_bytes,
@@ -158,7 +164,7 @@ class CodexFixContinuation:
                 f"Codex launch failed: {exc}",
             ) from exc
 
-        # 6. Persist the launch result under the same operation ID
+        # 8. Persist the launch result under the same operation ID
         launch_result = {
             "operation_id": operation_id,
             "outcome": outcome,
@@ -180,6 +186,345 @@ class CodexFixContinuation:
             resolved_command=argv,
             working_directory=str(working_directory),
         )
+
+    # ------------------------------------------------------------------
+    # Internal: verification contract validation
+    # ------------------------------------------------------------------
+
+    def _validate_verification_contract(self, handoff: dict[str, Any]) -> None:
+        """Validate the verification contract is present and complete.
+
+        The host continuation must not rewrite, weaken, supplement, or
+        reinterpret the verification contract.  It only validates that the
+        contract exists and is structurally complete.
+        """
+        contract = handoff.get("verification_contract")
+        if not isinstance(contract, dict):
+            raise FixContinuationError(
+                "verification_contract_incomplete",
+                "Handoff does not contain a verification_contract",
+            )
+
+        # finding_checks must be a non-empty list
+        finding_checks = contract.get("finding_checks")
+        if not isinstance(finding_checks, list) or not finding_checks:
+            raise FixContinuationError(
+                "verification_contract_incomplete",
+                "verification_contract.finding_checks is missing or empty",
+            )
+
+        # Every finding_check must reference an actual finding and be concrete
+        finding_ids = {f.get("id") for f in handoff.get("findings", []) if isinstance(f, dict)}
+        for check in finding_checks:
+            if not isinstance(check, dict):
+                raise FixContinuationError(
+                    "verification_contract_incomplete",
+                    "finding_check is not an object",
+                )
+            check_finding_id = check.get("finding_id")
+            if check_finding_id not in finding_ids:
+                raise FixContinuationError(
+                    "verification_contract_incomplete",
+                    f"finding_check references unknown finding_id: {check_finding_id}",
+                )
+            if check.get("resolution_method") not in ("rescan", "test", "assertion"):
+                raise FixContinuationError(
+                    "verification_contract_incomplete",
+                    f"finding_check.resolution_method is invalid: {check.get('resolution_method')!r}",
+                )
+            if not isinstance(check.get("check"), str) or not check["check"].strip():
+                raise FixContinuationError(
+                    "verification_contract_incomplete",
+                    "finding_check.check must be concrete and non-empty",
+                )
+            if not isinstance(check.get("expected_result"), str) or not check["expected_result"].strip():
+                raise FixContinuationError(
+                    "verification_contract_incomplete",
+                    "finding_check.expected_result must be concrete and non-empty",
+                )
+
+        # Verify every finding is covered
+        covered = {c["finding_id"] for c in finding_checks}
+        if not covered >= finding_ids:
+            missing = finding_ids - covered
+            raise FixContinuationError(
+                "verification_contract_incomplete",
+                f"finding_checks do not cover every finding; missing: {missing}",
+            )
+
+        # validations must be a list with stable IDs and concrete commands
+        validations = contract.get("validations")
+        if not isinstance(validations, list):
+            raise FixContinuationError(
+                "verification_contract_incomplete",
+                "verification_contract.validations is not a list",
+            )
+        seen_ids: set[str] = set()
+        for val in validations:
+            if not isinstance(val, dict):
+                raise FixContinuationError(
+                    "verification_contract_incomplete",
+                    "validation is not an object",
+                )
+            vid = val.get("id")
+            if not isinstance(vid, str) or not vid.strip():
+                raise FixContinuationError(
+                    "verification_contract_incomplete",
+                    "validation.id must be a stable non-empty string",
+                )
+            if vid in seen_ids:
+                raise FixContinuationError(
+                    "verification_contract_incomplete",
+                    f"validation.id is not unique: {vid}",
+                )
+            seen_ids.add(vid)
+            cmd = val.get("command_or_assertion")
+            if not isinstance(cmd, str) or not cmd.strip():
+                raise FixContinuationError(
+                    "verification_contract_incomplete",
+                    "validation.command_or_assertion must be concrete and non-empty",
+                )
+            expected = val.get("expected_result")
+            if not isinstance(expected, str) or not expected.strip():
+                raise FixContinuationError(
+                    "verification_contract_incomplete",
+                    "validation.expected_result must be non-empty",
+                )
+
+        # must_not_regress must be a list
+        must_not_regress = contract.get("must_not_regress")
+        if not isinstance(must_not_regress, list):
+            raise FixContinuationError(
+                "verification_contract_incomplete",
+                "verification_contract.must_not_regress is not a list",
+            )
+
+        # success_rule must be non-empty
+        success_rule = contract.get("success_rule")
+        if not isinstance(success_rule, str) or not success_rule.strip():
+            raise FixContinuationError(
+                "verification_contract_incomplete",
+                "verification_contract.success_rule must be non-empty",
+            )
+
+    # ------------------------------------------------------------------
+    # Internal: verification grounding validation
+    # ------------------------------------------------------------------
+
+    def _validate_verification_grounding(self, handoff: dict[str, Any]) -> None:
+        """Validate the verification grounding is present and complete.
+
+        The continuation must not discover, infer, repair, or supplement
+        grounding.  It only validates that grounding exists and that every
+        contract entry has exactly one grounding record.
+        """
+        grounding = handoff.get("verification_grounding")
+        if not isinstance(grounding, dict):
+            raise FixContinuationError(
+                "verification_grounding_incomplete",
+                "Handoff does not contain verification_grounding",
+            )
+
+        contract = handoff.get("verification_contract", {})
+        if not isinstance(contract, dict):
+            raise FixContinuationError(
+                "verification_grounding_incomplete",
+                "Cannot verify grounding without a verification_contract",
+            )
+
+        # Check finding check grounding
+        contract_checks = contract.get("finding_checks", [])
+        grounding_checks = grounding.get("finding_checks", [])
+        if not isinstance(grounding_checks, list):
+            raise FixContinuationError(
+                "verification_grounding_incomplete",
+                "verification_grounding.finding_checks is not a list",
+            )
+        if len(grounding_checks) != len(contract_checks):
+            raise FixContinuationError(
+                "verification_grounding_incomplete",
+                f"finding_checks grounding count ({len(grounding_checks)}) != contract count ({len(contract_checks)})",
+            )
+
+        # Check validation grounding
+        contract_validations = contract.get("validations", [])
+        grounding_validations = grounding.get("validations", [])
+        if not isinstance(grounding_validations, list):
+            raise FixContinuationError(
+                "verification_grounding_incomplete",
+                "verification_grounding.validations is not a list",
+            )
+        if len(grounding_validations) != len(contract_validations):
+            raise FixContinuationError(
+                "verification_grounding_incomplete",
+                f"validations grounding count ({len(grounding_validations)}) != contract count ({len(contract_validations)})",
+            )
+
+        # Verify every grounding entry has required fields
+        for g in grounding_checks:
+            if not isinstance(g, dict):
+                raise FixContinuationError("verification_grounding_incomplete", "finding_check grounding is not an object")
+            for field_name in ("finding_id", "source_type", "source_reference", "scoped_paths"):
+                if field_name not in g:
+                    raise FixContinuationError("verification_grounding_incomplete", f"finding_check grounding missing field: {field_name}")
+            # Command sources must have non-empty authorized_tokens; assertions must have null
+            source_type = g.get("source_type")
+            if source_type in ("recorded_test",) and not g.get("authorized_tokens"):
+                raise FixContinuationError("verification_grounding_incomplete", f"finding_check grounding for command source has no authorized_tokens")
+            if source_type in ("scanner_check", "plan_acceptance", "deterministic_assertion") and g.get("authorized_tokens") is not None:
+                raise FixContinuationError("verification_grounding_incomplete", f"finding_check grounding for non-command source has authorized_tokens")
+
+        for g in grounding_validations:
+            if not isinstance(g, dict):
+                raise FixContinuationError("verification_grounding_incomplete", "validation grounding is not an object")
+            for field_name in ("validation_id", "source_type", "source_reference", "scoped_paths"):
+                if field_name not in g:
+                    raise FixContinuationError("verification_grounding_incomplete", f"validation grounding missing field: {field_name}")
+            # Command sources must have non-empty authorized_tokens; assertions must have null
+            source_type = g.get("source_type")
+            if source_type in ("configured_test", "recorded_test") and not g.get("authorized_tokens"):
+                raise FixContinuationError("verification_grounding_incomplete", f"validation grounding for command source has no authorized_tokens")
+            if source_type == "deterministic_assertion" and g.get("authorized_tokens") is not None:
+                raise FixContinuationError("verification_grounding_incomplete", f"validation grounding for assertion source has authorized_tokens")
+
+        # Verify scoped paths are inside the scoped manifest or dependency closure
+        scoped_manifest = handoff.get("scoped_manifest", {})
+        if isinstance(scoped_manifest, dict):
+            allowed = set(scoped_manifest.get("files", [])) | set(scoped_manifest.get("dependency_closure", []))
+            for g in grounding_checks:
+                for path in g.get("scoped_paths", []):
+                    if path and path not in allowed:
+                        raise FixContinuationError(
+                            "verification_grounding_incomplete",
+                            f"grounding scoped path '{path}' is not in scoped manifest or dependency closure",
+                        )
+            for g in grounding_validations:
+                for path in g.get("scoped_paths", []):
+                    if path and path not in allowed:
+                        raise FixContinuationError(
+                            "verification_grounding_incomplete",
+                            f"grounding scoped path '{path}' is not in scoped manifest or dependency closure",
+                        )
+
+    # ------------------------------------------------------------------
+    # Internal: verification contract validation (original)
+    # ------------------------------------------------------------------
+
+    def _validate_verification_contract_original(self, handoff: dict[str, Any]) -> None:
+        """Validate the verification contract is present and complete.
+
+        The host continuation must not rewrite, weaken, supplement, or
+        reinterpret the verification contract.  It only validates that the
+        contract exists and is structurally complete.
+        """
+        contract = handoff.get("verification_contract")
+        if not isinstance(contract, dict):
+            raise FixContinuationError(
+                "verification_contract_incomplete",
+                "Handoff does not contain a verification_contract",
+            )
+
+        # finding_checks must be a non-empty list
+        finding_checks = contract.get("finding_checks")
+        if not isinstance(finding_checks, list) or not finding_checks:
+            raise FixContinuationError(
+                "verification_contract_incomplete",
+                "verification_contract.finding_checks is missing or empty",
+            )
+
+        # Every finding_check must reference an actual finding and be concrete
+        finding_ids = {f.get("id") for f in handoff.get("findings", []) if isinstance(f, dict)}
+        for check in finding_checks:
+            if not isinstance(check, dict):
+                raise FixContinuationError(
+                    "verification_contract_incomplete",
+                    "finding_check is not an object",
+                )
+            check_finding_id = check.get("finding_id")
+            if check_finding_id not in finding_ids:
+                raise FixContinuationError(
+                    "verification_contract_incomplete",
+                    f"finding_check references unknown finding_id: {check_finding_id}",
+                )
+            if check.get("resolution_method") not in ("rescan", "test", "assertion"):
+                raise FixContinuationError(
+                    "verification_contract_incomplete",
+                    f"finding_check.resolution_method is invalid: {check.get('resolution_method')!r}",
+                )
+            if not isinstance(check.get("check"), str) or not check["check"].strip():
+                raise FixContinuationError(
+                    "verification_contract_incomplete",
+                    "finding_check.check must be concrete and non-empty",
+                )
+            if not isinstance(check.get("expected_result"), str) or not check["expected_result"].strip():
+                raise FixContinuationError(
+                    "verification_contract_incomplete",
+                    "finding_check.expected_result must be concrete and non-empty",
+                )
+
+        # Verify every finding is covered
+        covered = {c["finding_id"] for c in finding_checks}
+        if not covered >= finding_ids:
+            missing = finding_ids - covered
+            raise FixContinuationError(
+                "verification_contract_incomplete",
+                f"finding_checks do not cover every finding; missing: {missing}",
+            )
+
+        # validations must be a list with stable IDs and concrete commands
+        validations = contract.get("validations")
+        if not isinstance(validations, list):
+            raise FixContinuationError(
+                "verification_contract_incomplete",
+                "verification_contract.validations is not a list",
+            )
+        seen_ids: set[str] = set()
+        for val in validations:
+            if not isinstance(val, dict):
+                raise FixContinuationError(
+                    "verification_contract_incomplete",
+                    "validation is not an object",
+                )
+            vid = val.get("id")
+            if not isinstance(vid, str) or not vid.strip():
+                raise FixContinuationError(
+                    "verification_contract_incomplete",
+                    "validation.id must be a stable non-empty string",
+                )
+            if vid in seen_ids:
+                raise FixContinuationError(
+                    "verification_contract_incomplete",
+                    f"validation.id is not unique: {vid}",
+                )
+            seen_ids.add(vid)
+            cmd = val.get("command_or_assertion")
+            if not isinstance(cmd, str) or not cmd.strip():
+                raise FixContinuationError(
+                    "verification_contract_incomplete",
+                    "validation.command_or_assertion must be concrete and non-empty",
+                )
+            expected = val.get("expected_result")
+            if not isinstance(expected, str) or not expected.strip():
+                raise FixContinuationError(
+                    "verification_contract_incomplete",
+                    "validation.expected_result must be non-empty",
+                )
+
+        # must_not_regress must be a list
+        must_not_regress = contract.get("must_not_regress")
+        if not isinstance(must_not_regress, list):
+            raise FixContinuationError(
+                "verification_contract_incomplete",
+                "verification_contract.must_not_regress is not a list",
+            )
+
+        # success_rule must be non-empty
+        success_rule = contract.get("success_rule")
+        if not isinstance(success_rule, str) or not success_rule.strip():
+            raise FixContinuationError(
+                "verification_contract_incomplete",
+                "verification_contract.success_rule must be non-empty",
+            )
 
     # ------------------------------------------------------------------
     # Internal: handoff validation
@@ -334,6 +679,8 @@ class CodexFixContinuation:
             "scoped_manifest": handoff.get("scoped_manifest", {}),
             "statements": handoff.get("statements", []),
             "qualified_plan": handoff.get("qualified_plan", {}),
+            "verification_contract": handoff.get("verification_contract", {}),
+            "verification_grounding": handoff.get("verification_grounding", {}),
             "allowed_target_paths": list(allowed_target_paths),
             "mutation_receipt": {
                 "receipt_id": receipt_id,

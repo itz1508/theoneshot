@@ -197,7 +197,7 @@ def test_manual_skip_is_unresolved_user_skip():
     assert result.unresolved_reason == "user_skip"
 
 
-def test_local_fix_boundary_invokes_worker_once_and_preserves_scope():
+def test_local_fix_boundary_invokes_worker_once_and_preserves_scope(tmp_path):
     findings, manifest, plan, _ = fixture_data()
     class Worker:
         structured_output = False
@@ -205,19 +205,22 @@ def test_local_fix_boundary_invokes_worker_once_and_preserves_scope():
 
         def execute(self, _task):
             self.calls += 1
-            return type("Response", (), {"answer": '{"gap_corrections_applied":0,"plan":{"steps":[{"acceptance_criterion":"test passes","action":"repair","id":"S-1","originating_finding_id":"F-1","target_file":"src/app.py"}],"target_files":["src/app.py"]},"status":"accepted"}'})()
+            return type("Response", (), {"answer": '{"gap_corrections_applied":0,"plan":{"steps":[{"acceptance_criterion":"test passes","action":"repair","id":"S-1","originating_finding_id":"F-1","target_file":"src/app.py"}],"target_files":["src/app.py"]},"status":"accepted","success_definition":{"finding_checks":[{"finding_id":"F-1","resolution_method":"rescan","check":"scanner_clear::F-1","expected_result":"finding resolved"}],"validations":[{"id":"V-1","command_or_assertion":"python_compiles::src/app.py","expected_result":"compiles without error"}],"must_not_regress":["tests pass"],"success_rule":"all_finding_checks_and_validations_pass"}}'})()
 
     worker = Worker()
-    result = invoke_local_fix(worker, qualify_plan(plan, manifest), findings, manifest)
+    result = invoke_local_fix(worker, qualify_plan(plan, manifest), findings, manifest, repository_root=tmp_path)
     assert worker.calls == 1
     assert worker.structured_output is True
     assert result.implementation_eligible is True
     assert result.candidate_plan.steps[0].originating_finding_id == "F-1"
     assert result.execution_contract is None
+    assert result.success_definition is not None
+    assert result.success_definition.covers(findings)
 
 
-def test_local_fix_boundary_rejects_fenced_or_out_of_scope_output():
+def test_local_fix_boundary_rejects_fenced_or_out_of_scope_output(tmp_path):
     findings, manifest, plan, _ = fixture_data()
+    success_def = '{"success_definition":{"finding_checks":[{"finding_id":"F-1","resolution_method":"rescan","check":"scanner_clear::F-1","expected_result":"ok"}],"validations":[],"must_not_regress":[],"success_rule":"all_finding_checks_and_validations_pass"}}'
     class Worker:
         structured_output = False
 
@@ -228,9 +231,9 @@ def test_local_fix_boundary_rejects_fenced_or_out_of_scope_output():
             return type("Response", (), {"answer": self.answer})()
 
     with pytest.raises(FixLocalInvocationError) as fenced:
-        invoke_local_fix(Worker("```json {} ```"), qualify_plan(plan, manifest), findings, manifest)
+        invoke_local_fix(Worker("```json {} ```"), qualify_plan(plan, manifest), findings, manifest, repository_root=tmp_path)
     assert fenced.value.code == "invalid_response_framing"
-    out_of_scope = '{"gap_corrections_applied":0,"plan":{"steps":[{"acceptance_criterion":"test passes","action":"repair","id":"S-1","originating_finding_id":"F-1","target_file":"src/other.py"}],"target_files":["src/other.py"]},"status":"accepted"}'
+    out_of_scope = '{"gap_corrections_applied":0,"plan":{"steps":[{"acceptance_criterion":"test passes","action":"repair","id":"S-1","originating_finding_id":"F-1","target_file":"src/other.py"}],"target_files":["src/other.py"]},"status":"accepted",' + success_def[1:]
     with pytest.raises(FixLocalInvocationError) as scoped:
-        invoke_local_fix(Worker(out_of_scope), qualify_plan(plan, manifest), findings, manifest)
+        invoke_local_fix(Worker(out_of_scope), qualify_plan(plan, manifest), findings, manifest, repository_root=tmp_path)
     assert scoped.value.code == "scope_violation"

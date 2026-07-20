@@ -55,7 +55,12 @@ class FixOperationStore:
         os.replace(temporary, target)
 
     def persist_handoff(self, operation: AcceptedFixOperation, result: Any) -> str:
-        """Persist the qualified Fix handoff before implementation continues."""
+        """Persist the qualified Fix handoff before implementation continues.
+
+        Includes the verification_contract and verification_grounding from
+        the accepted Fix analysis response so post-execution verification
+        has concrete, grounded success criteria.
+        """
         root = self.root / operation.operation_id
         root.mkdir(parents=True, exist_ok=True)
         payload = {
@@ -73,6 +78,19 @@ class FixOperationStore:
                 "completion_claimed": False,
             },
         }
+        # Persist the verification contract from the accepted analysis result.
+        success_definition = getattr(result, "success_definition", None)
+        if success_definition is not None:
+            payload["verification_contract"] = {
+                "finding_checks": _plain(success_definition.finding_checks),
+                "validations": _plain(success_definition.validations),
+                "must_not_regress": _plain(success_definition.must_not_regress),
+                "success_rule": success_definition.success_rule,
+            }
+        # Persist the verification grounding evidence.
+        verification_grounding = getattr(result, "verification_grounding", None)
+        if verification_grounding is not None:
+            payload["verification_grounding"] = verification_grounding.to_mapping()
         encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8") + b"\n"
         payload["handoff_sha256"] = hashlib.sha256(encoded).hexdigest()
         target = root / "qualified-fix-handoff.json"

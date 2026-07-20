@@ -56,7 +56,7 @@ def _make_fix_request(operation_id: str = "fix-op-1", *, target_files: list[str]
     )
 
 
-def _write_handoff(tmp_path: Path, operation_id: str, target_files: list[str] | None = None) -> str:
+def _write_handoff(tmp_path: Path, operation_id: str, target_files: list[str] | None = None, *, include_verification_contract: bool = True, include_verification_grounding: bool = True) -> str:
     if target_files is None:
         target_files = ["src/app.py"]
     handoff_dir = tmp_path / "fix-operations" / operation_id
@@ -70,6 +70,18 @@ def _write_handoff(tmp_path: Path, operation_id: str, target_files: list[str] | 
         "qualified_plan": {"steps": [{"id": "S-1", "action": "repair", "target_file": target_files[0], "originating_finding_id": "F-1", "acceptance_criterion": "test passes"}], "target_files": target_files, "is_qualified": True},
         "authority": {"mutation_authorized": False, "execution_authorized": False, "apply_authorized": False, "completion_claimed": False},
     }
+    if include_verification_contract:
+        handoff["verification_contract"] = {
+            "finding_checks": [{"finding_id": "F-1", "resolution_method": "rescan", "check": "scanner_clear::F-1", "expected_result": "finding resolved"}],
+            "validations": [{"id": "V-1", "command_or_assertion": "python_compiles::src/app.py", "expected_result": "compiles without error"}],
+            "must_not_regress": ["existing tests must still pass"],
+            "success_rule": "all_finding_checks_and_validations_pass",
+        }
+    if include_verification_grounding:
+        handoff["verification_grounding"] = {
+            "finding_checks": [{"finding_id": "F-1", "resolution_method": "rescan", "source_type": "deterministic_assertion", "source_reference": "assertion:scanner_clear::F-1", "authorized_tokens": None, "scoped_paths": [target_files[0]]}],
+            "validations": [{"validation_id": "V-1", "source_type": "deterministic_assertion", "source_reference": "assertion:python_compiles::src/app.py", "authorized_tokens": None, "scoped_paths": [target_files[0]]}],
+        }
     handoff_path.write_text(json.dumps(handoff, sort_keys=True, indent=2), encoding="utf-8")
     return str(handoff_path)
 
@@ -318,3 +330,227 @@ def test_existing_build_behavior_remains_unchanged(tmp_path: Path):
     assert worker_called is True
     assert fix_continuation_called is False
     assert result.status == "completed"
+
+
+# ---------------------------------------------------------------------------
+# Verification contract tests
+# ---------------------------------------------------------------------------
+
+
+def test_accepted_handoff_contains_verification_contract(tmp_path: Path):
+    """Accepted handoff contains verification_contract."""
+    handoff_path = _write_handoff(tmp_path, "fix-op-1")
+    handoff = json.loads(Path(handoff_path).read_text(encoding="utf-8"))
+    assert "verification_contract" in handoff
+    contract = handoff["verification_contract"]
+    assert "finding_checks" in contract
+    assert "validations" in contract
+    assert "must_not_regress" in contract
+    assert "success_rule" in contract
+
+
+def test_every_finding_is_covered_by_concrete_finding_check(tmp_path: Path):
+    """Every finding is covered by a concrete finding check."""
+    handoff_path = _write_handoff(tmp_path, "fix-op-1")
+    handoff = json.loads(Path(handoff_path).read_text(encoding="utf-8"))
+    finding_ids = {f["id"] for f in handoff["findings"]}
+    covered_ids = {c["finding_id"] for c in handoff["verification_contract"]["finding_checks"]}
+    assert covered_ids >= finding_ids
+
+
+def test_verification_contract_survives_handoff_and_envelope_unchanged(tmp_path: Path):
+    """The contract survives handoff persistence and Codex envelope construction unchanged."""
+    handoff_path = _write_handoff(tmp_path, "fix-op-1")
+    launcher = FakeLauncher()
+    continuation = CodexFixContinuation(launcher=launcher, launch_result_store_root=tmp_path / "operations")
+
+    class FakeDispatcher:
+        def dispatch(self, operation, continue_impl, finalize_unresolved):
+            return continue_impl(operation, {"status": "accepted", "handoff_path": handoff_path})
+
+    executor = _make_executor(tmp_path, fix_dispatcher=FakeDispatcher(), fix_continuation=continuation)
+    result = executor.execute(_make_fix_request())
+
+    handoff = json.loads(Path(handoff_path).read_text(encoding="utf-8"))
+    envelope = json.loads(Path(result.execution["codex_envelope_path"]).read_text(encoding="utf-8"))
+    # The contract in the envelope must match the contract in the handoff
+    assert envelope["verification_contract"] == handoff["verification_contract"]
+
+
+def test_missing_verification_contract_blocks_before_codex_launch(tmp_path: Path):
+    """Missing verification_contract blocks before Codex launch."""
+    handoff_path = _write_handoff(tmp_path, "fix-op-1", include_verification_contract=False)
+    launcher = FakeLauncher()
+    continuation = CodexFixContinuation(launcher=launcher, launch_result_store_root=tmp_path / "operations")
+
+    class FakeDispatcher:
+        def dispatch(self, operation, continue_impl, finalize_unresolved):
+            return continue_impl(operation, {"status": "accepted", "handoff_path": handoff_path})
+
+    executor = _make_executor(tmp_path, fix_dispatcher=FakeDispatcher(), fix_continuation=continuation)
+    result = executor.execute(_make_fix_request())
+
+    assert result.status == "failed"
+    assert result.error is not None
+    assert result.error.error_code.code == "codex_launch_failed"
+    assert len(launcher.calls) == 0
+
+
+def test_unknown_finding_ids_block_before_codex_launch(tmp_path: Path):
+    """Unknown finding IDs in finding_checks block before Codex launch."""
+    handoff_path = _write_handoff(tmp_path, "fix-op-1")
+    # Corrupt the handoff to reference an unknown finding_id
+    handoff = json.loads(Path(handoff_path).read_text(encoding="utf-8"))
+    handoff["verification_contract"]["finding_checks"].append({
+        "finding_id": "F-UNKNOWN", "resolution_method": "rescan", "check": "rescan", "expected_result": "ok"
+    })
+    Path(handoff_path).write_text(json.dumps(handoff, sort_keys=True, indent=2), encoding="utf-8")
+
+    launcher = FakeLauncher()
+    continuation = CodexFixContinuation(launcher=launcher, launch_result_store_root=tmp_path / "operations")
+
+    class FakeDispatcher:
+        def dispatch(self, operation, continue_impl, finalize_unresolved):
+            return continue_impl(operation, {"status": "accepted", "handoff_path": handoff_path})
+
+    executor = _make_executor(tmp_path, fix_dispatcher=FakeDispatcher(), fix_continuation=continuation)
+    result = executor.execute(_make_fix_request())
+
+    assert result.status == "failed"
+    assert len(launcher.calls) == 0
+
+
+def test_empty_validation_commands_block_before_codex_launch(tmp_path: Path):
+    """Empty or unsupported validation commands block before Codex launch."""
+    handoff_path = _write_handoff(tmp_path, "fix-op-1")
+    # Corrupt the handoff to have an empty validation command
+    handoff = json.loads(Path(handoff_path).read_text(encoding="utf-8"))
+    handoff["verification_contract"]["validations"].append({
+        "id": "V-EMPTY", "command_or_assertion": "", "expected_result": "ok"
+    })
+    Path(handoff_path).write_text(json.dumps(handoff, sort_keys=True, indent=2), encoding="utf-8")
+
+    launcher = FakeLauncher()
+    continuation = CodexFixContinuation(launcher=launcher, launch_result_store_root=tmp_path / "operations")
+
+    class FakeDispatcher:
+        def dispatch(self, operation, continue_impl, finalize_unresolved):
+            return continue_impl(operation, {"status": "accepted", "handoff_path": handoff_path})
+
+    executor = _make_executor(tmp_path, fix_dispatcher=FakeDispatcher(), fix_continuation=continuation)
+    result = executor.execute(_make_fix_request())
+
+    assert result.status == "failed"
+    assert len(launcher.calls) == 0
+
+
+def test_out_of_scope_plan_targets_still_block(tmp_path: Path):
+    """Out-of-scope plan targets still block before Codex launch.
+
+    Uses a request with narrow allowed_paths that do NOT include the
+    out-of-scope target, so the authority check rejects it.
+    """
+    handoff_path = _write_handoff(tmp_path, "fix-op-1")
+    # Corrupt the handoff to have an out-of-scope target
+    handoff = json.loads(Path(handoff_path).read_text(encoding="utf-8"))
+    handoff["qualified_plan"]["target_files"].append("other/out_of_scope.py")
+    handoff["scoped_manifest"]["files"].append("other/out_of_scope.py")
+    Path(handoff_path).write_text(json.dumps(handoff, sort_keys=True, indent=2), encoding="utf-8")
+
+    launcher = FakeLauncher()
+    continuation = CodexFixContinuation(launcher=launcher, launch_result_store_root=tmp_path / "operations")
+
+    class FakeDispatcher:
+        def dispatch(self, operation, continue_impl, finalize_unresolved):
+            return continue_impl(operation, {"status": "accepted", "handoff_path": handoff_path})
+
+    # Use narrow allowed_paths that do not include "other/"
+    store = AudisorOperationStore(tmp_path / "operations")
+    artifact_store = ArtifactStore(tmp_path / "artifacts")
+    enforcer = MutationEnforcer(base_dir=tmp_path)
+    fix_route = FixRouteConfig(
+        fix_dispatcher=FakeDispatcher(), continue_callback=lambda op, result: result,
+        finalize_callback=lambda op, result: result, fix_continuation=continuation,
+    )
+    executor = AudisorOperationExecutor(
+        config=ExecutorConfig(operation_store=store, artifact_store=artifact_store, mutation_enforcer=enforcer, fix_route=fix_route)
+    )
+
+    # Build a request with narrow allowed_paths
+    request = AudisorOperationRequest(
+        operation_id="fix-op-1", mode="fix",
+        request={"fix": {
+            "operation_id": "fix-op-1",
+            "findings": [{"id": "F-1", "type": "syntax", "file": "src/app.py", "severity": "high", "evidence": {"line": 42}}],
+            "manifest": {"files": ["src/app.py"], "dependency_closure": ["src/app.py"], "input_hash": "abc123", "file_hashes": {"src/app.py": "a" * 64}},
+            "statements": [
+                {"type": "mutation_authority", "content": {"authorized": True}, "findings_ref_hash": "h", "manifest_ref_hash": "h"},
+                {"type": "plan_authority", "content": {"qualified": True}, "findings_ref_hash": "h", "manifest_ref_hash": "h"},
+                {"type": "execution_authority", "content": {"scope": "repository"}, "findings_ref_hash": "h", "manifest_ref_hash": "h"},
+            ],
+            "plan": {"steps": [{"id": "S-1", "action": "repair", "target_file": "src/app.py", "originating_finding_id": "F-1", "acceptance_criterion": "test passes"}], "target_files": ["src/app.py"], "is_qualified": True, "minor_issues": []},
+            "workspace_identity": {"path": "sandbox", "root": "/repo"},
+            "authority_context": {"allowed_paths": ["src/app.py"], "scope": "repository"},
+            "aflow_analysis_request": None,
+        }},
+        authority=AuthorityContext(
+            source=AuthoritySource(source_type="user", grant_id="test", host_identity="cli"),
+            permissions=PermissionSet(allowed_paths=["src/app.py"], prohibited_paths=[".git", ".codex", "other"], allowed_tools=[], prohibited_tools=[]),
+            scope="repository",
+        ),
+        constraints={}, host_capabilities=HostCapabilities(), host_context={"adapter": "cli"},
+    )
+
+    result = executor.execute(request)
+
+    assert result.status == "failed"
+    assert len(launcher.calls) == 0
+
+
+def test_fix_local_worker_invoked_exactly_once(tmp_path: Path):
+    """The Fix-local worker is invoked exactly once.
+
+    Uses invoke_local_fix directly to avoid the audisor_operation_artifact
+    dependency on build_analysis (which is specific to the full A-Flow
+    IgnitionResult, not the Fix-local FixIgnitionResult).
+    """
+    from audisor_backend.adapters.aflow_fix import invoke_local_fix
+    from audisor_backend.schemas.fix.models import Finding, FixScopedManifest, ImplementationPlan, PlanStep
+
+    worker_calls = 0
+
+    class FakeWorker:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def execute(self, task):
+            nonlocal worker_calls
+            worker_calls += 1
+            from audisor.schemas.task_output import TaskOutput
+            return TaskOutput(
+                task_id="aflow-fix",
+                answer=json.dumps({
+                    "status": "accepted",
+                    "plan": {"steps": [{"id": "S-1", "action": "repair", "target_file": "src/app.py", "originating_finding_id": "F-1", "acceptance_criterion": "test passes"}], "target_files": ["src/app.py"]},
+                    "gap_corrections_applied": 0,
+                    "success_definition": {
+                        "finding_checks": [{"finding_id": "F-1", "resolution_method": "rescan", "check": "scanner_clear::F-1", "expected_result": "finding resolved"}],
+                        "validations": [{"id": "V-1", "command_or_assertion": "python_compiles::src/app.py", "expected_result": "compiles without error"}],
+                        "must_not_regress": ["existing tests must still pass"],
+                        "success_rule": "all_finding_checks_and_validations_pass",
+                    },
+                }),
+            )
+
+    findings = [Finding("F-1", "syntax", "src/app.py", "high", {"line": 1, "repro": "python -m py_compile src/app.py"})]
+    manifest = FixScopedManifest(["src/app.py"], ["src/app.py"], "input", {"src/app.py": "a" * 64})
+    plan = ImplementationPlan([PlanStep("S-1", "repair", "src/app.py", "F-1", "test passes")], ["src/app.py"], True)
+
+    worker = FakeWorker()
+    result = invoke_local_fix(worker, plan, findings, manifest, repository_root=tmp_path)
+
+    assert worker_calls == 1
+    assert result.implementation_eligible is True
+    assert result.success_definition is not None
+    assert result.success_definition.covers(findings)
+    assert result.verification_grounding is not None
