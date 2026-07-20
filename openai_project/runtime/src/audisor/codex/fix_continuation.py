@@ -81,7 +81,7 @@ class CodexFixContinuation:
     def __init__(
         self,
         *,
-        launcher: Callable[..., tuple[int | None, int, str, tuple[str, ...]]] = launch_codex,
+        launcher: Callable[..., tuple[int | None, int, str, tuple[str, ...], str, str]] = launch_codex,
         launch_result_store_root: Path | None = None,
     ) -> None:
         self._launcher = launcher
@@ -143,9 +143,9 @@ class CodexFixContinuation:
         # 6. Build Codex stdin from the envelope
         stdin_bytes = self._build_codex_stdin(envelope)
 
-        # 7. Launch Codex once
+        # 7. Launch Codex once in the explicit repository root
         try:
-            pid, exit_code, outcome, argv = self._launcher(
+            pid, exit_code, outcome, argv, stdout_text, stderr_text = self._launcher(
                 stdin_bytes=stdin_bytes,
                 cwd=working_directory,
             )
@@ -157,6 +157,12 @@ class CodexFixContinuation:
                 "failure_code": exc.code,
                 "handoff_path": handoff_path,
                 "codex_envelope_path": str(envelope_path),
+                "codex_cwd": str(working_directory),
+                "validation_cwd": str(working_directory),
+                "stdout": "",
+                "stderr": "",
+                "completion_claimed": False,
+                "verification_performed": False,
             }
             result_ref = self._persist_launch_result(envelope_root, failure_result)
             raise FixContinuationError(
@@ -164,14 +170,20 @@ class CodexFixContinuation:
                 f"Codex launch failed: {exc}",
             ) from exc
 
-        # 8. Persist the launch result under the same operation ID
+        # 8. Persist the complete launch result under the same operation ID
         launch_result = {
             "operation_id": operation_id,
             "outcome": outcome,
             "pid": pid,
             "exit_code": exit_code,
+            "stdout": stdout_text,
+            "stderr": stderr_text,
+            "codex_cwd": str(working_directory),
+            "validation_cwd": str(working_directory),
             "handoff_path": handoff_path,
             "codex_envelope_path": str(envelope_path),
+            "completion_claimed": False,
+            "verification_performed": False,
         }
         result_ref = self._persist_launch_result(envelope_root, launch_result)
 

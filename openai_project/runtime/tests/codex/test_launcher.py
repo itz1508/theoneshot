@@ -38,16 +38,23 @@ def test_launch_uses_argument_vector_and_exact_stdin(monkeypatch, tmp_path):
         def wait(self):
             return 7
 
+        def communicate(self):
+            return (b"fake stdout", b"fake stderr")
+
+        returncode = 7
+
     def runner(argv, **kwargs):
         captured["argv"] = argv
         captured["kwargs"] = kwargs
         return Process()
 
-    pid, exit_code, outcome, argv = launcher.launch_codex(stdin_bytes=b"sealed", cwd=tmp_path, runner=runner)
+    pid, exit_code, outcome, argv, stdout_text, stderr_text = launcher.launch_codex(stdin_bytes=b"sealed", cwd=tmp_path, runner=runner)
     assert pid == 42
     assert exit_code == 7
     assert outcome == "codex_failed"
     assert argv == ("C:/tools/codex.exe", "exec", "-")
+    assert stdout_text == "fake stdout"
+    assert stderr_text == "fake stderr"
     assert captured["stdin"] == b"sealed"
     assert captured["kwargs"]["cwd"] == str(tmp_path)
 

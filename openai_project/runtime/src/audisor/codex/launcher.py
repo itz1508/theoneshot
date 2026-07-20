@@ -40,19 +40,26 @@ def resolve_codex(*, runner: Callable[..., subprocess.CompletedProcess] = subpro
     return path, tuple(base), (version.stdout or version.stderr or "").strip()
 
 
-def launch_codex(*, stdin_bytes: bytes, cwd: Path, runner: Callable[..., subprocess.Popen] = subprocess.Popen) -> tuple[int | None, int, str, tuple[str, ...]]:
+def launch_codex(*, stdin_bytes: bytes, cwd: Path, runner: Callable[..., subprocess.Popen] = subprocess.Popen) -> tuple[int | None, int, str, tuple[str, ...], str, str]:
+    """Launch Codex and capture stdout/stderr separately.
+
+    Returns (pid, exit_code, outcome, argv, stdout, stderr).
+    """
     path, base, _version = resolve_codex()
     argv = [*base, "exec", "-"]
     process = None
     try:
-        process = runner(argv, cwd=str(cwd), stdin=subprocess.PIPE)
+        process = runner(argv, cwd=str(cwd), stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         pid = getattr(process, "pid", None)
         if process.stdin is None:
             raise CodexLaunchError("codex_process_start_failed", "Codex stdin was unavailable")
         process.stdin.write(stdin_bytes)
         process.stdin.close()
-        exit_code = process.wait()
-        return pid, exit_code, "codex_completed" if exit_code == 0 else "codex_failed", tuple(argv)
+        stdout_bytes, stderr_bytes = process.communicate()
+        exit_code = process.returncode
+        stdout_text = stdout_bytes.decode("utf-8", errors="replace") if stdout_bytes else ""
+        stderr_text = stderr_bytes.decode("utf-8", errors="replace") if stderr_bytes else ""
+        return pid, exit_code, "codex_completed" if exit_code == 0 else "codex_failed", tuple(argv), stdout_text, stderr_text
     except KeyboardInterrupt:
         if process is not None:
             try:
@@ -60,7 +67,7 @@ def launch_codex(*, stdin_bytes: bytes, cwd: Path, runner: Callable[..., subproc
                 process.wait(timeout=10)
             except Exception:
                 pass
-        return getattr(process, "pid", None), 130, "codex_cancelled", tuple(argv)
+        return getattr(process, "pid", None), 130, "codex_cancelled", tuple(argv), "", ""
     except CodexLaunchError:
         raise
     except OSError as exc:

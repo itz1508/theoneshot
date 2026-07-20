@@ -106,12 +106,12 @@ class FakeLauncher:
         self._outcome = outcome
         self._fail = fail
 
-    def __call__(self, *, stdin_bytes: bytes, cwd: Path) -> tuple[int | None, int, str, tuple[str, ...]]:
+    def __call__(self, *, stdin_bytes: bytes, cwd: Path) -> tuple[int | None, int, str, tuple[str, ...], str, str]:
         self.calls.append({"stdin_bytes": stdin_bytes, "cwd": cwd})
         if self._fail:
             from audisor.codex.launcher import CodexLaunchError
             raise CodexLaunchError("codex_process_start_failed", "fake failure")
-        return 12345, self._exit_code, self._outcome, ("codex", "exec", "-")
+        return 12345, self._exit_code, self._outcome, ("codex", "exec", "-"), "fake stdout", "fake stderr"
 
 
 def test_accepted_fix_automatically_launches_codex_once(tmp_path: Path):
