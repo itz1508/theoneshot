@@ -200,9 +200,11 @@ def canonical_operation_service():
 
     # Automatic host continuation: launch Codex after an accepted Fix.
     from audisor.codex.fix_continuation import CodexFixContinuation
+    from audisor.codex.fix_verification import FixPostExecutionVerifier
 
     fix_continuation = CodexFixContinuation(
         launch_result_store_root=data_dir,
+        verifier=FixPostExecutionVerifier(),
     )
 
     fix_route = FixRouteConfig(

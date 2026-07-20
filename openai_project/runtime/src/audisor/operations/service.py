@@ -301,8 +301,12 @@ class CanonicalOperationService:
 
         continuation_permitted = status in ("accepted", "completed")
 
+        # Ensure operation_id is always a string for the legacy response.
+        operation_id = result.operation_id or ""
+        # Convert artifacts list to a tuple as expected by OperationResponse.
+        artifact_refs = tuple(result.artifacts)
         return OperationResponse(
-            operation_id=result.operation_id,
+            operation_id=operation_id,
             operation_kind=request.operation_kind,
             client_id=request.client.client_id,
             request_hash=request.canonical_hash(),
@@ -313,7 +317,7 @@ class CanonicalOperationService:
             execution_contract_reference=(
                 result.execution.get("receipt_id") if result.execution else None
             ),
-            artifact_references=tuple(dict(a) for a in result.artifacts),
+            artifact_references=artifact_refs,
             authority_limits={},
             continuation={
                 "state": "permitted" if continuation_permitted else "blocked",

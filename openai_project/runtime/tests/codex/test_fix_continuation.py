@@ -28,7 +28,7 @@ from audisor.operations.store import AudisorOperationStore
 from audisor.schemas.authority import AuthorityContext, AuthoritySource, PermissionSet
 
 
-def _make_fix_request(operation_id: str = "fix-op-1", *, target_files: list[str] | None = None) -> AudisorOperationRequest:
+def _make_fix_request(operation_id: str = "fix-op-1", *, target_files: list[str] | None = None, scanner_context: dict | None = None) -> AudisorOperationRequest:
     if target_files is None:
         target_files = ["src/app.py"]
     fix_payload = {
@@ -44,6 +44,7 @@ def _make_fix_request(operation_id: str = "fix-op-1", *, target_files: list[str]
         "workspace_identity": {"path": "sandbox/fix-op-1", "root": "/repo"},
         "authority_context": {"allowed_paths": target_files, "scope": "repository"},
         "aflow_analysis_request": None,
+        "scanner_context": scanner_context,
     }
     return AudisorOperationRequest(
         operation_id=operation_id, mode="fix", request={"fix": fix_payload},
@@ -54,6 +55,10 @@ def _make_fix_request(operation_id: str = "fix-op-1", *, target_files: list[str]
         ),
         constraints={}, host_capabilities=HostCapabilities(), host_context={"adapter": "cli"},
     )
+
+
+def _make_scanner_context(tmp_path: Path) -> dict:
+    return {"excluded_dirs": [".git", "__pycache__"], "excluded_files": ["scanning/scanner.py"], "extensions": [".py"], "test_commands": [], "contract_requirements": [], "source_roots": [], "repository_root": str(tmp_path.resolve())}
 
 
 def _write_handoff(tmp_path: Path, operation_id: str, target_files: list[str] | None = None, *, include_verification_contract: bool = True, include_verification_grounding: bool = True) -> str:
@@ -69,6 +74,8 @@ def _write_handoff(tmp_path: Path, operation_id: str, target_files: list[str] | 
         "statements": [{"type": "mutation_authority", "content": {"authorized": True}}],
         "qualified_plan": {"steps": [{"id": "S-1", "action": "repair", "target_file": target_files[0], "originating_finding_id": "F-1", "acceptance_criterion": "test passes"}], "target_files": target_files, "is_qualified": True},
         "authority": {"mutation_authorized": False, "execution_authorized": False, "apply_authorized": False, "completion_claimed": False},
+        "workspace_identity": {"path": "sandbox/fix-op-1", "root": str(tmp_path.resolve())},
+        "scanner_context": _make_scanner_context(tmp_path),
     }
     if include_verification_contract:
         handoff["verification_contract"] = {
@@ -84,6 +91,10 @@ def _write_handoff(tmp_path: Path, operation_id: str, target_files: list[str] | 
         }
     handoff_path.write_text(json.dumps(handoff, sort_keys=True, indent=2), encoding="utf-8")
     return str(handoff_path)
+
+
+def _make_scanner_context(tmp_path: Path) -> dict:
+    return {"excluded_dirs": [".git", "__pycache__"], "excluded_files": ["scanning/scanner.py"], "extensions": [".py"], "test_commands": [], "contract_requirements": [], "source_roots": [], "repository_root": str(tmp_path.resolve())}
 
 
 def _make_executor(tmp_path: Path, *, fix_dispatcher: Any = None, fix_continuation: Any = None, worker_factory: Any = None) -> AudisorOperationExecutor:
@@ -124,7 +135,7 @@ def test_accepted_fix_automatically_launches_codex_once(tmp_path: Path):
             return continue_impl(operation, {"status": "accepted", "handoff_path": handoff_path})
 
     executor = _make_executor(tmp_path, fix_dispatcher=FakeDispatcher(), fix_continuation=continuation)
-    result = executor.execute(_make_fix_request())
+    result = executor.execute(_make_fix_request(scanner_context=_make_scanner_context(tmp_path)))
 
     assert result.status == "accepted"
     assert result.execution is not None
@@ -145,7 +156,7 @@ def test_codex_receives_same_operation_id_and_handoff_and_authorized_paths(tmp_p
             return continue_impl(operation, {"status": "accepted", "handoff_path": handoff_path})
 
     executor = _make_executor(tmp_path, fix_dispatcher=FakeDispatcher(), fix_continuation=continuation)
-    executor.execute(_make_fix_request())
+    executor.execute(_make_fix_request(scanner_context=_make_scanner_context(tmp_path)))
 
     assert len(launcher.calls) == 1
     stdin_text = launcher.calls[0]["stdin_bytes"].decode("utf-8")
@@ -165,7 +176,7 @@ def test_original_handoff_authority_flags_remain_false(tmp_path: Path):
             return continue_impl(operation, {"status": "accepted", "handoff_path": handoff_path})
 
     executor = _make_executor(tmp_path, fix_dispatcher=FakeDispatcher(), fix_continuation=continuation)
-    executor.execute(_make_fix_request())
+    executor.execute(_make_fix_request(scanner_context=_make_scanner_context(tmp_path)))
 
     handoff = json.loads(Path(handoff_path).read_text(encoding="utf-8"))
     assert handoff["authority"]["mutation_authorized"] is False
@@ -184,7 +195,7 @@ def test_host_owned_envelope_carries_bounded_authority_separately(tmp_path: Path
             return continue_impl(operation, {"status": "accepted", "handoff_path": handoff_path})
 
     executor = _make_executor(tmp_path, fix_dispatcher=FakeDispatcher(), fix_continuation=continuation)
-    result = executor.execute(_make_fix_request())
+    result = executor.execute(_make_fix_request(scanner_context=_make_scanner_context(tmp_path)))
 
     envelope = json.loads(Path(result.execution["codex_envelope_path"]).read_text(encoding="utf-8"))
     assert envelope["operation_type"] == "fix"
@@ -205,7 +216,7 @@ def test_blocked_fix_never_launches_codex(tmp_path: Path):
             return finalize_unresolved(operation, {"status": "validation_failed", "error": {"code": "scoped_snapshot_required", "message": "missing"}})
 
     executor = _make_executor(tmp_path, fix_dispatcher=FakeDispatcher(), fix_continuation=continuation)
-    result = executor.execute(_make_fix_request())
+    result = executor.execute(_make_fix_request(scanner_context=_make_scanner_context(tmp_path)))
 
     assert result.status == "blocked"
     assert len(launcher.calls) == 0
@@ -220,7 +231,7 @@ def test_fix_without_continuation_does_not_launch_codex(tmp_path: Path):
             return continue_impl(operation, {"status": "accepted", "handoff_path": handoff_path})
 
     executor = _make_executor(tmp_path, fix_dispatcher=FakeDispatcher(), fix_continuation=None)
-    result = executor.execute(_make_fix_request())
+    result = executor.execute(_make_fix_request(scanner_context=_make_scanner_context(tmp_path)))
 
     assert result.status == "accepted"
     assert result.execution is not None
@@ -241,7 +252,7 @@ def test_duplicate_accepted_fix_does_not_launch_codex_twice(tmp_path: Path):
             return continue_impl(operation, {"status": "accepted", "handoff_path": handoff_path})
 
     executor = _make_executor(tmp_path, fix_dispatcher=FakeDispatcher(), fix_continuation=continuation)
-    request = _make_fix_request()
+    request = _make_fix_request(scanner_context=_make_scanner_context(tmp_path))
     first = executor.execute(request)
     second = executor.execute(request)
 
@@ -262,7 +273,7 @@ def test_codex_launch_failure_produces_persisted_failed_result(tmp_path: Path):
             return continue_impl(operation, {"status": "accepted", "handoff_path": handoff_path})
 
     executor = _make_executor(tmp_path, fix_dispatcher=FakeDispatcher(), fix_continuation=continuation)
-    result = executor.execute(_make_fix_request())
+    result = executor.execute(_make_fix_request(scanner_context=_make_scanner_context(tmp_path)))
 
     assert result.status == "failed"
     assert result.error is not None
@@ -282,7 +293,7 @@ def test_no_fix_path_calls_build_executor_or_prepared_build_loader(tmp_path: Pat
             return continue_impl(operation, {"status": "accepted", "handoff_path": handoff_path})
 
     executor = _make_executor(tmp_path, fix_dispatcher=FakeDispatcher(), fix_continuation=continuation)
-    result = executor.execute(_make_fix_request())
+    result = executor.execute(_make_fix_request(scanner_context=_make_scanner_context(tmp_path)))
 
     assert result.status == "accepted"
 
@@ -369,7 +380,7 @@ def test_verification_contract_survives_handoff_and_envelope_unchanged(tmp_path:
             return continue_impl(operation, {"status": "accepted", "handoff_path": handoff_path})
 
     executor = _make_executor(tmp_path, fix_dispatcher=FakeDispatcher(), fix_continuation=continuation)
-    result = executor.execute(_make_fix_request())
+    result = executor.execute(_make_fix_request(scanner_context=_make_scanner_context(tmp_path)))
 
     handoff = json.loads(Path(handoff_path).read_text(encoding="utf-8"))
     envelope = json.loads(Path(result.execution["codex_envelope_path"]).read_text(encoding="utf-8"))
@@ -388,7 +399,7 @@ def test_missing_verification_contract_blocks_before_codex_launch(tmp_path: Path
             return continue_impl(operation, {"status": "accepted", "handoff_path": handoff_path})
 
     executor = _make_executor(tmp_path, fix_dispatcher=FakeDispatcher(), fix_continuation=continuation)
-    result = executor.execute(_make_fix_request())
+    result = executor.execute(_make_fix_request(scanner_context=_make_scanner_context(tmp_path)))
 
     assert result.status == "failed"
     assert result.error is not None
@@ -414,7 +425,7 @@ def test_unknown_finding_ids_block_before_codex_launch(tmp_path: Path):
             return continue_impl(operation, {"status": "accepted", "handoff_path": handoff_path})
 
     executor = _make_executor(tmp_path, fix_dispatcher=FakeDispatcher(), fix_continuation=continuation)
-    result = executor.execute(_make_fix_request())
+    result = executor.execute(_make_fix_request(scanner_context=_make_scanner_context(tmp_path)))
 
     assert result.status == "failed"
     assert len(launcher.calls) == 0
@@ -438,7 +449,7 @@ def test_empty_validation_commands_block_before_codex_launch(tmp_path: Path):
             return continue_impl(operation, {"status": "accepted", "handoff_path": handoff_path})
 
     executor = _make_executor(tmp_path, fix_dispatcher=FakeDispatcher(), fix_continuation=continuation)
-    result = executor.execute(_make_fix_request())
+    result = executor.execute(_make_fix_request(scanner_context=_make_scanner_context(tmp_path)))
 
     assert result.status == "failed"
     assert len(launcher.calls) == 0

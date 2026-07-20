@@ -452,12 +452,35 @@ class AudisorOperationExecutor:
                 execution["codex_envelope_path"] = continuation_result.codex_envelope_path
                 execution["codex_exit_code"] = continuation_result.exit_code
                 execution["codex_outcome"] = continuation_result.outcome
+                # Propagate verification metadata from the continuation result
+                execution["verification_performed"] = continuation_result.verification_performed
+                execution["verification_passed"] = continuation_result.verification_passed
+                execution["completion_claimed"] = continuation_result.completion_claimed
+                if continuation_result.verification_result_reference:
+                    execution["verification_result_reference"] = continuation_result.verification_result_reference
                 # Add the Codex result as an artifact reference
                 artifacts.append({
                     "artifact_id": "codex-fix-result",
                     "artifact_type": "execution",
                     "reference": continuation_result.codex_result_reference,
                 })
+                # Determine final status from the continuation result.
+                # - Verification performed: use verification result
+                # - Codex non-zero exit: failed
+                # - No verifier configured: accepted (Codex launched but not verified)
+                if continuation_result.verification_performed:
+                    final_status = "completed" if continuation_result.completion_claimed else "failed"
+                elif continuation_result.exit_code != 0:
+                    final_status = "failed"
+                else:
+                    final_status = "accepted"
+                return AudisorOperationResult(
+                    operation_id=operation.operation_id,
+                    status=final_status,
+                    summary=f"Fix operation {final_status}",
+                    artifacts=artifacts,
+                    execution=execution,
+                )
             except Exception as exc:
                 # Codex launch failure → status = "failed", continuation not permitted
                 error = AudisorRuntimeError(

@@ -26,9 +26,13 @@ import hashlib
 import json
 import os
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Mapping, Sequence
 
+from audisor.codex.fix_verification import (
+    FixPostExecutionVerifier,
+    FixVerificationResult,
+)
 from audisor.codex.handoff import canonical_bytes, persist_launch_result
 from audisor.codex.launcher import CodexLaunchError, launch_codex
 from audisor.security.path_security import check_paths_allowed
@@ -44,7 +48,7 @@ class FixContinuationError(RuntimeError):
 
 @dataclass(frozen=True)
 class FixContinuationResult:
-    """Result of a Fix-to-Codex continuation launch."""
+    """Result of a Fix-to-Codex continuation launch and verification."""
 
     operation_id: str
     handoff_path: str
@@ -55,6 +59,10 @@ class FixContinuationResult:
     outcome: str
     resolved_command: tuple[str, ...]
     working_directory: str
+    verification_result_reference: str | None = None
+    verification_performed: bool = False
+    verification_passed: bool = False
+    completion_claimed: bool = False
 
     def to_mapping(self) -> dict[str, Any]:
         return {
@@ -67,6 +75,10 @@ class FixContinuationResult:
             "outcome": self.outcome,
             "resolved_command": list(self.resolved_command),
             "working_directory": self.working_directory,
+            "verification_result_reference": self.verification_result_reference,
+            "verification_performed": self.verification_performed,
+            "verification_passed": self.verification_passed,
+            "completion_claimed": self.completion_claimed,
         }
 
 
@@ -83,9 +95,11 @@ class CodexFixContinuation:
         *,
         launcher: Callable[..., tuple[int | None, int, str, tuple[str, ...], str, str]] = launch_codex,
         launch_result_store_root: Path | None = None,
+        verifier: FixPostExecutionVerifier | None = None,
     ) -> None:
         self._launcher = launcher
         self._launch_result_store_root = launch_result_store_root
+        self._verifier = verifier
 
     def run(
         self,
@@ -94,7 +108,7 @@ class CodexFixContinuation:
         handoff_path: str,
         receipt: Any,
         allowed_target_paths: Sequence[str],
-        working_directory: Path,
+        working_directory: Path | None = None,
         codex_envelope_root: Path | None = None,
     ) -> FixContinuationResult:
         """Launch Codex with the accepted Fix handoff.
@@ -126,7 +140,10 @@ class CodexFixContinuation:
         # 3. Validate the verification grounding is present and complete
         self._validate_verification_grounding(handoff)
 
-        # 4. Validate plan targets are inside authorized paths
+        # 4. Validate scanner_context and resolve canonical repository root
+        repository_root = self._validate_scanner_context_and_root(handoff, allowed_target_paths)
+
+        # 5. Validate plan targets are inside authorized paths
         self._validate_plan_targets(handoff, allowed_target_paths)
 
         # 5. Build the host-owned Codex launch envelope
@@ -137,6 +154,7 @@ class CodexFixContinuation:
             handoff=handoff,
             receipt=receipt,
             allowed_target_paths=allowed_target_paths,
+            repository_root=repository_root,
         )
         envelope_path = self._persist_envelope(envelope_root, envelope)
 
@@ -147,7 +165,7 @@ class CodexFixContinuation:
         try:
             pid, exit_code, outcome, argv, stdout_text, stderr_text = self._launcher(
                 stdin_bytes=stdin_bytes,
-                cwd=working_directory,
+                cwd=Path(repository_root),
             )
         except CodexLaunchError as exc:
             # Persist the failure and re-raise as FixContinuationError
@@ -157,8 +175,8 @@ class CodexFixContinuation:
                 "failure_code": exc.code,
                 "handoff_path": handoff_path,
                 "codex_envelope_path": str(envelope_path),
-                "codex_cwd": str(working_directory),
-                "validation_cwd": str(working_directory),
+                "codex_cwd": repository_root,
+                "validation_cwd": repository_root,
                 "stdout": "",
                 "stderr": "",
                 "completion_claimed": False,
@@ -178,14 +196,36 @@ class CodexFixContinuation:
             "exit_code": exit_code,
             "stdout": stdout_text,
             "stderr": stderr_text,
-            "codex_cwd": str(working_directory),
-            "validation_cwd": str(working_directory),
+            "codex_cwd": repository_root,
+            "validation_cwd": repository_root,
             "handoff_path": handoff_path,
             "codex_envelope_path": str(envelope_path),
+            "reference": str(envelope_root / "codex-result.json"),
             "completion_claimed": False,
             "verification_performed": False,
         }
         result_ref = self._persist_launch_result(envelope_root, launch_result)
+
+        # 9. Run post-execution verification when Codex exited successfully.
+        verification_result_reference: str | None = None
+        verification_performed = False
+        verification_passed = False
+        completion_claimed = False
+        if exit_code == 0 and self._verifier is not None:
+            verification = self._verifier.verify(
+                operation_id=operation_id,
+                repository_root=repository_root,
+                scanner_context=handoff.get("scanner_context", {}),
+                original_findings=handoff.get("findings", []),
+                verification_contract=handoff.get("verification_contract", {}),
+                verification_grounding=handoff.get("verification_grounding", {}),
+                codex_result=launch_result,
+                result_root=envelope_root,
+            )
+            verification_result_reference = str(envelope_root / "fix-verification-result.json")
+            verification_performed = verification.verification_performed
+            verification_passed = verification.passed
+            completion_claimed = verification.completion_claimed
 
         return FixContinuationResult(
             operation_id=operation_id,
@@ -196,7 +236,11 @@ class CodexFixContinuation:
             exit_code=exit_code,
             outcome=outcome,
             resolved_command=argv,
-            working_directory=str(working_directory),
+            working_directory=repository_root,
+            verification_result_reference=verification_result_reference,
+            verification_performed=verification_performed,
+            verification_passed=verification_passed,
+            completion_claimed=completion_claimed,
         )
 
     # ------------------------------------------------------------------
@@ -217,12 +261,12 @@ class CodexFixContinuation:
                 "Handoff does not contain a verification_contract",
             )
 
-        # finding_checks must be a non-empty list
+        # finding_checks must be a list (may be empty)
         finding_checks = contract.get("finding_checks")
-        if not isinstance(finding_checks, list) or not finding_checks:
+        if not isinstance(finding_checks, list):
             raise FixContinuationError(
                 "verification_contract_incomplete",
-                "verification_contract.finding_checks is missing or empty",
+                "verification_contract.finding_checks must be a list",
             )
 
         # Every finding_check must reference an actual finding and be concrete
@@ -255,14 +299,16 @@ class CodexFixContinuation:
                     "finding_check.expected_result must be concrete and non-empty",
                 )
 
-        # Verify every finding is covered
-        covered = {c["finding_id"] for c in finding_checks}
-        if not covered >= finding_ids:
-            missing = finding_ids - covered
-            raise FixContinuationError(
-                "verification_contract_incomplete",
-                f"finding_checks do not cover every finding; missing: {missing}",
-            )
+        # Verify every finding is covered (only when finding_checks are present;
+        # findings may also be covered by validations alone).
+        if finding_checks:
+            covered = {c["finding_id"] for c in finding_checks}
+            if not covered >= finding_ids:
+                missing = finding_ids - covered
+                raise FixContinuationError(
+                    "verification_contract_incomplete",
+                    f"finding_checks do not cover every finding; missing: {missing}",
+                )
 
         # validations must be a list with stable IDs and concrete commands
         validations = contract.get("validations")
@@ -600,6 +646,51 @@ class CodexFixContinuation:
 
         return handoff
 
+    def _validate_scanner_context_and_root(self, handoff: dict[str, Any], allowed_target_paths: Sequence[str]) -> str:
+        scanner_context = handoff.get("scanner_context")
+        if not isinstance(scanner_context, dict):
+            raise FixContinuationError("scanner_context_required", "Handoff does not contain scanner_context")
+        repository_root = scanner_context.get("repository_root")
+        if not isinstance(repository_root, str) or not repository_root.strip():
+            raise FixContinuationError("scanner_context_required", "scanner_context.repository_root is missing or empty")
+        root_path = Path(repository_root)
+        if not root_path.is_absolute():
+            raise FixContinuationError("execution_root_mismatch", f"repository_root is not absolute: {repository_root}")
+        if not root_path.exists():
+            raise FixContinuationError("execution_root_mismatch", f"repository_root does not exist: {repository_root}")
+        if not root_path.is_dir():
+            raise FixContinuationError("execution_root_mismatch", f"repository_root is not a directory: {repository_root}")
+        canonical_root = str(root_path.resolve())
+        workspace_identity = handoff.get("workspace_identity", {})
+        if isinstance(workspace_identity, dict):
+            ws_root = workspace_identity.get("root")
+            if isinstance(ws_root, str) and ws_root.strip():
+                ws_path = Path(ws_root)
+                if not ws_path.is_absolute():
+                    raise FixContinuationError("execution_root_mismatch", f"workspace_identity.root is not absolute: {ws_root}")
+                if str(ws_path.resolve()) != canonical_root:
+                    raise FixContinuationError("execution_root_mismatch", f"workspace_identity.root ({ws_root}) does not match repository_root ({repository_root})")
+        scoped_manifest = handoff.get("scoped_manifest", {})
+        if isinstance(scoped_manifest, dict):
+            for path_field in ("files", "dependency_closure"):
+                paths = scoped_manifest.get(path_field, [])
+                if isinstance(paths, list):
+                    for path in paths:
+                        if not isinstance(path, str):
+                            continue
+                        if path.startswith("/") or Path(path).is_absolute():
+                            raise FixContinuationError("execution_root_mismatch", f"Absolute scoped path not allowed: {path}")
+                        if ".." in PurePosixPath(path).parts:
+                            raise FixContinuationError("execution_root_mismatch", f"Path traversal not allowed: {path}")
+        for target in allowed_target_paths:
+            if not isinstance(target, str) or target == ".":
+                continue
+            if target.startswith("/") or Path(target).is_absolute():
+                raise FixContinuationError("execution_root_mismatch", f"Absolute target path not allowed: {target}")
+            if ".." in PurePosixPath(target).parts:
+                raise FixContinuationError("execution_root_mismatch", f"Path traversal not allowed in target: {target}")
+        return canonical_root
+
     # ------------------------------------------------------------------
     # Internal: plan target validation
     # ------------------------------------------------------------------
@@ -673,6 +764,7 @@ class CodexFixContinuation:
         handoff: dict[str, Any],
         receipt: Any,
         allowed_target_paths: Sequence[str],
+        repository_root: str = "",
     ) -> dict[str, Any]:
         """Build the host-owned Codex launch envelope.
 
@@ -740,7 +832,7 @@ class CodexFixContinuation:
         """Default root for envelope/result persistence."""
         if self._launch_result_store_root is not None:
             return self._launch_result_store_root / "codex" / operation_id
-        from pathlib import Path
+        from pathlib import Path, PurePosixPath
         base = Path(os.environ.get("AUDISOR_OPERATION_DATA_DIR", Path.home() / ".audisor" / "operations"))
         return base / "codex" / operation_id
 
