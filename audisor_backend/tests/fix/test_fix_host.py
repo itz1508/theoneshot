@@ -592,3 +592,123 @@ def test_I_authority_decision_persists_through_transport(tmp_path):
     assert operation.authority_decisions["F-1"]["decision_kind"] == "select_authoritative_path"
     assert operation.authority_decisions["F-1"]["selected_value"] == "src/app.py"
     assert operation.authority_decisions["F-1"]["source"] == "user"
+
+
+# ---------------------------------------------------------------------------
+# H1 tests: package_from_context routing based on igniter identity
+# ---------------------------------------------------------------------------
+
+
+def test_H1_local_boundary_does_not_call_package_from_context(tmp_path):
+    from unittest.mock import patch, MagicMock
+    from audisor.audisor_lifecycle.ignition import ignite, IgnitionResult
+    op = operation()
+    continued = []
+    fix_calls = []
+    fake_result = IgnitionResult(True, 'supplied', op.plan, {'readiness': {}}, True)
+    sentinel_pkg = MagicMock(side_effect=AssertionError('package_from_context must not be called on local boundary'))
+    with patch('audisor_backend.controllers.fix_host.package_from_context', sentinel_pkg):
+        with patch('audisor_backend.controllers.fix_host.invoke_local_fix', side_effect=lambda *a, **kw: fix_calls.append(a) or fake_result):
+            dispatcher = AcceptedFixDispatcher(
+                FixOperationStore(tmp_path),
+                policy_reader=lambda: FrozenAudisorPolicy(True, 'local-openai-compatible', 'qwen2.5-coder:7b', 'http://127.0.0.1:11434'),
+                aflow_igniter=ignite,
+                worker_factory=lambda *args, **kwargs: object(),
+            )
+            result = FixController().accept(
+                op, dispatcher,
+                lambda operation, r: continued.append(r) or 'continued',
+                lambda operation, r: 'unresolved',
+            )
+    assert sentinel_pkg.call_count == 0, 'package_from_context must not be called on local boundary'
+    assert len(fix_calls) == 1, 'invoke_local_fix must be called exactly once'
+    assert result == 'continued'
+
+
+def test_H1_custom_igniter_calls_package_from_context(tmp_path):
+    from unittest.mock import patch, MagicMock
+    from audisor.audisor_lifecycle.ignition import IgnitionResult
+    op = operation()
+    continued = []
+    igniter_contexts = []
+    fix_calls = []
+    fake_package = MagicMock()
+    fake_package.package_hash = 'a' * 64
+    def custom_igniter(operation_context, policy, worker):
+        igniter_contexts.append(operation_context)
+        return IgnitionResult(True, 'supplied', operation_context.accepted_plan, {'readiness': {}}, True)
+    with patch('audisor_backend.controllers.fix_host.package_from_context', return_value=fake_package) as mock_pkg:
+        with patch('audisor_backend.controllers.fix_host.invoke_local_fix', side_effect=lambda *a, **kw: fix_calls.append(a)) as mock_fix:
+            dispatcher = AcceptedFixDispatcher(
+                FixOperationStore(tmp_path),
+                policy_reader=lambda: FrozenAudisorPolicy(True, 'local-openai-compatible', 'qwen2.5-coder:7b', 'http://127.0.0.1:11434'),
+                aflow_igniter=custom_igniter,
+                worker_factory=lambda *args, **kwargs: object(),
+            )
+            result = FixController().accept(
+                op, dispatcher,
+                lambda operation, r: continued.append(r) or 'continued',
+                lambda operation, r: 'unresolved',
+            )
+    assert mock_pkg.call_count == 1, 'package_from_context must be called exactly once for custom igniter'
+    assert fix_calls == [], 'invoke_local_fix must not be called for custom igniter path'
+    assert len(igniter_contexts) == 1
+    assert igniter_contexts[0].analysis_package is fake_package, 'analysis_package must be passed to custom igniter context'
+    assert result == 'continued'
+
+
+def test_H1_policy_disabled_calls_neither_package_nor_igniter(tmp_path):
+    from unittest.mock import patch
+    op = operation()
+    igniter_calls = []
+    def custom_igniter(operation_context, policy, worker):
+        igniter_calls.append(operation_context)
+    with patch('audisor_backend.controllers.fix_host.package_from_context') as mock_pkg:
+        with patch('audisor_backend.controllers.fix_host.invoke_local_fix') as mock_fix:
+            dispatcher = AcceptedFixDispatcher(
+                FixOperationStore(tmp_path),
+                policy_reader=lambda: FrozenAudisorPolicy(False, 'local-openai-compatible', 'qwen2.5-coder:7b', 'http://127.0.0.1:11434'),
+                aflow_igniter=custom_igniter,
+                worker_factory=lambda *args, **kwargs: object(),
+            )
+            result = FixController().accept(
+                op, dispatcher,
+                lambda operation, r: r['status'],
+                lambda operation, r: 'unresolved',
+            )
+    assert mock_pkg.call_count == 0, 'package_from_context must not be called when policy disabled'
+    assert mock_fix.call_count == 0, 'invoke_local_fix must not be called when policy disabled'
+    assert igniter_calls == [], 'custom igniter must not be called when policy disabled'
+    assert result == 'skipped_disabled'
+
+
+def test_H1_package_construction_failure_persists_without_continuing(tmp_path):
+    from unittest.mock import patch
+    from audisor.audisor_lifecycle.ignition import IgnitionResult
+    op = operation()
+    continued = []
+    finalized = []
+    igniter_calls = []
+    def custom_igniter(operation_context, policy, worker):
+        igniter_calls.append(operation_context)
+        return IgnitionResult(True, 'supplied', operation_context.accepted_plan, {'readiness': {}}, True)
+    with patch('audisor_backend.controllers.fix_host.package_from_context', side_effect=RuntimeError('package_build_error')):
+        dispatcher = AcceptedFixDispatcher(
+            FixOperationStore(tmp_path),
+            policy_reader=lambda: FrozenAudisorPolicy(True, 'local-openai-compatible', 'qwen2.5-coder:7b', 'http://127.0.0.1:11434'),
+            aflow_igniter=custom_igniter,
+            worker_factory=lambda *args, **kwargs: object(),
+        )
+        result = FixController().accept(
+            op, dispatcher,
+            lambda operation, r: continued.append(r) or 'continued',
+            lambda operation, r: finalized.append(r) or 'unresolved',
+        )
+    assert continued == [], 'Fix must not continue after package construction failure'
+    assert igniter_calls == [], 'custom igniter must not be called after package failure'
+    assert result == 'unresolved'
+    assert len(finalized) == 1
+    assert finalized[0]['status'] == 'package_validation_failed'
+    stored = dispatcher.store.load(op.operation_id)
+    assert stored is not None
+    assert stored['status'] == 'package_validation_failed'

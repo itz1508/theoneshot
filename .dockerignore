@@ -1,0 +1,58 @@
+# ── Version control ──────────────────────────────────────────────────────────
+.git
+.gitmodules
+.gitignore
+
+# ── Tests ────────────────────────────────────────────────────────────────────
+**/tests
+**/test_*.py
+
+# ── Python caches and virtual environments ───────────────────────────────────
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/.pytest_cache
+**/.venv
+**/dist
+
+# ── Audisor standalone repository (MCP plugin — not included) ───────────────
+audisor
+
+# ── A-Flow source (optional, not included) ──────────────────────────────────
+openai_project/aflow
+
+# ── Schemas and documentation (not needed at runtime) ───────────────────────
+openai_project/schemas
+openai_project/docs
+openai_project/infra
+
+# ── Codex / agent configuration ─────────────────────────────────────────────
+.codex
+.agents
+**/.codex
+**/.agents
+
+# ── Lock files (frozen requirements already exported) ────────────────────────
+**/uv.lock
+
+# ── IDE and editor files ────────────────────────────────────────────────────
+.vscode
+.idea
+**/.env
+
+# ── Build and packaging artifacts ───────────────────────────────────────────
+**/*.egg-info
+**/build
+**/.eggs
+
+# ── Documentation and reports ───────────────────────────────────────────────
+**/*.md
+**/LICENSE
+
+# ── Host-specific and credential paths ──────────────────────────────────────
+**/.dockerignore
+**/docker-compose*.yml
+
+# ── Temporary / proof artifacts ─────────────────────────────────────────────
+TempProof
+recheck
