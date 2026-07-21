@@ -52,6 +52,8 @@ def _fix_operation(value: dict[str, Any], operation_id: str) -> FixOperationInpu
         )
         return FixOperationInput(operation)
     except (KeyError, TypeError, ValueError, ImportError) as exc:
+        if isinstance(exc, ImportError) and "audisor_backend" in str(exc):
+            raise TransportError("fix_engine_unavailable", "The audisor_backend Fix engine is not installed.") from exc
         raise TransportError("fix_contract_invalid", "Fix payload is not a valid typed operation") from exc
 
 
@@ -152,7 +154,12 @@ def default_operation_service():
 
     class LazyFixDispatcher:
         def dispatch(self, operation, continue_implementation, finalize_unresolved):
-            from audisor_backend.controllers.fix_host import AcceptedFixDispatcher, FixOperationStore
+            try:
+                from audisor_backend.controllers.fix_host import AcceptedFixDispatcher, FixOperationStore
+            except ImportError as exc:
+                if "audisor_backend" in str(exc):
+                    raise TransportError("fix_engine_unavailable", "The audisor_backend Fix engine is not installed.") from exc
+                raise
             return AcceptedFixDispatcher(FixOperationStore(root)).dispatch(operation, continue_implementation, finalize_unresolved)
 
     return AcceptedOperationService(
@@ -194,7 +201,12 @@ def canonical_operation_service():
     # request is actually dispatched.
     class _LazyFixDispatcher:
         def dispatch(self, operation, continue_implementation, finalize_unresolved):
-            from audisor_backend.controllers.fix_host import AcceptedFixDispatcher, FixOperationStore
+            try:
+                from audisor_backend.controllers.fix_host import AcceptedFixDispatcher, FixOperationStore
+            except ImportError as exc:
+                if "audisor_backend" in str(exc):
+                    raise TransportError("fix_engine_unavailable", "The audisor_backend Fix engine is not installed.") from exc
+                raise
             return AcceptedFixDispatcher(FixOperationStore(fix_data_dir)).dispatch(
                 operation, continue_implementation, finalize_unresolved
             )

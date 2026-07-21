@@ -107,3 +107,44 @@ this listing. The active implementation arrangement is unresolved: the primary
 Codex agent may implement directly, or a worker role definition may be missing.
 Do not assume either arrangement until the configuration is inspected or a
 human confirms the intended design.
+
+---
+
+## MCP Input Schema Strictness
+
+Every public MCP tool in this repository must:
+
+- expose an input schema with `additionalProperties: false`;
+- reject unknown properties at runtime;
+- prove rejection through a real MCP transport call, not schema inspection alone.
+
+The current implementation hardens FastMCP's generated argument models via
+internal fields (`server._tool_manager`, `tool.fn_metadata.arg_model`,
+`tool.parameters`). This is a workaround for a version-specific defect in the
+pinned FastMCP/MCP SDK, not a general framework truth — later SDK versions may
+not require it.
+
+**Do not copy this workaround into another project** without first:
+
+1. confirming the installed SDK version's actual default behaviour;
+2. adding a regression test that proves rejection through a live transport call.
+
+The regression proof lives at `audisor/backend/recheck/mcp_recheck_proof.py`.
+Run it after any MCP SDK upgrade or tool-registration change.
+
+---
+
+## Distribution Verification
+
+Before building release evidence or running a clean-install proof:
+
+- remove stale artifacts from `dist/`;
+- build the current package version;
+- select the expected wheel by **exact filename and version**, never by an
+  unrestricted wildcard or `dist/*.whl` glob;
+- install it non-editably into a clean environment **outside** the repository;
+- verify the imported package and executable both resolve to that installation,
+  not to the editable source tree.
+
+Stale `dist/` artifacts will cause an older wheel to be installed and silently
+invalidate the clean-install proof.

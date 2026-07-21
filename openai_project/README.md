@@ -44,6 +44,19 @@ This project uses `uv` because Phase 1 established `pyproject.toml` as the
 dependency declaration and `uv.lock` as the reproducible resolved dependency
 set. No competing pip, Poetry, Pipenv, or PDM manifest is used.
 
+### Fix Engine Adapter (Optional)
+
+The canonical Fix engine is decoupled from the base runtime. To enable Fix
+capabilities natively without modifying tracked path dependencies, install
+the engine interactively before running:
+
+```powershell
+uv pip install -e ../../audisor_backend
+```
+
+If the engine is not installed, the runtime falls back gracefully and returns
+`fix_engine_unavailable`.
+
 ## Run locally
 
 From `openai_project/runtime`:

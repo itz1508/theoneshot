@@ -391,7 +391,7 @@ def test_optional_live_fireworks_api_smoke() -> None:
         response = requests.post(*args, **kwargs)
         stats["provider_status"] = response.status_code
         stats["provider_shape"] = _safe_provider_shape(response)
-        stats["prompt"] = kwargs["json"]["messages"][0]["content"]
+        stats["prompt"] = kwargs["json"]["prompt"]
         return response
 
     worker = FireworksWorker.from_environment()

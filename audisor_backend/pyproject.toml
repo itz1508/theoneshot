@@ -1,0 +1,12 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "audisor-backend"
+version = "0.1.0"
+description = "Canonical Fix engine"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.0",
+]

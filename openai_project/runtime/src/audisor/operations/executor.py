@@ -390,6 +390,22 @@ class AudisorOperationExecutor:
 
         try:
             self._fix_route.fix_dispatcher.dispatch(operation, _continue, _finalize)
+        except ImportError as exc:
+            if "audisor_backend" in str(exc):
+                raise AudisorRuntimeError(
+                    category="configuration",
+                    stage="execution",
+                    code="fix_engine_unavailable",
+                    message="The required Fix engine package 'audisor_backend' is not available.",
+                    detail="Install the audisor_backend package to enable Fix capabilities.",
+                ) from exc
+            raise AudisorRuntimeError(
+                category="provider",
+                stage="execution",
+                code="fix_dispatch_failed",
+                message=f"Fix dispatcher failed due to import error: {exc}",
+                detail=type(exc).__name__,
+            ) from exc
         except Exception as exc:
             raise AudisorRuntimeError(
                 category="provider",
@@ -559,17 +575,17 @@ class AudisorOperationExecutor:
         Imports from audisor_backend are lazy so that importing the
         canonical runtime does not fail when no Fix request is processed.
         """
-        from audisor_backend.controllers.fix_host import AcceptedFixOperation
-        from audisor_backend.schemas.fix.models import (
-            Finding,
-            FixScopedManifest,
-            ImplementationPlan,
-            MinorIssue,
-            PlanStep,
-            Statement,
-        )
-
         try:
+            from audisor_backend.controllers.fix_host import AcceptedFixOperation
+            from audisor_backend.schemas.fix.models import (
+                Finding,
+                FixScopedManifest,
+                ImplementationPlan,
+                MinorIssue,
+                PlanStep,
+                Statement,
+            )
+
             operation_id = package["operation_id"]
             findings = [Finding(**item) for item in package["findings"]]
             manifest = FixScopedManifest(**package["manifest"])
@@ -593,6 +609,14 @@ class AudisorOperationExecutor:
                 authority_decisions=package.get("authority_decisions"),
             )
         except (KeyError, TypeError, ValueError, ImportError) as exc:
+            if isinstance(exc, ImportError) and "audisor_backend" in str(exc):
+                raise AudisorRuntimeError(
+                    category="configuration",
+                    stage="request_translation",
+                    code="fix_engine_unavailable",
+                    message="The required Fix engine package 'audisor_backend' is not available.",
+                    detail="Install the audisor_backend package to enable Fix capabilities.",
+                ) from exc
             raise AudisorRuntimeError(
                 category="validation",
                 stage="request_translation",
