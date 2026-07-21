@@ -590,6 +590,7 @@ class AudisorOperationExecutor:
                 workspace_identity=package["workspace_identity"],
                 authority_context=package["authority_context"],
                 aflow_analysis_request=package.get("aflow_analysis_request"),
+                authority_decisions=package.get("authority_decisions"),
             )
         except (KeyError, TypeError, ValueError, ImportError) as exc:
             raise AudisorRuntimeError(

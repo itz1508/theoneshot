@@ -48,6 +48,7 @@ def _fix_operation(value: dict[str, Any], operation_id: str) -> FixOperationInpu
             workspace_identity=value["workspace_identity"],
             authority_context=value["authority_context"],
             aflow_analysis_request=value.get("aflow_analysis_request"),
+            authority_decisions=value.get("authority_decisions"),
         )
         return FixOperationInput(operation)
     except (KeyError, TypeError, ValueError, ImportError) as exc:

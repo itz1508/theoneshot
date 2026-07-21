@@ -41,6 +41,7 @@ class AcceptedFixOperation:
     workspace_identity: dict[str, Any]
     authority_context: dict[str, Any]
     aflow_analysis_request: dict[str, Any] | None = None
+    authority_decisions: dict[str, Any] | None = None
 
 
 class FixOperationStore:
@@ -102,6 +103,9 @@ class FixOperationStore:
         verification_grounding = getattr(result, "verification_grounding", None)
         if verification_grounding is not None:
             payload["verification_grounding"] = verification_grounding.to_mapping()
+        # Persist authority decisions when present.
+        if operation.authority_decisions:
+            payload["authority_decisions"] = dict(operation.authority_decisions)
         encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8") + b"\n"
         payload["handoff_sha256"] = hashlib.sha256(encoded).hexdigest()
         target = root / "qualified-fix-handoff.json"
@@ -229,6 +233,7 @@ def _prepare_dependency_evidence(
         workspace_identity=operation.workspace_identity,
         authority_context=operation.authority_context,
         aflow_analysis_request=operation.aflow_analysis_request,
+        authority_decisions=operation.authority_decisions,
     )
     return enriched_operation, resolution_results
 
@@ -330,6 +335,26 @@ class AcceptedFixDispatcher:
             artifact = audisor_operation_artifact(context, policy, status="skipped_disabled")
             self.store.persist(enriched_operation.operation_id, artifact)
             return continue_implementation(enriched_operation, artifact)
+
+        # --- Authority evaluation (before model evaluation) ---
+        from audisor_backend.policies.fix.authority import evaluate_authority, AuthorityDecision
+        authority_decisions: dict[str, AuthorityDecision] = {}
+        if enriched_operation.authority_decisions:
+            for finding_id, value in enriched_operation.authority_decisions.items():
+                if isinstance(value, dict):
+                    authority_decisions[finding_id] = AuthorityDecision.from_mapping(value)
+        authority_eval = evaluate_authority(enriched_operation.findings, authority_decisions)
+        if authority_eval.status == "decision_required":
+            blocked_artifact = {
+                "operation_id": enriched_operation.operation_id,
+                "operation_type": "fix",
+                "status": "blocked",
+                "implementation_eligible": False,
+                "unresolved_reason": "decision_required",
+                "authority_evaluation": authority_eval.to_mapping(),
+            }
+            self.store.persist(enriched_operation.operation_id, blocked_artifact)
+            return finalize_unresolved(enriched_operation, blocked_artifact)
 
         # --- Model evaluation with enriched manifest ---
         worker = self.worker_factory(policy.base_url, policy.model_id, timeout_seconds=policy.timeout_seconds)

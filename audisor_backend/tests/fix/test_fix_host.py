@@ -370,3 +370,225 @@ def test_E_duplicate_operation_does_not_rerun_preparation(tmp_path):
         assert len(continued) == 1
     finally:
         fh.resolve_dependency_details = original_resolve
+
+
+# ---------------------------------------------------------------------------
+# Authority separation tests
+# ---------------------------------------------------------------------------
+
+
+def test_F_authority_decision_required_blocks_before_model(tmp_path):
+    """Fixture: finding requires authority decision; none supplied → blocked."""
+    repo = tmp_path / "repo"
+    src = repo / "src"
+    src.mkdir(parents=True)
+    (src / "app.py").write_text("x = 1\n", encoding="utf-8")
+    (src / "controller.py").write_text("y = 2\n", encoding="utf-8")
+
+    from hashlib import sha256
+    app_hash = sha256((src / "app.py").read_bytes()).hexdigest()
+    ctrl_hash = sha256((src / "controller.py").read_bytes()).hexdigest()
+
+    finding = Finding("F-1", "authority.competing_authority_path", "src/app.py", "high", {"authority_candidates": ["src/app.py", "src/controller.py"], "repro": "inspect active authority-named modules"})
+    manifest = FixScopedManifest(
+        ["src/app.py", "src/controller.py"], ["src/app.py", "src/controller.py"], "input",
+        {"src/app.py": app_hash, "src/controller.py": ctrl_hash},
+    )
+    statements = make_statements([finding], manifest)
+    plan = ImplementationPlan([PlanStep("S-1", "repair", "src/app.py", "F-1", "test passes")], ["src/app.py"], True)
+    op = AcceptedFixOperation("fix-auth-001", [finding], manifest, statements, plan, {"root": str(repo)}, {"allowed_paths": ["src/app.py"]})
+
+    calls = []
+    unresolved_calls = []
+
+    def igniter(operation_context, policy, worker):
+        calls.append(("igniter", operation_context))
+        return IgnitionResult(True, "supplied", operation_context.accepted_plan, {"readiness": {}}, True)
+
+    dispatcher = AcceptedFixDispatcher(
+        FixOperationStore(tmp_path),
+        policy_reader=lambda: FrozenAudisorPolicy(True, "local-openai-compatible", "qwen2.5-coder:7b", "http://127.0.0.1:11434"),
+        aflow_igniter=igniter,
+        worker_factory=lambda *args, **kwargs: object(),
+    )
+
+    result = FixController().accept(
+        op, dispatcher,
+        lambda operation, result: "continued",
+        lambda operation, result: unresolved_calls.append(result) or "unresolved",
+    )
+
+    # Prove: model was never called
+    assert len(calls) == 0
+
+    # Prove: blocked with decision_required
+    assert result == "unresolved"
+    assert len(unresolved_calls) == 1
+    blocked = unresolved_calls[0]
+    assert blocked["status"] == "blocked"
+    assert blocked["unresolved_reason"] == "decision_required"
+
+    # Prove: authority evaluation is present
+    assert "authority_evaluation" in blocked
+    auth_eval = blocked["authority_evaluation"]
+    assert auth_eval["status"] == "decision_required"
+    assert len(auth_eval["unresolved_requirements"]) == 1
+    assert auth_eval["unresolved_requirements"][0]["finding_id"] == "F-1"
+    assert auth_eval["unresolved_requirements"][0]["decision_kind"] == "select_authoritative_path"
+
+    # Prove: no handoff, no Codex
+    handoff_path = tmp_path / "fix-auth-001" / "qualified-fix-handoff.json"
+    assert not handoff_path.exists()
+
+
+def test_G_authority_decision_supplied_proceeds_normally(tmp_path):
+    """Fixture: authority decision supplied → gate passes, operation proceeds."""
+    repo = tmp_path / "repo"
+    src = repo / "src"
+    src.mkdir(parents=True)
+    (src / "app.py").write_text("x = 1\n", encoding="utf-8")
+    (src / "controller.py").write_text("y = 2\n", encoding="utf-8")
+
+    from hashlib import sha256
+    app_hash = sha256((src / "app.py").read_bytes()).hexdigest()
+    ctrl_hash = sha256((src / "controller.py").read_bytes()).hexdigest()
+
+    finding = Finding("F-1", "authority.competing_authority_path", "src/app.py", "high", {"authority_candidates": ["src/app.py", "src/controller.py"], "repro": "inspect active authority-named modules"})
+    manifest = FixScopedManifest(
+        ["src/app.py", "src/controller.py"], ["src/app.py", "src/controller.py"], "input",
+        {"src/app.py": app_hash, "src/controller.py": ctrl_hash},
+    )
+    statements = make_statements([finding], manifest)
+    plan = ImplementationPlan([PlanStep("S-1", "repair", "src/app.py", "F-1", "test passes")], ["src/app.py"], True)
+    op = AcceptedFixOperation(
+        "fix-auth-002", [finding], manifest, statements, plan,
+        {"root": str(repo)}, {"allowed_paths": ["src/app.py"]},
+        authority_decisions={
+            "F-1": {
+                "finding_id": "F-1",
+                "decision_kind": "select_authoritative_path",
+                "selected_value": "src/app.py",
+                "source": "user",
+            },
+        },
+    )
+
+    calls = []
+    continued = []
+
+    def igniter(operation_context, policy, worker):
+        calls.append(("igniter", operation_context))
+        return IgnitionResult(True, "supplied", operation_context.accepted_plan, {"readiness": {}}, True)
+
+    dispatcher = AcceptedFixDispatcher(
+        FixOperationStore(tmp_path),
+        policy_reader=lambda: FrozenAudisorPolicy(True, "local-openai-compatible", "qwen2.5-coder:7b", "http://127.0.0.1:11434"),
+        aflow_igniter=igniter,
+        worker_factory=lambda *args, **kwargs: object(),
+    )
+
+    result = FixController().accept(
+        op, dispatcher,
+        lambda operation, result: continued.append(result) or "continued",
+        lambda operation, result: "unresolved",
+    )
+
+    # Prove: model was called
+    assert len(calls) == 1
+
+    # Prove: operation proceeds
+    assert result == "continued"
+
+    # Prove: handoff exists and contains authority decisions
+    handoff_path = tmp_path / "fix-auth-002" / "qualified-fix-handoff.json"
+    assert handoff_path.is_file()
+    handoff = json.loads(handoff_path.read_text(encoding="utf-8"))
+    assert "authority_decisions" in handoff
+    assert handoff["authority_decisions"]["F-1"]["decision_kind"] == "select_authoritative_path"
+    assert handoff["authority_decisions"]["F-1"]["selected_value"] == "src/app.py"
+    assert handoff["authority_decisions"]["F-1"]["source"] == "user"
+
+
+def test_H_ordinary_finding_without_authority_requirement_proceeds(tmp_path):
+    """Fixture: ordinary finding (no authority requirement) → gate passes."""
+    repo = tmp_path / "repo"
+    src = repo / "src"
+    src.mkdir(parents=True)
+    (src / "app.py").write_text("x = 1\n", encoding="utf-8")
+
+    from hashlib import sha256
+    app_hash = sha256((src / "app.py").read_bytes()).hexdigest()
+
+    finding = Finding("F-1", "correctness.syntax_error", "src/app.py", "high", {"line": 1, "message": "bad"})
+    manifest = FixScopedManifest(
+        ["src/app.py"], ["src/app.py"], "input",
+        {"src/app.py": app_hash},
+    )
+    statements = make_statements([finding], manifest)
+    plan = ImplementationPlan([PlanStep("S-1", "repair", "src/app.py", "F-1", "test passes")], ["src/app.py"], True)
+    op = AcceptedFixOperation("fix-ordinary-001", [finding], manifest, statements, plan, {"root": str(repo)}, {"allowed_paths": ["src/app.py"]})
+
+    calls = []
+    continued = []
+
+    def igniter(operation_context, policy, worker):
+        calls.append(("igniter", operation_context))
+        return IgnitionResult(True, "supplied", operation_context.accepted_plan, {"readiness": {}}, True)
+
+    dispatcher = AcceptedFixDispatcher(
+        FixOperationStore(tmp_path),
+        policy_reader=lambda: FrozenAudisorPolicy(True, "local-openai-compatible", "qwen2.5-coder:7b", "http://127.0.0.1:11434"),
+        aflow_igniter=igniter,
+        worker_factory=lambda *args, **kwargs: object(),
+    )
+
+    result = FixController().accept(
+        op, dispatcher,
+        lambda operation, result: continued.append(result) or "continued",
+        lambda operation, result: "unresolved",
+    )
+
+    # Prove: model was called, operation proceeds normally
+    assert len(calls) == 1
+    assert result == "continued"
+
+
+def test_I_authority_decision_persists_through_transport(tmp_path):
+    """Fixture: authority decisions survive transport deserialization."""
+    repo = tmp_path / "repo"
+    src = repo / "src"
+    src.mkdir(parents=True)
+    (src / "app.py").write_text("x = 1\n", encoding="utf-8")
+    (src / "controller.py").write_text("y = 2\n", encoding="utf-8")
+
+    from hashlib import sha256
+    app_hash = sha256((src / "app.py").read_bytes()).hexdigest()
+    ctrl_hash = sha256((src / "controller.py").read_bytes()).hexdigest()
+
+    # Simulate the transport path: construct via _fix_operation
+    from audisor.operations.transport import _fix_operation
+    fix_value = {
+        "findings": [{"id": "F-1", "type": "authority.competing_authority_path", "file": "src/app.py", "severity": "high", "evidence": {"authority_candidates": ["src/app.py", "src/controller.py"]}}],
+        "manifest": {"files": ["src/app.py", "src/controller.py"], "dependency_closure": ["src/app.py", "src/controller.py"], "input_hash": "input", "file_hashes": {"src/app.py": app_hash, "src/controller.py": ctrl_hash}},
+        "statements": [{"type": "dossier", "content": {}, "findings_ref_hash": "a" * 64, "manifest_ref_hash": "b" * 64}, {"type": "handoff", "content": {}, "findings_ref_hash": "a" * 64, "manifest_ref_hash": "b" * 64}, {"type": "llm", "content": {}, "findings_ref_hash": "a" * 64, "manifest_ref_hash": "b" * 64}],
+        "plan": {"steps": [{"id": "S-1", "action": "repair", "target_file": "src/app.py", "originating_finding_id": "F-1", "acceptance_criterion": "test passes"}], "target_files": ["src/app.py"], "is_qualified": True},
+        "workspace_identity": {"root": str(repo)},
+        "authority_context": {"allowed_paths": ["src/app.py"]},
+        "authority_decisions": {
+            "F-1": {
+                "finding_id": "F-1",
+                "decision_kind": "select_authoritative_path",
+                "selected_value": "src/app.py",
+                "source": "user",
+            },
+        },
+    }
+    fix_input = _fix_operation(fix_value, "fix-transport-001")
+    operation = fix_input.operation
+
+    # Prove: authority_decisions survived transport
+    assert operation.authority_decisions is not None
+    assert "F-1" in operation.authority_decisions
+    assert operation.authority_decisions["F-1"]["decision_kind"] == "select_authoritative_path"
+    assert operation.authority_decisions["F-1"]["selected_value"] == "src/app.py"
+    assert operation.authority_decisions["F-1"]["source"] == "user"
