@@ -6,8 +6,8 @@
       "hooks": [
         {
           "type": "command",
-          "command": "uv run --directory openai_project/runtime --offline --locked python -m audisor.aflow_lifecycle.hook",
-          "commandWindows": "uv run --directory openai_project/runtime --offline --locked python -m audisor.aflow_lifecycle.hook",
+          "command": "uv run --directory openai_project/runtime --offline --locked python -m audisor.audisor_lifecycle.hook",
+          "commandWindows": "uv run --directory openai_project/runtime --offline --locked python -m audisor.audisor_lifecycle.hook",
           "timeout": 30,
           "statusMessage": "Checking the A-Flow lock before repository mutation"
         }

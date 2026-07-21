@@ -8,27 +8,48 @@ unchanged.
 
 ## Repo layout
 
-Evidence: `tree /F` output supplied 2026-07-15. Not independently verified
-beyond the listing itself — file contents were not inspected.
+Evidence: verified 2026-07-21 by direct filesystem inspection.
 
-* `python/audisor_core/` — primary Python package (`gates`, `report`,
-  `scan`, `snapshot` submodules). Application code.
-* `audisor/` — agent-governance workspace containing skills and Codex configuration. It contains no
-  application code of its own.
-* `tests/` — currently empty. No test command established.
-* `bin/` — currently empty.
+* `openai_project/runtime/` — Audisor Agent runtime. Python package `audisor`
+  under `src/audisor/`. Submodules: `adapters`, `api`, `audisor_lifecycle`,
+  `builder`, `codex`, `config`, `operations`, `policies`, `routing`, `schemas`,
+  `security`, `workers`. This is the canonical runtime surface.
+* `audisor_backend/` — OneShot Fix engine. Python package `audisor_backend`.
+  Submodules: `adapters`, `artifact_store`, `controllers`, `phases`, `policies`,
+  `sandbox`, `scanning`, `schemas`. Installed as an optional dependency of the
+  runtime.
+* `audisor/` — standalone Audisor MCP toolkit (Git submodule pointing to
+  `https://github.com/itz1508/audisor.git`). Contains the scanner, inspector,
+  tracer, normalizer, validator, and replay tools. Also hosts Codex agent
+  definitions and skills for the standalone toolkit.
+* `openai_project/aflow/` — A-Flow source and schemas. Separate Python package.
+* `openai_project/schemas/` — JSON schemas for tasks, builds, executions, and
+  evidence.
+* `openai_project/docs/` — architecture and lifecycle documentation.
+* `openai_project/infra/` — sandbox Dockerfile.
+* `packaging/oneshot-fix/` — container packaging for the OneShot Fix image
+  (`Dockerfile`, `runtime-requirements.txt`, `backend-requirements.txt`).
 * `.codex/config.toml` — workspace-level Codex configuration. Defines the
   `aflow` agent and enables `hooks = true`. This is the root authority
   surface for the A-Flow lifecycle hook integration.
+* `.codex/agents/aflow.toml` — A-Flow agent definition. Read-only analysis
+  agent for pre-build review and post-build evaluation.
+* `.codex/hooks.json` — PreToolUse hook that intercepts mutations and verifies
+  active Audisor execution locks via `audisor.audisor_lifecycle.hook`.
 * `audisor/.codex/config.toml` + `audisor/.codex/agents/{explorer,reviewer,validator}.toml`
-  — the actual agent-definition source of truth. Role authority lives here,
-  not at root.
+  — the standalone toolkit's agent-definition source of truth. Role authority
+  lives here, not at root.
 
 ## Lint / test
 
-`unknown — not yet established`. The `tests/` directory is empty, and no lint configuration appears
-in this listing. Do not assume `pytest` / `ruff` / any specific tool is
-wired until confirmed by inspection.
+Tests exist in multiple subprojects:
+
+* `audisor_backend/tests/` — Fix engine tests (run with `pytest`)
+* `openai_project/runtime/tests/` — runtime tests (run with `pytest`)
+* `openai_project/aflow/tests/` — A-Flow tests (run with `pytest`)
+
+No single root-level lint configuration is established. Each subproject
+manages its own test and lint tooling via `uv`.
 
 ## Snapshot lifecycle
 
@@ -43,7 +64,7 @@ For every non-trivial repository mutation task, primary Codex must invoke the
 project-scoped `aflow` agent before the first mutation. Reuse a structurally
 usable supplied plan; create one candidate plan only when none is supplied.
 Pass task, plan, applicable authority, and repository context to A-Flow, then
-run its returned data through `openai_project/runtime/src/audisor/aflow_lifecycle/ignition.py`.
+run its returned data through `openai_project/runtime/src/audisor/audisor_lifecycle/ignition.py`.
 That layer calls the existing adapter and schema; only its ready, valid contract
 permits implementation. Collect the contract-required evidence. A non-ready,
 malformed, tampered, or unresolved contract is never execution authority.
@@ -60,7 +81,7 @@ Read-only factual or inspection tasks do not invoke the full lifecycle.
 
 ## Skills index
 
-Ten skills live under `audisor/.agents/skills/<name>/SKILL.md`. Before
+Nine skills live under `audisor/.agents/skills/<name>/SKILL.md`. Before
 starting work whose type matches a skill's purpose, view that skill's full
 `SKILL.md` first — do not improvise a substitute procedure. If a skill's
 actual content conflicts with this file or the global `AGENTS.md`, report
@@ -72,7 +93,6 @@ before treating this table as authoritative.
 
 | Skill | Path (from repo root) | Inferred purpose (unverified) | Maps to (global AGENTS.md) |
 |---|---|---|---|
-| init | `audisor/.agents/skills/init/SKILL.md` | Session/task bootstrap — load authority files, establish starting state | General task review gate: authority/context |
 | repository-discovery | `audisor/.agents/skills/repository-discovery/SKILL.md` | Branch/HEAD/dirty-state/target-path discovery | Repository state |
 | active-path-inspection | `audisor/.agents/skills/active-path-inspection/SKILL.md` | Determine what's actually wired (imports/callers/entrypoint) vs. dormant | Active implementation |
 | controlled-implementation | `audisor/.agents/skills/controlled-implementation/SKILL.md` | Gated mutation execution | Mutation |
@@ -81,7 +101,12 @@ before treating this table as authoritative.
 | requirement-coverage | `audisor/.agents/skills/requirement-coverage/SKILL.md` | Requirement-by-requirement coverage check | General task review gate: reviewer packet |
 | plan-gap-review | `audisor/.agents/skills/plan-gap-review/SKILL.md` | Second-pass plan gap review | Plan mode: Second pass |
 | evidence-reporting | `audisor/.agents/skills/evidence-reporting/SKILL.md` | Evidence capture + the five-field report | Evidence / Reporting |
-| learn | `audisor/.agents/skills/learn/SKILL.md` | Lesson-capture/approval workflow | Learning capture |
+| audisor-plan-review | `audisor/.agents/skills/audisor-plan-review/SKILL.md` | Trigger local Audisor MCP review for a completed implementation plan before coding | A-Flow plan qualification |
+
+**Note:** Several skill descriptions internally reference `init` (setup/configuration)
+and `learn` (explanations) as routing targets. These skills do not currently exist
+as directories. Until they are created, route setup/configuration requests to
+`repository-discovery` and explanations to general agent capability.
 
 ## Agent roles (Codex)
 
