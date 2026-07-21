@@ -1,7 +1,7 @@
 # Agents.md — Theoneshot (repo instance)
 
-Save as `D:\Dev\Theoneshot\Agents.md`. Loads **in addition to** the global
-`Agents.md` per that file's Authority order. This file adds repo-specific
+This file is stored at `D:\Dev\Theoneshot\Agents.md`. It loads **in addition
+to** the global `Agents.md` under that file's Authority order. It adds repo-specific
 data only. It does not redefine evidence, mutation, status vocabulary, or
 reporting rules — those come from the global file and are inherited
 unchanged.
@@ -13,7 +13,7 @@ beyond the listing itself — file contents were not inspected.
 
 * `python/audisor_core/` — primary Python package (`gates`, `report`,
   `scan`, `snapshot` submodules). Application code.
-* `audisor/` — agent governance workspace only: skills, Codex config. No
+* `audisor/` — agent-governance workspace containing skills and Codex configuration. It contains no
   application code of its own.
 * `tests/` — currently empty. No test command established.
 * `bin/` — currently empty.
@@ -26,7 +26,7 @@ beyond the listing itself — file contents were not inspected.
 
 ## Lint / test
 
-`unknown — not yet established`. `tests/` is empty; no lint config appears
+`unknown — not yet established`. The `tests/` directory is empty, and no lint configuration appears
 in this listing. Do not assume `pytest` / `ruff` / any specific tool is
 wired until confirmed by inspection.
 
@@ -100,10 +100,10 @@ agent triad.
 * `validator.toml` — validation pass (`focused-validation`,
   `validation-gap-review`).
 
-**Gap, flagged not fixed:** the global file also describes a "worker" role
-spawned after the decision gate to perform implementation
+**Gap, flagged not fixed:** the global file describes a "worker" role that may
+be spawned after the decision gate to perform implementation
 (`controlled-implementation`). No `worker.toml` or equivalent exists in
-this listing. Either the primary Codex agent performs implementation
-directly with no separate spawned role — a legitimate design — or a role
-file is missing. This listing doesn't have enough evidence to say which.
-Confirm before assuming either.
+this listing. The active implementation arrangement is unresolved: the primary
+Codex agent may implement directly, or a worker role definition may be missing.
+Do not assume either arrangement until the configuration is inspected or a
+human confirms the intended design.
