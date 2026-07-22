@@ -14,10 +14,23 @@ jobs:
       matrix:
         name: [aflow, runtime, fix-backend, toolkit]
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout main repository
+        uses: actions/checkout@v4
         with:
-          submodules: recursive
           fetch-depth: 0
+          submodules: false
+          persist-credentials: false
+
+      - name: Checkout public submodules
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --local --unset-all \
+            http.https://github.com/.extraheader || true
+          git config --global --unset-all \
+            http.https://github.com/.extraheader || true
+          git submodule sync --recursive
+          git submodule update --init --force --recursive
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5

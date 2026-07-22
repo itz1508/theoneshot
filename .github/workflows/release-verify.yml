@@ -12,10 +12,23 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout main repository
+        uses: actions/checkout@v4
         with:
-          submodules: recursive
           fetch-depth: 0
+          submodules: false
+          persist-credentials: false
+
+      - name: Checkout public submodules
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --local --unset-all \
+            http.https://github.com/.extraheader || true
+          git config --global --unset-all \
+            http.https://github.com/.extraheader || true
+          git submodule sync --recursive
+          git submodule update --init --force --recursive
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
