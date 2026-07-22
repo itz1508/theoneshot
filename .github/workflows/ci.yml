@@ -44,7 +44,39 @@ jobs:
 
       - name: Test Runtime
         if: matrix.name == 'runtime'
-        run: uv run --directory openai_project/runtime --locked --extra dev pytest -q -m "not live_fireworks and not live_local"
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          uv sync \
+            --directory openai_project/runtime \
+            --locked \
+            --extra dev \
+            --python 3.11
+
+          openai_project/runtime/.venv/bin/python - <<'PY'
+          import importlib.util
+          assert importlib.util.find_spec("audisor_backend") is None, \
+              "runtime environment unexpectedly contains audisor_backend before CI installation"
+          PY
+
+          uv pip install \
+            --python openai_project/runtime/.venv/bin/python \
+            -e audisor_backend
+
+          openai_project/runtime/.venv/bin/python - <<'PY'
+          import audisor_backend
+          import sys
+          assert sys.version_info[:2] == (3, 11), sys.version
+          print(sys.version)
+          print(audisor_backend.__file__)
+          PY
+
+          uv run \
+            --directory openai_project/runtime \
+            --no-sync \
+            pytest -q \
+            -m "not live_fireworks and not live_local"
 
       # The Fix engine imports the runtime package, so its tests run from the
       # runtime environment with audisor_backend installed into it.
