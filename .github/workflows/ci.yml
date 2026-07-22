@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        name: [aflow, runtime, fix-backend, toolkit]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Test A-Flow
+        if: matrix.name == 'aflow'
+        run: uv run --directory openai_project/aflow --locked --extra dev pytest -q
+
+      - name: Test Runtime
+        if: matrix.name == 'runtime'
+        run: uv run --directory openai_project/runtime --locked --extra dev pytest -q -m "not live_fireworks and not live_local"
+
+      # The Fix engine imports the runtime package, so its tests run from the
+      # runtime environment with audisor_backend installed into it.
+      - name: Test Fix backend
+        if: matrix.name == 'fix-backend'
+        run: |
+          uv sync --directory openai_project/runtime --locked --extra dev
+          uv pip install --python openai_project/runtime/.venv -e audisor_backend
+          uv run --directory openai_project/runtime --locked pytest ../../audisor_backend/tests -q
+
+      - name: Test Toolkit
+        if: matrix.name == 'toolkit'
+        run: uv run --directory audisor/backend --locked --extra dev pytest -q
