@@ -6,12 +6,13 @@ import json
 import hashlib
 import os
 import tempfile
+import threading
 from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Any, Callable
 
 from audisor.audisor_lifecycle.artifacts import audisor_operation_artifact
-from audisor.audisor_lifecycle.analysis_package import package_from_context
+from audisor.audisor_lifecycle.analysis_package import AnalysisPackageError, package_from_context
 from audisor.audisor_lifecycle.ignition import ignite
 from audisor.audisor_lifecycle.operation import AudisorOperationContext, FrozenAudisorPolicy, make_operation_context, read_frozen_audisor_policy
 from audisor.workers.local import LocalWorker
@@ -42,6 +43,29 @@ class AcceptedFixOperation:
     authority_context: dict[str, Any]
     aflow_analysis_request: dict[str, Any] | None = None
     authority_decisions: dict[str, Any] | None = None
+    # Presence is tracked separately from the value because deserializers collapse
+    # "field absent" and "field supplied as null" to the same None. The canonical
+    # deserializer sets this True when the field is present (even as null) so the
+    # controller treats an explicit null as supplied-invalid rather than legacy.
+    aflow_analysis_request_present: bool = False
+
+
+# Per-operation single-flight locks. Concurrent dispatches for the same
+# operation_id serialize so the analysis package is built and the igniter invoked
+# at most once; later callers observe the persisted authoritative result via the
+# store load-check. Module-level so the guarantee holds across dispatcher
+# instances (production constructs a new dispatcher per call).
+_OPERATION_LOCKS: dict[str, threading.Lock] = {}
+_OPERATION_LOCKS_GUARD = threading.Lock()
+
+
+def _operation_lock(operation_id: str) -> threading.Lock:
+    with _OPERATION_LOCKS_GUARD:
+        lock = _OPERATION_LOCKS.get(operation_id)
+        if lock is None:
+            lock = threading.Lock()
+            _OPERATION_LOCKS[operation_id] = lock
+        return lock
 
 
 class FixOperationStore:
@@ -234,6 +258,7 @@ def _prepare_dependency_evidence(
         authority_context=operation.authority_context,
         aflow_analysis_request=operation.aflow_analysis_request,
         authority_decisions=operation.authority_decisions,
+        aflow_analysis_request_present=operation.aflow_analysis_request_present,
     )
     return enriched_operation, resolution_results
 
@@ -246,6 +271,13 @@ class AcceptedFixDispatcher:
         self.worker_factory = worker_factory
 
     def dispatch(self, operation: AcceptedFixOperation, continue_implementation: Callable[[AcceptedFixOperation, Any], Any], finalize_unresolved: Callable[[AcceptedFixOperation, dict[str, Any]], Any]) -> Any:
+        # Single-flight per operation_id: concurrent duplicate dispatches serialize
+        # so the package is built and the igniter invoked at most once; the later
+        # caller observes the persisted authoritative result via the load-check.
+        with _operation_lock(operation.operation_id):
+            return self._dispatch_unlocked(operation, continue_implementation, finalize_unresolved)
+
+    def _dispatch_unlocked(self, operation: AcceptedFixOperation, continue_implementation: Callable[[AcceptedFixOperation, Any], Any], finalize_unresolved: Callable[[AcceptedFixOperation, dict[str, Any]], Any]) -> Any:
         existing = self.store.load(operation.operation_id)
         if existing is not None:
             return existing
@@ -287,8 +319,31 @@ class AcceptedFixDispatcher:
         }
         workspace_identity = enriched_operation.workspace_identity
         use_fix_local_boundary = self.aflow_igniter is ignite
+        analysis_request = enriched_operation.aflow_analysis_request
         analysis_package = None
-        if policy.enabled and self.aflow_igniter is ignite and not use_fix_local_boundary:
+        # Option B packaging semantics for the custom-igniter path:
+        #   - request field ABSENT (aflow_analysis_request_present is False):
+        #     supported legacy operation -> skip packaging and invoke the igniter
+        #     with analysis_package=None;
+        #   - request field PRESENT (aflow_analysis_request_present is True): the
+        #     request was supplied and must validate. Presence — not truthiness and
+        #     not `is not None` — distinguishes "field absent" from "field supplied
+        #     as null", because deserializers collapse both to None; the canonical
+        #     deserializer records presence separately. An explicit null or a
+        #     malformed mapping reaches package_from_context, which raises
+        #     AnalysisPackageError -> persist package_validation_failed and halt.
+        #     A valid mapping builds the FrozenAnalysisPackage for the igniter.
+        # The local `ignite` boundary never activates custom-package routing.
+        if policy.enabled and not use_fix_local_boundary and enriched_operation.aflow_analysis_request_present:
+            failure_context = make_operation_context(
+                operation_id=enriched_operation.operation_id,
+                operation_type="fix",
+                accepted_task=accepted_task,
+                accepted_plan=accepted_plan,
+                repository_context=repository_context,
+                workspace_identity=workspace_identity,
+                authority_context=enriched_operation.authority_context,
+            )
             try:
                 analysis_package = package_from_context(
                     operation_id=enriched_operation.operation_id,
@@ -298,7 +353,7 @@ class AcceptedFixDispatcher:
                     authority_context=enriched_operation.authority_context,
                     repository_context={
                         **repository_context,
-                        "aflow_analysis_request": enriched_operation.aflow_analysis_request,
+                        "aflow_analysis_request": analysis_request,
                     },
                     workspace_identity=workspace_identity,
                     provider_policy={
@@ -308,17 +363,17 @@ class AcceptedFixDispatcher:
                         "timeout_seconds": policy.timeout_seconds,
                     },
                 )
+            except AnalysisPackageError as exc:
+                # Expected package-contract failure: the supplied request is an
+                # explicit null or otherwise invalid. Halt before ignition.
+                artifact = audisor_operation_artifact(failure_context, policy, status="package_validation_failed", error=exc)
+                self.store.persist(enriched_operation.operation_id, artifact)
+                return finalize_unresolved(enriched_operation, artifact)
             except Exception as exc:
-                context = make_operation_context(
-                    operation_id=enriched_operation.operation_id,
-                    operation_type="fix",
-                    accepted_task=accepted_task,
-                    accepted_plan=accepted_plan,
-                    repository_context=repository_context,
-                    workspace_identity=workspace_identity,
-                    authority_context=enriched_operation.authority_context,
-                )
-                artifact = audisor_operation_artifact(context, policy, status="package_validation_failed", error=exc)
+                # Unexpected defect (controller bug, filesystem error, hash defect,
+                # unrelated dependency failure). Classify distinctly so a product
+                # defect is never hidden as bad user input; still halt before ignition.
+                artifact = audisor_operation_artifact(failure_context, policy, status="internal_error", error=exc)
                 self.store.persist(enriched_operation.operation_id, artifact)
                 return finalize_unresolved(enriched_operation, artifact)
         context = make_operation_context(

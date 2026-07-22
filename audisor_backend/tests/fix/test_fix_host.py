@@ -1,7 +1,16 @@
+import concurrent.futures
 import json
+import threading
+from dataclasses import asdict
+from pathlib import Path
+from unittest.mock import Mock, patch
 
+import pytest
+
+from audisor.audisor_lifecycle.analysis_package import AnalysisPackageError, FrozenAnalysisPackage
 from audisor.audisor_lifecycle.ignition import IgnitionResult
 from audisor.audisor_lifecycle.operation import FrozenAudisorPolicy
+from audisor.operations.transport import deserialize_request
 
 from audisor_backend.controllers.fix_controller import FixController
 from audisor_backend.controllers.fix_host import AcceptedFixDispatcher, AcceptedFixOperation, FixOperationStore
@@ -10,12 +19,93 @@ from audisor_backend.scanning.dependency_closure import resolve_dependency_detai
 from audisor_backend.schemas.fix.models import Finding, FindingCheck, FixScopedManifest, ImplementationPlan, PlanStep, SuccessDefinition, ValidationSpec
 
 
-def operation():
+# Frozen A-Flow analysis-request fixtures (the same canonical inputs the runtime
+# package tests use). Loading them lets the H1 package-path tests exercise the
+# REAL package_from_context validation instead of concealing an impossible
+# fixture behind a mock.
+_ANALYSIS_FIXTURE_ROOT = (
+    Path(__file__).resolve().parents[3]
+    / "openai_project"
+    / "aflow"
+    / "tests"
+    / "fixtures"
+    / "05-fully-proven"
+    / "input"
+)
+
+
+def valid_analysis_request(operation_id: str = "fix-001") -> dict:
+    """Return a schema-valid frozen analysis request bound to ``operation_id``.
+
+    ``package_from_context`` requires ``analysis_id`` to equal the host
+    operation id, so the fixture's analysis_id is rebound to the Fix operation.
+    """
+    return {
+        "schema_version": "1.0.0",
+        "analysis_id": operation_id,
+        "success_definition": json.loads((_ANALYSIS_FIXTURE_ROOT / "success-definition.json").read_text(encoding="utf-8")),
+        "plan": json.loads((_ANALYSIS_FIXTURE_ROOT / "plan.json").read_text(encoding="utf-8")),
+        "authority_evidence": json.loads((_ANALYSIS_FIXTURE_ROOT / "authority-evidence.json").read_text(encoding="utf-8")),
+        "repository_evidence": json.loads((_ANALYSIS_FIXTURE_ROOT / "repository-evidence.json").read_text(encoding="utf-8")),
+        "baseline": json.loads((_ANALYSIS_FIXTURE_ROOT / "baseline.json").read_text(encoding="utf-8")),
+        "evidence": json.loads((_ANALYSIS_FIXTURE_ROOT / "evidence.json").read_text(encoding="utf-8")),
+    }
+
+
+def operation(aflow_analysis_request=None, aflow_analysis_request_present=None):
+    # Presence defaults to "the request value is not None" so existing callers
+    # keep their semantics: operation() -> field absent (legacy path);
+    # operation(req) -> field present. Pass aflow_analysis_request_present=True
+    # together with a None request to model an explicit JSON null (supplied-invalid).
+    if aflow_analysis_request_present is None:
+        aflow_analysis_request_present = aflow_analysis_request is not None
     findings = [Finding("F-1", "syntax", "src/app.py", "high", {"line": 1})]
     manifest = FixScopedManifest(["src/app.py"], ["src/app.py"], "input", {"src/app.py": "a" * 64})
     statements = make_statements(findings, manifest)
     plan = ImplementationPlan([PlanStep("S-1", "repair", "src/app.py", "F-1", "test passes")], ["src/app.py"], True)
-    return AcceptedFixOperation("fix-001", findings, manifest, statements, plan, {"path": "sandbox/fix-001"}, {"allowed_paths": ["src/app.py"]})
+    return AcceptedFixOperation(
+        "fix-001", findings, manifest, statements, plan,
+        {"path": "sandbox/fix-001"}, {"allowed_paths": ["src/app.py"]},
+        aflow_analysis_request,
+        aflow_analysis_request_present=aflow_analysis_request_present,
+    )
+
+
+# Sentinel for _fix_envelope: "omit the aflow_analysis_request field entirely"
+# (absent), as distinct from supplying it as None (explicit JSON null).
+_ABSENT = object()
+
+
+def _enabled_policy():
+    return FrozenAudisorPolicy(True, "local-openai-compatible", "qwen2.5-coder:7b", "http://127.0.0.1:11434")
+
+
+def _fix_envelope(aflow_analysis_request=_ABSENT, operation_id="fix-001"):
+    """Build a canonical wire envelope for ``deserialize_request``.
+
+    The Fix payload is derived from ``operation()`` so it is guaranteed valid and
+    completable. ``aflow_analysis_request`` defaults to a sentinel meaning "omit
+    the field" (absent); pass ``None`` to supply an explicit JSON null.
+    """
+    base = operation()
+    fix_payload = {
+        "findings": [asdict(finding) for finding in base.findings],
+        "manifest": asdict(base.manifest),
+        "statements": [asdict(statement) for statement in base.statements],
+        "plan": asdict(base.plan),
+        "workspace_identity": dict(base.workspace_identity),
+        "authority_context": dict(base.authority_context),
+    }
+    if aflow_analysis_request is not _ABSENT:
+        fix_payload["aflow_analysis_request"] = aflow_analysis_request
+    return {
+        "operation_id": operation_id,
+        "operation_kind": "fix",
+        "client": {"client_id": "test-client", "adapter_id": "test-adapter", "adapter_version": "1.0.0"},
+        "repository": {"root": "sandbox/fix-001"},
+        "requested_scope": {"files": ["src/app.py"]},
+        "fix": fix_payload,
+    }
 
 
 def test_enabled_fix_invokes_once_persists_and_duplicate_does_not_reinvoke(tmp_path):
@@ -628,7 +718,11 @@ def test_H1_local_boundary_does_not_call_package_from_context(tmp_path):
 def test_H1_custom_igniter_calls_package_from_context(tmp_path):
     from unittest.mock import patch, MagicMock
     from audisor.audisor_lifecycle.ignition import IgnitionResult
-    op = operation()
+    # Request present -> the custom-igniter path must build a package. A
+    # realistic (schema-valid) request is supplied so the fixture is possible
+    # without the mock; the mock isolates the routing assertion from real
+    # schema validation (covered separately below).
+    op = operation(aflow_analysis_request=valid_analysis_request())
     continued = []
     igniter_contexts = []
     fix_calls = []
@@ -682,20 +776,21 @@ def test_H1_policy_disabled_calls_neither_package_nor_igniter(tmp_path):
     assert result == 'skipped_disabled'
 
 
-def test_H1_package_construction_failure_persists_without_continuing(tmp_path):
-    from unittest.mock import patch
-    from audisor.audisor_lifecycle.ignition import IgnitionResult
-    op = operation()
+def test_H1_expected_package_error_persists_package_validation_failed_and_halts(tmp_path):
+    # Required matrix #5: the EXPECTED package-contract exception
+    # (AnalysisPackageError) is classified as package_validation_failed, persisted
+    # with the operation identity, and halts before the custom igniter runs.
+    op = operation(aflow_analysis_request=valid_analysis_request())
     continued = []
     finalized = []
     igniter_calls = []
     def custom_igniter(operation_context, policy, worker):
         igniter_calls.append(operation_context)
         return IgnitionResult(True, 'supplied', operation_context.accepted_plan, {'readiness': {}}, True)
-    with patch('audisor_backend.controllers.fix_host.package_from_context', side_effect=RuntimeError('package_build_error')):
+    with patch('audisor_backend.controllers.fix_host.package_from_context', side_effect=AnalysisPackageError('accepted operation lacks aflow_analysis_request')):
         dispatcher = AcceptedFixDispatcher(
             FixOperationStore(tmp_path),
-            policy_reader=lambda: FrozenAudisorPolicy(True, 'local-openai-compatible', 'qwen2.5-coder:7b', 'http://127.0.0.1:11434'),
+            policy_reader=lambda: _enabled_policy(),
             aflow_igniter=custom_igniter,
             worker_factory=lambda *args, **kwargs: object(),
         )
@@ -704,7 +799,7 @@ def test_H1_package_construction_failure_persists_without_continuing(tmp_path):
             lambda operation, r: continued.append(r) or 'continued',
             lambda operation, r: finalized.append(r) or 'unresolved',
         )
-    assert continued == [], 'Fix must not continue after package construction failure'
+    assert continued == [], 'Fix must not continue after an expected package-contract failure'
     assert igniter_calls == [], 'custom igniter must not be called after package failure'
     assert result == 'unresolved'
     assert len(finalized) == 1
@@ -712,3 +807,358 @@ def test_H1_package_construction_failure_persists_without_continuing(tmp_path):
     stored = dispatcher.store.load(op.operation_id)
     assert stored is not None
     assert stored['status'] == 'package_validation_failed'
+    assert stored['operation_id'] == op.operation_id
+
+
+def test_H1_local_boundary_ignores_present_request(tmp_path):
+    from unittest.mock import patch, MagicMock
+    from audisor.audisor_lifecycle.ignition import ignite, IgnitionResult
+    # Even with a request present, the local `ignite` boundary preserves its
+    # existing behavior: no custom-package routing; invoke_local_fix runs.
+    op = operation(aflow_analysis_request=valid_analysis_request())
+    fix_calls = []
+    fake_result = IgnitionResult(True, 'supplied', op.plan, {'readiness': {}}, True)
+    sentinel_pkg = MagicMock(side_effect=AssertionError('package_from_context must not be called on local boundary'))
+    with patch('audisor_backend.controllers.fix_host.package_from_context', sentinel_pkg):
+        with patch('audisor_backend.controllers.fix_host.invoke_local_fix', side_effect=lambda *a, **kw: fix_calls.append(a) or fake_result):
+            dispatcher = AcceptedFixDispatcher(
+                FixOperationStore(tmp_path),
+                policy_reader=lambda: FrozenAudisorPolicy(True, 'local-openai-compatible', 'qwen2.5-coder:7b', 'http://127.0.0.1:11434'),
+                aflow_igniter=ignite,
+                worker_factory=lambda *args, **kwargs: object(),
+            )
+            result = FixController().accept(
+                op, dispatcher,
+                lambda operation, r: 'continued',
+                lambda operation, r: 'unresolved',
+            )
+    assert sentinel_pkg.call_count == 0, 'local boundary must not route through package_from_context even when a request is present'
+    assert len(fix_calls) == 1, 'invoke_local_fix must be called exactly once on the local boundary'
+    assert result == 'continued'
+
+
+def test_H1_custom_igniter_valid_request_builds_real_package(tmp_path):
+    from audisor.audisor_lifecycle.analysis_package import FrozenAnalysisPackage
+    from audisor.audisor_lifecycle.ignition import IgnitionResult
+    # No mock: a valid supplied request must produce a REAL FrozenAnalysisPackage
+    # that is passed to the custom igniter, and the operation continues.
+    op = operation(aflow_analysis_request=valid_analysis_request())
+    igniter_contexts = []
+    def custom_igniter(operation_context, policy, worker):
+        igniter_contexts.append(operation_context)
+        return IgnitionResult(True, 'supplied', operation_context.accepted_plan, {'readiness': {}}, True)
+    dispatcher = AcceptedFixDispatcher(
+        FixOperationStore(tmp_path),
+        policy_reader=lambda: FrozenAudisorPolicy(True, 'local-openai-compatible', 'qwen2.5-coder:7b', 'http://127.0.0.1:11434'),
+        aflow_igniter=custom_igniter,
+        worker_factory=lambda *args, **kwargs: object(),
+    )
+    result = FixController().accept(
+        op, dispatcher,
+        lambda operation, r: 'continued',
+        lambda operation, r: 'unresolved',
+    )
+    assert len(igniter_contexts) == 1, 'custom igniter must be invoked exactly once'
+    package = igniter_contexts[0].analysis_package
+    assert isinstance(package, FrozenAnalysisPackage), 'a valid supplied request must produce a real FrozenAnalysisPackage'
+    assert package.operation_id == op.operation_id
+    assert package.package_hash.startswith('sha256:')
+    assert result == 'continued'
+
+
+def test_H1_custom_igniter_malformed_request_halts(tmp_path):
+    from audisor.audisor_lifecycle.ignition import IgnitionResult
+    # No mock: a supplied-but-malformed request (missing required evidence
+    # fields) must fail REAL schema validation, persist package_validation_failed
+    # with the operation identity, halt, and never invoke the custom igniter.
+    malformed = {"schema_version": "1.0.0", "analysis_id": "fix-001"}
+    op = operation(aflow_analysis_request=malformed)
+    continued = []
+    finalized = []
+    igniter_calls = []
+    def custom_igniter(operation_context, policy, worker):
+        igniter_calls.append(operation_context)
+        return IgnitionResult(True, 'supplied', operation_context.accepted_plan, {'readiness': {}}, True)
+    dispatcher = AcceptedFixDispatcher(
+        FixOperationStore(tmp_path),
+        policy_reader=lambda: FrozenAudisorPolicy(True, 'local-openai-compatible', 'qwen2.5-coder:7b', 'http://127.0.0.1:11434'),
+        aflow_igniter=custom_igniter,
+        worker_factory=lambda *args, **kwargs: object(),
+    )
+    result = FixController().accept(
+        op, dispatcher,
+        lambda operation, r: continued.append(r) or 'continued',
+        lambda operation, r: finalized.append(r) or 'unresolved',
+    )
+    assert continued == [], 'Fix must not continue after a malformed supplied request'
+    assert igniter_calls == [], 'custom igniter must not be called after package validation failure'
+    assert result == 'unresolved'
+    assert len(finalized) == 1
+    assert finalized[0]['status'] == 'package_validation_failed'
+    stored = dispatcher.store.load(op.operation_id)
+    assert stored is not None
+    assert stored['status'] == 'package_validation_failed'
+    assert stored['operation_id'] == op.operation_id
+
+
+def test_H1_custom_igniter_empty_mapping_request_halts(tmp_path):
+    from audisor.audisor_lifecycle.ignition import IgnitionResult
+    # No mock: a supplied-but-EMPTY mapping {} is still a Mapping, so it reaches
+    # REAL schema validation, which fails on the missing required evidence fields
+    # and raises AnalysisPackageError -> package_validation_failed, halt, never
+    # ignite. This proves "empty mappings are rejected" distinctly from a
+    # malformed (partially-populated) mapping and from an explicit null.
+    op = operation(aflow_analysis_request={})
+    continued = []
+    finalized = []
+    igniter_calls = []
+    def custom_igniter(operation_context, policy, worker):
+        igniter_calls.append(operation_context)
+        return IgnitionResult(True, 'supplied', operation_context.accepted_plan, {'readiness': {}}, True)
+    dispatcher = AcceptedFixDispatcher(
+        FixOperationStore(tmp_path),
+        policy_reader=lambda: FrozenAudisorPolicy(True, 'local-openai-compatible', 'qwen2.5-coder:7b', 'http://127.0.0.1:11434'),
+        aflow_igniter=custom_igniter,
+        worker_factory=lambda *args, **kwargs: object(),
+    )
+    result = FixController().accept(
+        op, dispatcher,
+        lambda operation, r: continued.append(r) or 'continued',
+        lambda operation, r: finalized.append(r) or 'unresolved',
+    )
+    assert continued == [], 'Fix must not continue after an empty supplied mapping'
+    assert igniter_calls == [], 'custom igniter must not be called after empty-mapping validation failure'
+    assert result == 'unresolved'
+    assert len(finalized) == 1
+    assert finalized[0]['status'] == 'package_validation_failed'
+    stored = dispatcher.store.load(op.operation_id)
+    assert stored is not None
+    assert stored['status'] == 'package_validation_failed'
+    assert stored['operation_id'] == op.operation_id
+
+
+def test_H1_duplicate_operation_with_valid_request_does_not_rebuild_package(tmp_path):
+    from unittest.mock import patch, MagicMock
+    from audisor.audisor_lifecycle.ignition import IgnitionResult
+    # A duplicate accepted operation short-circuits before the package branch:
+    # package_from_context is built exactly once and the igniter runs once.
+    op = operation(aflow_analysis_request=valid_analysis_request())
+    igniter_contexts = []
+    fake_package = MagicMock()
+    fake_package.package_hash = 'a' * 64
+    def custom_igniter(operation_context, policy, worker):
+        igniter_contexts.append(operation_context)
+        return IgnitionResult(True, 'supplied', operation_context.accepted_plan, {'readiness': {}}, True)
+    with patch('audisor_backend.controllers.fix_host.package_from_context', return_value=fake_package) as mock_pkg:
+        dispatcher = AcceptedFixDispatcher(
+            FixOperationStore(tmp_path),
+            policy_reader=lambda: FrozenAudisorPolicy(True, 'local-openai-compatible', 'qwen2.5-coder:7b', 'http://127.0.0.1:11434'),
+            aflow_igniter=custom_igniter,
+            worker_factory=lambda *args, **kwargs: object(),
+        )
+        controller = FixController()
+        first = controller.accept(op, dispatcher, lambda operation, r: 'continued', lambda operation, r: 'unresolved')
+        second = controller.accept(op, dispatcher, lambda operation, r: 'continued', lambda operation, r: 'unresolved')
+    assert mock_pkg.call_count == 1, 'package_from_context must be built exactly once across duplicate accepts'
+    assert len(igniter_contexts) == 1, 'custom igniter must run exactly once across duplicate accepts'
+    assert first == 'continued'
+    assert second['status'] == 'accepted', 'duplicate accept must return the persisted artifact without re-ignition'
+
+
+# ---------------------------------------------------------------------------
+# Canonical-deserializer + production-boundary contract tests:
+# absent vs explicit-null presence, exception classification, persistence
+# failure, post-package igniter failure, concurrent single-flight, and the
+# production transport->dispatcher boundary.
+# ---------------------------------------------------------------------------
+
+
+def test_deserialized_absent_request_takes_legacy_path(tmp_path):
+    # Required #1: a serialized operation with the aflow_analysis_request field
+    # ABSENT deserializes to present=False and follows the supported legacy path:
+    # packaging is skipped and the custom igniter still runs.
+    import audisor_backend.controllers.fix_host as fix_host
+    pkg_calls = []
+    request = deserialize_request(_fix_envelope())  # field omitted entirely
+    op = request.fix.operation
+    assert op.aflow_analysis_request is None
+    assert op.aflow_analysis_request_present is False
+    igniter_contexts = []
+    def custom_igniter(operation_context, policy, worker):
+        igniter_contexts.append(operation_context)
+        return IgnitionResult(True, 'supplied', operation_context.accepted_plan, {'readiness': {}}, True)
+    with patch.object(fix_host, 'package_from_context', side_effect=lambda **kw: pkg_calls.append(kw)):
+        dispatcher = AcceptedFixDispatcher(
+            FixOperationStore(tmp_path),
+            policy_reader=lambda: _enabled_policy(),
+            aflow_igniter=custom_igniter,
+            worker_factory=lambda *args, **kwargs: object(),
+        )
+        result = dispatcher.dispatch(op, lambda o, r: 'continued', lambda o, r: r['status'])
+    assert result == 'continued'
+    assert len(igniter_contexts) == 1, 'legacy path must still invoke the custom igniter'
+    assert igniter_contexts[0].analysis_package is None, 'legacy path builds no package'
+    assert pkg_calls == [], 'legacy path must not call package_from_context'
+    assert dispatcher.store.load(op.operation_id)['status'] == 'accepted'
+
+
+def test_deserialized_explicit_null_request_halts_as_supplied_invalid(tmp_path):
+    # Required #2: a serialized operation with aflow_analysis_request explicitly
+    # set to null deserializes to present=True with value None. Presence (not the
+    # value) routes it into the package branch, where the REAL package_from_context
+    # rejects the null mapping -> package_validation_failed, halt, never ignite.
+    request = deserialize_request(_fix_envelope(aflow_analysis_request=None))
+    op = request.fix.operation
+    assert op.aflow_analysis_request is None
+    assert op.aflow_analysis_request_present is True, 'explicit null must preserve presence'
+    igniter_calls = []
+    dispatcher = AcceptedFixDispatcher(
+        FixOperationStore(tmp_path),
+        policy_reader=lambda: _enabled_policy(),
+        aflow_igniter=lambda **kw: igniter_calls.append(kw),
+        worker_factory=lambda *args, **kwargs: object(),
+    )
+    result = dispatcher.dispatch(op, lambda o, r: 'continued', lambda o, r: r['status'])
+    assert result == 'package_validation_failed', 'explicit null is supplied-invalid, not legacy'
+    assert igniter_calls == [], 'explicit null must never reach the igniter'
+    stored = dispatcher.store.load(op.operation_id)
+    assert stored['status'] == 'package_validation_failed'
+    assert stored['operation_id'] == op.operation_id
+
+
+def test_H1_unexpected_constructor_error_is_internal_not_package_validation(tmp_path):
+    # Required #6: an UNEXPECTED exception from package construction (e.g. a
+    # controller bug raising RuntimeError) is classified as a distinct
+    # internal_error — NOT package_validation_failed — so a product defect is
+    # never hidden as bad user input. It still halts before the igniter.
+    op = operation(aflow_analysis_request=valid_analysis_request())
+    igniter_calls = []
+    def custom_igniter(operation_context, policy, worker):
+        igniter_calls.append(operation_context)
+        return IgnitionResult(True, 'supplied', operation_context.accepted_plan, {'readiness': {}}, True)
+    with patch('audisor_backend.controllers.fix_host.package_from_context', side_effect=RuntimeError('unexpected controller defect')):
+        dispatcher = AcceptedFixDispatcher(
+            FixOperationStore(tmp_path),
+            policy_reader=lambda: _enabled_policy(),
+            aflow_igniter=custom_igniter,
+            worker_factory=lambda *args, **kwargs: object(),
+        )
+        result = FixController().accept(op, dispatcher, lambda o, r: 'continued', lambda o, r: r['status'])
+    assert result == 'internal_error', 'unexpected defect must be internal_error, not package_validation_failed'
+    assert igniter_calls == [], 'unexpected defect must never reach the igniter'
+    stored = dispatcher.store.load(op.operation_id)
+    assert stored['status'] == 'internal_error'
+    assert stored['operation_id'] == op.operation_id
+
+
+def test_H1_persistence_failure_after_package_error_never_ignites(tmp_path):
+    # Required #7: if persisting the package_validation_failed artifact itself
+    # fails, the failure propagates, but ignition MUST still never happen.
+    op = operation(aflow_analysis_request=valid_analysis_request())
+    igniter_calls = []
+    def custom_igniter(operation_context, policy, worker):
+        igniter_calls.append(operation_context)
+        return IgnitionResult(True, 'supplied', operation_context.accepted_plan, {'readiness': {}}, True)
+    store = FixOperationStore(tmp_path)
+    def broken_persist(operation_id, artifact):
+        raise OSError('disk full')
+    store.persist = broken_persist
+    dispatcher = AcceptedFixDispatcher(
+        store,
+        policy_reader=lambda: _enabled_policy(),
+        aflow_igniter=custom_igniter,
+        worker_factory=lambda *args, **kwargs: object(),
+    )
+    with patch('audisor_backend.controllers.fix_host.package_from_context', side_effect=AnalysisPackageError('invalid')):
+        with pytest.raises(OSError):
+            dispatcher.dispatch(op, lambda o, r: 'continued', lambda o, r: 'unresolved')
+    assert igniter_calls == [], 'persistence failure must never permit ignition'
+
+
+def test_H1_igniter_failure_after_successful_package_build_halts(tmp_path):
+    # Required #8: with a valid supplied request, the REAL package is built first;
+    # if the custom igniter then fails, the operation halts and never continues —
+    # and the built package reached the igniter context before the failure.
+    op = operation(aflow_analysis_request=valid_analysis_request())
+    captured = []
+    def failing_igniter(operation_context, policy, worker):
+        captured.append(operation_context)
+        raise RuntimeError('igniter crashed after package built')
+    dispatcher = AcceptedFixDispatcher(
+        FixOperationStore(tmp_path),
+        policy_reader=lambda: _enabled_policy(),
+        aflow_igniter=failing_igniter,
+        worker_factory=lambda *args, **kwargs: object(),
+    )
+    result = dispatcher.dispatch(op, lambda o, r: 'continued', lambda o, r: r['status'])
+    assert len(captured) == 1, 'igniter must be invoked once after a successful package build'
+    assert isinstance(captured[0].analysis_package, FrozenAnalysisPackage), 'real package must reach the igniter context'
+    assert result == 'validation_failed', 'generic igniter failure halts as validation_failed'
+    assert dispatcher.store.load(op.operation_id)['status'] == 'validation_failed'
+
+
+def test_concurrent_duplicate_dispatch_packages_and_ignites_at_most_once(tmp_path):
+    # Required #9: two concurrent dispatches for the SAME operation_id (via two
+    # dispatcher instances sharing one store, mirroring production's per-call
+    # dispatcher) must construct the package and invoke the igniter AT MOST once.
+    # A barrier forces simultaneous entry; the per-operation lock serializes them.
+    import audisor_backend.controllers.fix_host as fix_host
+    op = operation(aflow_analysis_request=valid_analysis_request())
+    store = FixOperationStore(tmp_path)
+    pkg_calls = []
+    real_pkg = fix_host.package_from_context
+    def counting_pkg(**kw):
+        pkg_calls.append(kw)
+        return real_pkg(**kw)
+    igniter_contexts = []
+    def custom_igniter(operation_context, policy, worker):
+        igniter_contexts.append(operation_context)
+        return IgnitionResult(True, 'supplied', operation_context.accepted_plan, {'readiness': {}}, True)
+    barrier = threading.Barrier(2)
+    def run_dispatch(_):
+        barrier.wait()
+        dispatcher = AcceptedFixDispatcher(
+            store,
+            policy_reader=lambda: _enabled_policy(),
+            aflow_igniter=custom_igniter,
+            worker_factory=lambda *args, **kwargs: object(),
+        )
+        return dispatcher.dispatch(op, lambda o, r: 'continued', lambda o, r: r['status'])
+    with patch.object(fix_host, 'package_from_context', side_effect=counting_pkg):
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            results = list(executor.map(run_dispatch, range(2)))
+    assert len(pkg_calls) == 1, 'package must be constructed at most once across concurrent duplicates'
+    assert len(igniter_contexts) == 1, 'igniter must run at most once across concurrent duplicates'
+    continued = sum(1 for r in results if r == 'continued')
+    accepted = sum(1 for r in results if isinstance(r, dict) and r.get('status') == 'accepted')
+    assert continued + accepted == 2, 'both callers observe an authoritative success result'
+    assert store.load(op.operation_id)['status'] == 'accepted'
+
+
+def test_production_boundary_valid_request_completes_through_deserializer_and_dispatcher(tmp_path):
+    # Required #10 / Gap 3: a fixture operation entering through the production
+    # transport entrypoint (deserialize_request) and the production dispatcher
+    # (AcceptedFixDispatcher.dispatch) — NOT FixController — completes successfully
+    # with a REAL frozen package built from the supplied request.
+    envelope = _fix_envelope(aflow_analysis_request=valid_analysis_request('fix-001'))
+    request = deserialize_request(envelope)
+    op = request.fix.operation
+    assert op.aflow_analysis_request_present is True
+    igniter_contexts = []
+    def custom_igniter(operation_context, policy, worker):
+        igniter_contexts.append(operation_context)
+        return IgnitionResult(True, 'supplied', operation_context.accepted_plan, {'readiness': {}}, True)
+    dispatcher = AcceptedFixDispatcher(
+        FixOperationStore(tmp_path),
+        policy_reader=lambda: _enabled_policy(),
+        aflow_igniter=custom_igniter,
+        worker_factory=lambda *args, **kwargs: object(),
+    )
+    result = dispatcher.dispatch(op, lambda o, r: 'continued', lambda o, r: r['status'])
+    assert result == 'continued'
+    assert len(igniter_contexts) == 1
+    package = igniter_contexts[0].analysis_package
+    assert isinstance(package, FrozenAnalysisPackage), 'production boundary must build a real package'
+    assert package.operation_id == op.operation_id
+    assert package.package_hash.startswith('sha256:')
+    assert dispatcher.store.load(op.operation_id)['status'] == 'accepted'
