@@ -6,8 +6,11 @@
 #
 # Frozen install: pinned dependency versions exported from each package's
 #                 uv.lock via `uv export --frozen --no-hashes`.
+#
+# Docker Hub manifest observed for python:3.11-slim-bookworm on 2026-07-21.
+# Update the tag and digest together only after an explicit image review.
 # ─────────────────────────────────────────────────────────────────────────────
-FROM python:3.11-slim-bookworm AS base
+FROM python:3.11-slim-bookworm@sha256:b18992999dbe963a45a8a4da40ac2b1975be1a776d939d098c647482bcad5cba AS base
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \

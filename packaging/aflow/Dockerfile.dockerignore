@@ -1,0 +1,32 @@
+# Build-context filter for the A-Flow image (packaging/aflow/Dockerfile).
+# Docker resolves this per-Dockerfile ignore file (BuildKit naming convention:
+# "<Dockerfile>.dockerignore") instead of the repository-root .dockerignore,
+# which excludes openai_project/aflow for the OneShot Fix image.
+
+# ── Version control ──────────────────────────────────────────────────────────
+.git
+.gitmodules
+.gitignore
+
+# ── Everything not explicitly re-included below ──────────────────────────────
+*
+
+# ── Re-include the A-Flow package inputs needed to build the wheel ───────────
+!openai_project/aflow/pyproject.toml
+!openai_project/aflow/README.md
+!openai_project/aflow/src
+!openai_project/aflow/src/**
+!openai_project/aflow/schemas
+!openai_project/aflow/schemas/**
+
+# ── Re-include this image's frozen requirements ──────────────────────────────
+!packaging/aflow/requirements.txt
+
+# ── Keep caches / tests out of the re-included source tree ───────────────────
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/.pytest_cache
+**/.venv
+**/tests
+**/test_*.py
