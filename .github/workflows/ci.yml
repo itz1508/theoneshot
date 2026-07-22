@@ -54,7 +54,7 @@ jobs:
             --extra dev \
             --python 3.11
 
-          openai_project/runtime/.venv/bin/python - <<'PY'
+          openai_project/runtime/.venv/bin/python -P - <<'PY'
           import importlib.util
           assert importlib.util.find_spec("audisor_backend") is None, \
               "runtime environment unexpectedly contains audisor_backend before CI installation"
@@ -64,7 +64,7 @@ jobs:
             --python openai_project/runtime/.venv/bin/python \
             -e audisor_backend
 
-          openai_project/runtime/.venv/bin/python - <<'PY'
+          openai_project/runtime/.venv/bin/python -P - <<'PY'
           import audisor_backend
           import sys
           assert sys.version_info[:2] == (3, 11), sys.version
