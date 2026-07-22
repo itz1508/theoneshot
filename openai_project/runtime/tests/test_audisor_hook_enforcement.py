@@ -127,4 +127,4 @@ def test_13_read_only_is_recorded_without_a_lock(tmp_path: Path) -> None:
 
 def test_14_frozen_tree_is_byte_stable() -> None:
     frozen = Path(__file__).resolve().parents[2] / "aflow"
-    assert frozen_tree_digest(frozen) == "9e6966a054b87badce74e836efb3c7773883484359bcce8308e0f11135753a58"
+    assert frozen_tree_digest(frozen) == "a521cb0ef0f7cc160bd70baf9bb765b80ee035e5d13867605279ff6cf7f6b5c4"

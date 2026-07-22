@@ -46,6 +46,21 @@ uv run --offline python -m aflow.cli demo
 
 Exit codes are: `0` success, `2` schema-invalid analysis input, `3` unresolved blocking analysis/closure gaps, `4` internal failure, `5` fixture-evaluation failure, and `6` final output not proven.
 
+## Buildable image
+
+A reproducible container image builds from the current source tree via
+`packaging/aflow/Dockerfile` (digest-pinned base, dependencies frozen from
+`uv.lock`). Build it from the repository root:
+
+```powershell
+docker build -f packaging/aflow/Dockerfile -t theoneshot-aflow:0.9.0 .
+docker run --rm theoneshot-aflow:0.9.0 demo
+```
+
+This image exposes the current local CLI surface shown above. It is distinct
+from the historical submission image below, which was built for the OpenAI Build
+Week submission and exposes a different command surface.
+
 ## Submission image
 
 The submission container image is published as:

@@ -1,8 +1,8 @@
-# Audisor Phase 2B
+# Audisor Runtime
 
-This directory is the canonical OpenAI project for Audisor. The Python package
-remains named `audisor`; the filesystem root is `openai_project` so the separate
-reference repository at `../audisor` remains untouched.
+This directory is the canonical OpenAI project for the Audisor runtime. The
+Python package is named `audisor`; the filesystem root is `openai_project` so
+the separate Audisor Toolkit repository at `../audisor` remains independent.
 
 The local API is provider-neutral and exposes these stable surfaces:
 
@@ -40,9 +40,9 @@ its base URL and opaque model ID are required only when local is selected.
 
 ## Dependency management
 
-This project uses `uv` because Phase 1 established `pyproject.toml` as the
-dependency declaration and `uv.lock` as the reproducible resolved dependency
-set. No competing pip, Poetry, Pipenv, or PDM manifest is used.
+This project uses `uv` with `pyproject.toml` as the dependency declaration and
+`uv.lock` as the reproducible resolved dependency set. No competing pip, Poetry,
+Pipenv, or PDM manifest is used.
 
 ### Fix Engine Adapter (Optional)
 
@@ -100,7 +100,7 @@ does not invalidate the provider-neutral API foundation.
 
 ## Builder preparation
 
-Phase 2A adds:
+The runtime exposes:
 
     POST /v1/builds/prepare
 
@@ -122,20 +122,20 @@ persists instruction.json and plan.json, and generates no task skills.
 
 Preparation also publishes `integrity.json` inside the same atomic staging
 directory. It is an unsigned SHA-256 consistency anchor over the exact
-instruction, plan, task records, and rendered skills. Phase 2B rejects legacy
+instruction, plan, task records, and rendered skills. The runtime rejects legacy
 or altered builds without silently regenerating or repairing that anchor.
 
 ## Isolated prepared-build execution
 
-Phase 2B adds:
+The runtime exposes:
 
     POST /v1/builds/{build_id}/executions
 
 The endpoint binds a prepared build to an explicit target root and allowed
 write paths, records a target baseline, copies that baseline into a per-
 execution workspace, re-verifies preparation integrity, and executes tasks
-sequentially in deterministic dependency order. Workers continue to receive
-the AMD-compatible `{task_id, prompt}` boundary; their answer contains a strict
+sequentially in deterministic dependency order. Workers continue to receive the
+minimal `{task_id, prompt}` task boundary; their answer contains a strict
 JSON action plan that is parsed completely before local actions begin.
 
 Only these action types are accepted:
@@ -148,7 +148,7 @@ Filesystem effects are resolved against the isolated workspace and its allowed
 paths. Expected outputs, planned and actual changed paths, write authority,
 target-baseline preservation, hashes, and terminal evidence are verified
 deterministically. Prepared executable validation metadata is hashed and
-retained but not executed in this phase. Python, tests, scripts, shells, and
+retained but not executed by this endpoint. Python, tests, scripts, shells, and
 arbitrary commands are not run by the execution endpoint.
 
 Durable execution data is stored beneath the prepared build:
@@ -166,9 +166,10 @@ The real target is never used as a task write root. Failed prerequisites block
 their dependents, interrupted running tasks are not retried, and identical
 idempotent requests return the existing durable state.
 
-## Later phases
+## Roadmap
 
-Executable validation, real-target apply, retries, resume, parallel execution,
-queues and percentage progress, A-Flow policy, UiPath-derived orchestration,
-Audisor/Edge governance, evidence UI, frontend work, deployment, and production
-packaging are intentionally reserved for later phases.
+The following capabilities are intentionally not part of the current runtime and
+are reserved for future work: executable validation, real-target apply, retries,
+resume, parallel execution, queues and percentage progress, A-Flow policy,
+UiPath-derived orchestration, Audisor/Edge governance, evidence UI, frontend
+work, deployment, and production packaging.

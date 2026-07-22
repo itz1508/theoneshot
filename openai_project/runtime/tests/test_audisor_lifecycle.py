@@ -162,4 +162,4 @@ def test_fully_evidenced_result_allows_completion() -> None:
 
 def test_frozen_aflow_tree_is_byte_stable() -> None:
     frozen = Path(__file__).resolve().parents[2] / "aflow"
-    assert frozen_tree_digest(frozen) == "9e6966a054b87badce74e836efb3c7773883484359bcce8308e0f11135753a58"
+    assert frozen_tree_digest(frozen) == "a521cb0ef0f7cc160bd70baf9bb765b80ee035e5d13867605279ff6cf7f6b5c4"
