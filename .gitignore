@@ -18,6 +18,8 @@ build/
 .env
 .env.*
 
-# Local agent/tooling state (host-specific, not product source)
+# Local agent/tooling state (host-specific, not product source).
+# Committed agent skills are intentional source and stay tracked.
 .skill_install/
-.agents/
+.agents/*
+!.agents/skills/
