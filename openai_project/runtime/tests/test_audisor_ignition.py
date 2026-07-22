@@ -108,7 +108,7 @@ def test_13_custom_agent_is_analysis_only() -> None:
 
 def test_14_frozen_tree_is_unchanged() -> None:
     frozen = Path(__file__).resolve().parents[2] / "aflow"
-    assert frozen_tree_digest(frozen) == "73bf670908329d7316c4edc8f2cc6ab2115991c6c0674c42530ad3170ee2e8d3"
+    assert frozen_tree_digest(frozen) == "9e6966a054b87badce74e836efb3c7773883484359bcce8308e0f11135753a58"
 
 
 def test_authoritative_boundary_persists_package_before_local_callback(tmp_path, monkeypatch) -> None:

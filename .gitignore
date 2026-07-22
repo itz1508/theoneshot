@@ -1,5 +1,23 @@
 # Local pre-build snapshot; refreshed and discarded outside Git history.
 /snapshot/
+
+# Python bytecode / caches
 __pycache__/
 *.py[cod]
 *.egg-info/
+.pytest_cache/
+
+# Virtual environments
+.venv/
+
+# Build / distribution artifacts
+dist/
+build/
+
+# Environment secrets
+.env
+.env.*
+
+# Local agent/tooling state (host-specific, not product source)
+.skill_install/
+.agents/
