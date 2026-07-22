@@ -67,7 +67,8 @@ def prepare_and_run_task(
         selected_paths = [item.strip() for item in configured.split(",") if item.strip()]
     if not selected_paths:
         raise ValueError("build_authority_scope_required")
-    build_id = f"build-{hashlib.sha256(f'{task}\0{uuid.uuid4().hex}'.encode()).hexdigest()[:20]}"
+    seed = f"{task}\0{uuid.uuid4().hex}".encode("utf-8")
+    build_id = f"build-{hashlib.sha256(seed).hexdigest()[:20]}"
     request = BuildRequest(
         build_id=build_id,
         instruction=task.strip(),

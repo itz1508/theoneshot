@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import uuid
 from types import SimpleNamespace
 
 import pytest
@@ -189,3 +191,39 @@ def test_raw_task_enters_existing_preparer_then_adapter(tmp_path):
     assert captured["request"].execution_context.target_root == str(target.resolve())
     assert captured["request"].execution_context.allowed_write_paths == ["src", "tests"]
     assert captured["build_id"].startswith("build-")
+
+
+def test_build_id_preserves_byte_contract_under_python_311(tmp_path, monkeypatch):
+    target = tmp_path / "repo"
+    (target / "src").mkdir(parents=True)
+    porcelain.init(str(target))
+    captured = {}
+
+    class FakePreparer:
+        def prepare(self, request):
+            captured["request"] = request
+
+    class FakeAdapter:
+        def run(self, build_id):
+            captured["build_id"] = build_id
+            return "launched"
+
+    fixed = uuid.UUID("12345678123456781234567812345678")
+    monkeypatch.setattr(uuid, "uuid4", lambda: fixed)
+    task = "create the feature"
+
+    result = prepare_and_run_task(
+        task,
+        target_root=target,
+        preparer_factory=lambda store: FakePreparer(),
+        adapter_factory=lambda: FakeAdapter(),
+    )
+
+    expected_digest = hashlib.sha256(
+        task.encode("utf-8") + b"\0" + fixed.hex.encode("ascii")
+    ).hexdigest()
+    expected_build_id = f"build-{expected_digest[:20]}"
+
+    assert result == "launched"
+    assert captured["build_id"] == expected_build_id
+    assert captured["request"].build_id == expected_build_id
