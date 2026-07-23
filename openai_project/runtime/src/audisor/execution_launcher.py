@@ -302,7 +302,7 @@ def launch_execution(request: Mapping[str, Any]) -> dict[str, Any]:
         baseline_digest = _create_workspace(data, repository, workspace)
     except (LauncherError, OSError) as error:
         return {"execution_status": "launch_failed", "final_evaluation": "not_evaluated", "errors": [str(error)]}
-    _write_json(output / "accepted-contract.json", contract); _write_json(output / "active-lock.json", lock)
+    _write_json(output / "accepted-contract.json", contract); _write_json(output / "execution-lock.json", lock)
     env = {**os.environ, "AUDISOR_EXECUTION_CONTRACT_PATH": str((output / "accepted-contract.json").resolve()), "AUDISOR_EXECUTION_CONTRACT_SHA256": str(base["contract"]), "AUDISOR_AUTHORIZED_PATHS": json.dumps(contract["authority"]["allowed_paths"]), "AUDISOR_OUTPUT_DIRECTORY": str(output.resolve())}
     before = _tree_entries(workspace)
     worker = _run(data["worker_command"], workspace, 300, env)

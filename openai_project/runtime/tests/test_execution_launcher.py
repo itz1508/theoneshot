@@ -114,3 +114,13 @@ def test_case_19_no_result_auto_applied(tmp_path):
     request,repo,*_=prepared(tmp_path); launch_execution(request); assert not (repo/"allowed/result.txt").exists()
 def test_case_20_frozen_tree_preserved(tmp_path):
     before=frozen_tree_digest(FROZEN); request,*_=prepared(tmp_path); launch_execution(request); assert frozen_tree_digest(FROZEN)==before
+def test_case_21_export_not_hook_state_root(tmp_path):
+    """The launcher's output directory is an evidence export, not the hook authority state root."""
+    from audisor.audisor_lifecycle.active_state import read_active_state
+    request,*_=prepared(tmp_path); result=launch_execution(request); export=tmp_path/"export"
+    assert result["execution_status"]=="executed"
+    # The exported lock uses the unambiguous evidence name, not the hook state filename
+    assert (export/"execution-lock.json").is_file()
+    assert not (export/"active-lock.json").exists()
+    # The export directory is NOT usable as a hook state root
+    assert read_active_state(export) is None

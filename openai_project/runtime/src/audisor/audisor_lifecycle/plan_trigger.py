@@ -14,11 +14,13 @@ from pathlib import Path
 from typing import Any, Callable, Literal, Mapping, cast
 
 from audisor.schemas.authority import AuthorityContext
-from .contract import AudisorLifecycleError, accept_for_primary, canonical_text, write_lock
+from .active_state import default_state_root, write_active_state
+from .contract import AudisorLifecycleError, accept_for_primary
 from .ignition import ignite
 from .operation import AudisorOperationContext, FrozenAudisorPolicy, make_operation_context
 from .analysis_package import assemble_analysis_package
 from .artifacts import persist_audisor_stage
+from .review_contract import build_analysis_for_lock
 
 AflowReviewCaller = Callable[[str, str, str | None], dict[str, Any]]
 
@@ -257,23 +259,26 @@ def auto_trigger_plan_review(
         }
 
     try:
-        # accept_for_primary expects an Audisor analysis result, not the execution
-        # contract.  Build the minimal analysis structure from the review result
-        # and candidate plan, then bind the contract SHA-256.
+        # Use the shared public lock builder and state writer so both the
+        # plan-trigger path and the MCP path produce identical envelopes.
         contract_sha = contract.get("lock_payload", {}).get("sha256")
-        analysis_for_lock = _build_analysis_for_lock(
-            task=task,
-            candidate_plan=candidate_plan,
-            contract_sha256=contract_sha,
+        analysis_for_lock = build_analysis_for_lock(
+            candidate_plan,
+            task,
+            contract_sha,
         )
         lock = accept_for_primary(
             analysis_for_lock,
             execution_contract_sha256=contract_sha,
             locked_by=agent_identity,
         )
-        resolved_state_root = state_root or (Path(__file__).resolve().parents[5] / ".codex" / "audisor-state")
-        lock_path = resolved_state_root / "active-lock.json"
-        write_lock(lock_path, lock)
+        resolved_state_root = state_root or default_state_root()
+        lock_path = write_active_state(
+            resolved_state_root,
+            operation_id=plan_id,
+            primary_lock=lock,
+            execution_contract=contract,
+        )
     except Exception as exc:
         return {
             "decision": "blocked",
@@ -366,36 +371,5 @@ def _plan_text_to_candidate(original_plan: str, plan_id: str, manifest: Mapping[
             "allowed_tools": [],
             "prohibited_tools": [],
             "preserved_conditions": [],
-        },
-    }
-
-
-def _build_analysis_for_lock(
-    task: Mapping[str, Any],
-    candidate_plan: Mapping[str, Any],
-    contract_sha256: str | None,
-) -> dict[str, Any]:
-    """Build the minimal Audisor analysis structure that accept_for_primary expects.
-
-    The auto-trigger bridge does not run the full Audisor worker, so we
-    synthesize the decision and lock_payload from the review result and
-    candidate plan.  The contract SHA-256 binds this lock to the execution
-    contract assembled by the adapter.
-    """
-    return {
-        "decision": {
-            "aflow_decision": "no_material_gap",
-            "contract_decision": "no_material_gap",
-            "plan_ready_for_primary_decision": True,
-        },
-        "plan_gaps": [],
-        "lock_payload": {
-            "immutable_user_task_canonical_text": canonical_text(task),
-            "accepted_plan_canonical_text": canonical_text(candidate_plan),
-            "success_definition_canonical_text": canonical_text(candidate_plan.get("success_definition")),
-            "required_trajectory_canonical_text": canonical_text(candidate_plan.get("execution_trajectory")),
-            "validation_cases_canonical_text": canonical_text(candidate_plan.get("validation_contract")),
-            "fixture_specifications_canonical_text": canonical_text(candidate_plan.get("fixture_specifications")),
-            "hash_algorithm": "sha256",
         },
     }

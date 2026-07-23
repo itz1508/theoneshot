@@ -24,6 +24,13 @@ dev = [
     "jsonschema>=4.24,<5",
     "pytest>=8.4,<9",
 ]
+aflow-mcp = [
+    "mcp>=1.0,<2",
+    "theoneshot-aflow",
+]
+
+[tool.uv.sources]
+theoneshot-aflow = { path = "../aflow", editable = true }
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/audisor"]

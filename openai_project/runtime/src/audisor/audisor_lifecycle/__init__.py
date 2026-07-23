@@ -26,6 +26,16 @@ from .analysis_package import (
     package_from_context,
     validate_analysis_request,
 )
+from .active_state import (
+    clear_active_state,
+    read_active_state,
+    write_active_state,
+)
+from .review_contract import (
+    build_analysis_for_lock,
+    map_decision_to_frozen,
+    review_and_lock,
+)
 
 __all__ = [
     "AudisorLifecycleError",
@@ -49,4 +59,10 @@ __all__ = [
     "assemble_analysis_package",
     "package_from_context",
     "validate_analysis_request",
+    "clear_active_state",
+    "read_active_state",
+    "write_active_state",
+    "build_analysis_for_lock",
+    "map_decision_to_frozen",
+    "review_and_lock",
 ]
