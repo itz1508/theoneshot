@@ -135,20 +135,42 @@ _TOOLS: list[types.Tool] = [
 
 
 def _resolve_state_root(arguments: dict[str, Any] | None) -> Path:
-    """Resolve state root from arguments or environment."""
-    if arguments:
-        explicit = arguments.get("state_root")
-        if explicit:
-            return Path(explicit)
+    """Resolve state root from environment (authoritative) or arguments.
+
+    Raises:
+        ValueError: If both env and tool argument specify different roots.
+    """
     env = os.environ.get("AUDISOR_STATE_ROOT") or os.environ.get("AFLOW_STATE_ROOT")
+    explicit = arguments.get("state_root") if arguments else None
+    if env and explicit and Path(explicit) != Path(env):
+        raise ValueError(
+            f"state_root conflict: env={env!r} vs argument={explicit!r}; "
+            "environment is authoritative"
+        )
     if env:
         return Path(env)
+    if explicit:
+        return Path(explicit)
     return default_state_root()
 
 
 def _dispatch_review(arguments: dict[str, Any]) -> dict[str, Any]:
     """Handle aflow_review tool call."""
-    state_root = _resolve_state_root(arguments)
+    try:
+        state_root = _resolve_state_root(arguments)
+    except ValueError as exc:
+        return {
+            "status": "blocked",
+            "decision": "error",
+            "blocking": True,
+            "execution_ready": False,
+            "findings": [],
+            "lock_state": {"present": False, "valid": False},
+            "contract_sha256": None,
+            "state_path": None,
+            "operation_id": arguments.get("operation_id", ""),
+            "error": {"code": "state_root_conflict", "detail": str(exc)},
+        }
     try:
         result = review_and_lock(
             analysis_request=arguments["analysis_request"],
@@ -192,7 +214,18 @@ def _dispatch_review(arguments: dict[str, Any]) -> dict[str, Any]:
 
 def _dispatch_status(arguments: dict[str, Any] | None) -> dict[str, Any]:
     """Handle aflow_status tool call."""
-    state_root = _resolve_state_root(arguments)
+    try:
+        state_root = _resolve_state_root(arguments)
+    except ValueError as exc:
+        return {
+            "status": "error",
+            "lock_present": False,
+            "lock_valid": False,
+            "contract_valid": False,
+            "readiness": None,
+            "drift_valid": False,
+            "error": {"code": "state_root_conflict", "detail": str(exc)},
+        }
     try:
         state = read_active_state(state_root)
     except AudisorLifecycleError as exc:
@@ -254,8 +287,12 @@ def _dispatch_status(arguments: dict[str, Any] | None) -> dict[str, Any]:
                     result["operation_state"] = op_state.to_mapping()
                 else:
                     result["operation_state"] = None
-            except Exception:
+            except (OSError, json.JSONDecodeError, KeyError) as exc:
                 result["operation_state"] = None
+                result["operation_store_error"] = {
+                    "code": "store_unreadable",
+                    "detail": f"{type(exc).__name__}: {exc}",
+                }
 
     return result
 

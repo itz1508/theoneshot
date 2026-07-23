@@ -1,4 +1,12 @@
-"""Auditable Audisor PreToolUse control for Codex-interceptable mutations."""
+"""Auditable Audisor PreToolUse control for Codex-interceptable mutations.
+
+Protocol (Codex 0.144.6):
+  - Allow: exit 0, no stdout.
+  - Deny:  exit 0, stdout = {"hookSpecificOutput": {"hookEventName": "PreToolUse",
+             "permissionDecision": "deny", "permissionDecisionReason": "..."}}
+  - Audit/output failure: exit 2, stderr = reason.
+  - Exit 1 is NEVER used.
+"""
 from __future__ import annotations
 
 import hashlib
@@ -14,6 +22,31 @@ from audisor.security.path_security import check_paths_allowed
 
 from .adapter import verify_contract
 from .contract import AudisorLifecycleError, canonical_text, verify_lock
+
+# ---------------------------------------------------------------------------
+# Exception hierarchy
+# ---------------------------------------------------------------------------
+
+
+class HookInputError(Exception):
+    """Malformed stdin payload. Result: structured deny, exit 0."""
+
+
+class HookVerificationError(Exception):
+    """Contract/lock verification failed internally. Result: structured deny, exit 0."""
+
+
+class HookAuditError(Exception):
+    """Audit directory/file write failed. Result: stderr, exit 2."""
+
+
+class HookOutputError(Exception):
+    """JSON serialization or stdout write failed. Result: stderr, exit 2."""
+
+
+# ---------------------------------------------------------------------------
+# Detection patterns
+# ---------------------------------------------------------------------------
 
 MUTATING_TOOL_NAMES = {"applypatch", "edit", "write", "writefile", "filesystemwrite"}
 MUTATING_COMMAND = re.compile(r"(?:apply_patch|set-content|out-file|add-content|new-item|remove-item|move-item|copy-item|git\s+(?:add|commit|reset|checkout)|>\s*[^&|])", re.I)
@@ -43,7 +76,15 @@ def _normal_path(value: Any) -> str | None:
     if not isinstance(value, str):
         return None
     path = value.replace("\\", "/")
-    if not path or path.startswith(("/", "./")) or ":" in path or any(part in {"", ".", ".."} for part in path.split("/")):
+    if not path:
+        return None
+    if ":" in path or path.startswith("/"):
+        try:
+            repo_root = Path(__file__).resolve().parents[5]
+            path = Path(value).resolve().relative_to(repo_root).as_posix()
+        except (OSError, ValueError):
+            return None
+    if path.startswith("./") or any(part in {"", ".", ".."} for part in path.split("/")):
         return None
     return path
 
@@ -53,7 +94,12 @@ def requested_targets(payload: Mapping[str, Any]) -> list[str] | None:
     if raw is None:
         source = payload.get("tool_input") or payload.get("input") or payload.get("command") or ""
         if isinstance(source, Mapping):
-            raw = source.get("requested_targets") or source.get("paths") or ([source["path"]] if "path" in source else None)
+            # Codex wire format: Bash and apply_patch put content in tool_input.command
+            command = source.get("command")
+            if isinstance(command, str):
+                raw = PATCH_TARGET.findall(command) or PATH_IN_COMMAND.findall(command)
+            else:
+                raw = source.get("requested_targets") or source.get("paths") or ([source["path"]] if "path" in source else None)
         else:
             text = _text(source)
             raw = PATCH_TARGET.findall(text) or PATH_IN_COMMAND.findall(text)
@@ -102,12 +148,12 @@ def _targets_authorized(targets: list[str], contract: Mapping[str, Any]) -> tupl
     prohibited = authority.get("prohibited_paths", []) if isinstance(authority, Mapping) else []
     actions = contract.get("implementation_plan", [])
     planned = [path for action in actions if isinstance(action, Mapping) for path in action.get("target_paths", []) if isinstance(path, str)] if isinstance(actions, list) else []
-    
+
     # Use canonical path_security for allowed/prohibited checks
     ok, reason = check_paths_allowed(targets, allowed, prohibited)
     if not ok:
         return False, reason
-    
+
     # Planned path check remains contract-specific
     for target in targets:
         if not any(
@@ -119,59 +165,137 @@ def _targets_authorized(targets: list[str], contract: Mapping[str, Any]) -> tupl
 
 
 def _audit(state_root: Path, record: Mapping[str, Any]) -> Path:
-    audit = state_root / "audit"; audit.mkdir(parents=True, exist_ok=True)
-    stamp = record["timestamp"].replace(":", "").replace("+00:00", "Z")
-    digest = hashlib.sha256(canonical_text(record).encode("utf-8")).hexdigest()[:16]
-    path = audit / f"{stamp}-{digest}.json"
-    temporary = path.with_suffix(".tmp")
-    temporary.write_text(json.dumps(record, ensure_ascii=False, sort_keys=True, indent=2) + "\n", encoding="utf-8", newline="\n")
-    os.replace(temporary, path)
-    return path
+    """Write an audit record. Raises HookAuditError on failure."""
+    try:
+        audit_dir = state_root / "audit"
+        audit_dir.mkdir(parents=True, exist_ok=True)
+        stamp = record["timestamp"].replace(":", "").replace("+00:00", "Z")
+        digest = hashlib.sha256(canonical_text(record).encode("utf-8")).hexdigest()[:16]
+        path = audit_dir / f"{stamp}-{digest}.json"
+        temporary = path.with_suffix(".tmp")
+        temporary.write_text(json.dumps(record, ensure_ascii=False, sort_keys=True, indent=2) + "\n", encoding="utf-8", newline="\n")
+        os.replace(temporary, path)
+        return path
+    except OSError as exc:
+        raise HookAuditError(f"audit write failed: {exc}") from exc
 
 
 def evaluate_hook_payload(payload: Mapping[str, Any], state_root: Path) -> dict[str, Any]:
+    """Evaluate a hook payload and return a decision record.
+
+    Raises:
+        HookAuditError: If the audit record cannot be written.
+    """
     event = str(payload.get("hook_event_name", "PreToolUse"))
     tool = str(payload.get("tool_name") or payload.get("tool") or "unknown")
     mutation = is_mutation_attempt(payload)
-    decision, reason, exit_code, targets, lock_present, lock_valid, authority_valid = "allow", "read-only operation", 0, [], False, False, False
+    decision, reason, targets, lock_present, lock_valid, authority_valid = "allow", "read-only operation", [], False, False, False
     try:
         if mutation:
             targets = requested_targets(payload) or []
-            state = _load_active_state(state_root); lock_present = state is not None
+            state = _load_active_state(state_root)
+            lock_present = state is not None
             if not targets:
-                decision, reason, exit_code = "deny", "mutation targets are missing or ambiguous", 1
+                decision, reason = "deny", "mutation targets are missing or ambiguous"
             elif state is None:
-                decision, reason, exit_code = "deny", "no active Audisor execution lock exists", 1
+                decision, reason = "deny", "no active Audisor execution lock exists"
             else:
                 lock_valid, reason, contract = verify_active_state(state)
                 if not lock_valid:
-                    decision, exit_code = "deny", 1
+                    decision = "deny"
                 else:
                     authority_valid, reason = _targets_authorized(targets, contract)
-                    decision, exit_code = ("allow", 0) if authority_valid else ("deny", 1)
+                    decision = "allow" if authority_valid else "deny"
+    except HookAuditError:
+        raise
     except Exception as exc:
-        decision, reason, exit_code = "error", f"hook verification error: {type(exc).__name__}", 1
-    record = {"event": event, "timestamp": datetime.now(UTC).isoformat(), "hook_name": "audisor_pretool", "mutation_tool": tool, "requested_targets": targets, "lock_present": lock_present, "lock_valid": lock_valid, "authority_valid": authority_valid, "decision": decision, "reason": reason, "exit_code": exit_code}
+        decision, reason = "error", f"hook verification error: {type(exc).__name__}"
+    host_permission_decision = None if decision == "allow" else "deny"
+    process_exit_code = 0
+    record = {"event": event, "timestamp": datetime.now(UTC).isoformat(), "hook_name": "audisor_pretool", "mutation_tool": tool, "requested_targets": targets, "lock_present": lock_present, "lock_valid": lock_valid, "authority_valid": authority_valid, "decision": decision, "internal_decision": decision, "host_permission_decision": host_permission_decision, "process_exit_code": process_exit_code, "reason": reason}
     audit_path = _audit(state_root, record)
-    result: dict[str, Any] = {"decision": decision, "reason": reason, "exit_code": exit_code, "audit_path": str(audit_path)}
-    if decision != "allow":
-        result["hookSpecificOutput"] = {"hookEventName": "PreToolUse", "systemMessage": reason}
-    return result
+    return {"decision": decision, "internal_decision": decision, "host_permission_decision": host_permission_decision, "process_exit_code": process_exit_code, "reason": reason, "audit_path": str(audit_path)}
+
+
+# ---------------------------------------------------------------------------
+# Codex PreToolUse protocol output
+# ---------------------------------------------------------------------------
+
+
+def _emit_deny(reason: str) -> None:
+    """Write structured denial JSON to stdout. Raises HookOutputError on failure."""
+    try:
+        output = {
+            "hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "permissionDecision": "deny",
+                "permissionDecisionReason": reason,
+            }
+        }
+        print(json.dumps(output, ensure_ascii=False))
+        sys.stdout.flush()
+    except (OSError, ValueError, TypeError) as exc:
+        raise HookOutputError(f"failed to emit denial: {exc}") from exc
+
+
+def _parse_stdin() -> Mapping[str, Any]:
+    """Parse and validate hook stdin. Raises HookInputError on failure."""
+    try:
+        payload = json.load(sys.stdin)
+    except (json.JSONDecodeError, ValueError, OSError) as exc:
+        raise HookInputError(f"cannot parse stdin: {exc}") from exc
+    if not isinstance(payload, Mapping):
+        raise HookInputError("payload must be a JSON object")
+    if not payload.get("tool_name"):
+        raise HookInputError("missing tool_name")
+    return payload
 
 
 def main() -> int:
+    """Entry point for the PreToolUse hook process.
+
+    Exit codes:
+        0 — allow (no stdout) or deny (structured JSON on stdout).
+        2 — audit or output failure (reason on stderr).
+    """
+    # Phase 1: Parse input (fail-closed)
     try:
-        payload = json.load(sys.stdin)
-        if not isinstance(payload, Mapping):
-            raise ValueError("hook payload must be an object")
-    except Exception:
-        payload = {"tool_name": "unknown", "requested_targets": []}
+        payload = _parse_stdin()
+    except HookInputError as exc:
+        try:
+            _emit_deny(f"malformed hook input: {exc}")
+        except HookOutputError as out_exc:
+            print(str(out_exc), file=sys.stderr)
+            return 2
+        return 0
+
+    # Phase 2: Resolve state root
     state = Path(os.environ.get("AUDISOR_STATE_ROOT") or os.environ.get("AFLOW_STATE_ROOT") or default_state_root())
-    result = evaluate_hook_payload(payload, state)
-    output = result.get("hookSpecificOutput")
-    if output:
-        print(json.dumps({"hookSpecificOutput": output}))
-    return int(result["exit_code"])
+
+    # Phase 3: Evaluate
+    try:
+        result = evaluate_hook_payload(payload, state)
+    except HookAuditError as exc:
+        print(f"audit failure: {exc}", file=sys.stderr)
+        return 2
+    except Exception as exc:
+        # Unexpected internal error — deny fail-closed
+        try:
+            _emit_deny(f"hook internal error: {type(exc).__name__}: {exc}")
+        except HookOutputError as out_exc:
+            print(str(out_exc), file=sys.stderr)
+            return 2
+        return 0
+
+    # Phase 4: Emit decision
+    if result["decision"] != "allow":
+        try:
+            _emit_deny(result["reason"])
+        except HookOutputError as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
+    # Allow: exit 0, no stdout
+    return 0
 
 
 if __name__ == "__main__":

@@ -134,13 +134,11 @@ def test_malformed_analysis_fails_closed() -> None:
 def test_pretool_hook_denies_mutation_without_lock(tmp_path: Path) -> None:
     result = evaluate_hook_payload({"tool_name": "ApplyPatch", "tool_input": {}}, tmp_path)
     assert result["decision"] == "deny"
-    assert result["exit_code"] == 1
 
 
 def test_pretool_hook_allows_read_only_work_without_lock(tmp_path: Path) -> None:
     result = evaluate_hook_payload({"tool_name": "Bash", "tool_input": {"command": "git status --short"}}, tmp_path)
     assert result["decision"] == "allow"
-    assert result["exit_code"] == 0
 
 
 def test_hook_default_state_root_is_project_scoped() -> None:

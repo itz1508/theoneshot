@@ -1,8 +1,6 @@
 # Workspace-level Codex configuration.
-# A-Flow is the repository's custom analysis agent and is defined as a
-# standalone project agent under .codex/agents.
-[agents.aflow]
-config_file = "./agents/aflow.toml"
+# A-Flow MCP server is registered via the audisor installer (managed block).
+# See: audisor integrate codex --scope repo --status
 
 [features]
 hooks = true

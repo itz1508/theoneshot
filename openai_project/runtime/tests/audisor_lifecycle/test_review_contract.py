@@ -172,7 +172,6 @@ class TestReviewAndLock:
         }
         result = evaluate_hook_payload(payload, tmp_path)
         assert result["decision"] == "allow"
-        assert result["exit_code"] == 0
 
     def test_hook_denies_unauthorized_target_after_review(self, tmp_path: Path) -> None:
         """After a clean review, the hook should deny an unauthorized target."""
@@ -195,7 +194,6 @@ class TestReviewAndLock:
         }
         result = evaluate_hook_payload(payload, tmp_path)
         assert result["decision"] == "deny"
-        assert result["exit_code"] == 1
 
 
 class TestStorePersistence:

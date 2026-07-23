@@ -1,0 +1,1 @@
+{"session_id": "sess-fixture-004", "cwd": "/repo", "hook_event_name": "PreToolUse", "model": "gpt-5.6-luna", "permission_mode": "default", "turn_id": "turn-004", "tool_name": "mcp__aflow__aflow_review", "tool_use_id": "tu-004", "tool_input": {"analysis_request": {}, "operation_id": "op-fixture"}}

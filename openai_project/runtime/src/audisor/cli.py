@@ -90,6 +90,11 @@ def main(argv: list[str] | None = None, *, operation_service=None, codex_adapter
     stdin = stdin or sys.stdin
     stdout = stdout or sys.stdout
     stderr = stderr or sys.stderr
+    # Integrate has its own argument parser — intercept before the main parser
+    raw_argv = argv if argv is not None else sys.argv[1:]
+    if raw_argv and raw_argv[0] == "integrate":
+        from .integrate import run_integrate
+        return run_integrate(raw_argv[1:])
     parser = argparse.ArgumentParser(prog="audisor")
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("setup")

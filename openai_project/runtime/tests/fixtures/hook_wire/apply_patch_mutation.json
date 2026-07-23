@@ -1,0 +1,1 @@
+{"session_id": "sess-fixture-003", "cwd": "/repo", "hook_event_name": "PreToolUse", "model": "gpt-5.6-luna", "permission_mode": "default", "turn_id": "turn-003", "tool_name": "apply_patch", "tool_use_id": "tu-003", "tool_input": {"command": "*** Update File: openai_project/runtime/src/audisor/audisor_lifecycle/hook.py\n@@ -1,3 +1,4 @@\n+import os\n import sys\n"}}
