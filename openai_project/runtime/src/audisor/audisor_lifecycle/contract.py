@@ -171,10 +171,20 @@ def completion_allowed(post_build_evaluation: Mapping[str, Any]) -> bool:
 
 
 def frozen_tree_digest(root: Path) -> str:
-    """Hash every frozen source file while excluding local runtime by-products."""
+    """Hash every frozen source file while excluding local runtime by-products.
+
+    Files are ordered by their repository-relative POSIX path so the digest is
+    reproducible across platforms (native ``Path`` ordering differs between
+    Windows and POSIX separators, which would change the hash for identical
+    content).
+    """
     ignored = {".venv", ".pytest_cache", "__pycache__"}
     rows: list[str] = []
-    for path in sorted(item for item in root.rglob("*") if item.is_file()):
+    files = sorted(
+        (path for path in root.rglob("*") if path.is_file()),
+        key=lambda path: path.relative_to(root).as_posix(),
+    )
+    for path in files:
         relative = path.relative_to(root)
         if any(part in ignored for part in relative.parts):
             continue

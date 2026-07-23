@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 from pathlib import Path
 
@@ -127,4 +128,28 @@ def test_13_read_only_is_recorded_without_a_lock(tmp_path: Path) -> None:
 
 def test_14_frozen_tree_is_byte_stable() -> None:
     frozen = Path(__file__).resolve().parents[2] / "aflow"
-    assert frozen_tree_digest(frozen) == "a521cb0ef0f7cc160bd70baf9bb765b80ee035e5d13867605279ff6cf7f6b5c4"
+    assert frozen_tree_digest(frozen) == "f0e20a4b7d6c4de71f45ff9dce9df1602c74b750fea6c14255d0cce6df069bb9"
+
+
+def test_15_frozen_tree_digest_orders_by_relative_posix_path(tmp_path: Path) -> None:
+    # Nested layout whose native Path ordering differs between Windows ("\") and
+    # POSIX ("/") separators. Windows compares path components, so the shorter
+    # component "src" ranks before "src2"; POSIX compares bytes, and "/" (0x2F)
+    # sorts before "2" (0x32), so "src/main.txt" ranks before "src2/a.txt". A
+    # deterministic digest must follow the repository-relative POSIX path order
+    # on every platform.
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src2").mkdir()
+    contents = {"src/main.txt": b"one\n", "src2/a.txt": b"two\n"}
+    for relative, payload in contents.items():
+        (tmp_path / relative).write_bytes(payload)
+
+    ordered = sorted(contents)  # canonical repository-relative POSIX order
+    rows = [
+        f"{relative}\0{hashlib.sha256(contents[relative]).hexdigest()}"
+        for relative in ordered
+    ]
+    expected = hashlib.sha256(("\n".join(rows) + "\n").encode("utf-8")).hexdigest()
+
+    assert ordered == ["src/main.txt", "src2/a.txt"]
+    assert frozen_tree_digest(tmp_path) == expected
