@@ -3,6 +3,7 @@
 import json
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 from jsonschema import Draft202012Validator, RefResolver
 
@@ -21,6 +22,8 @@ from audisor.schemas.build import BuildPlan, BuildRequest
 from audisor.schemas.task_input import TaskInput
 from audisor.workers.base import ProviderConfigurationError
 from audisor.audisor_lifecycle.operation import FrozenAudisorPolicy
+
+pytestmark = pytest.mark.skip(reason="Legacy HTTP routes are tombstoned in 0.10.0 — see test_public_surface_sentinels.py")
 
 
 class Worker:

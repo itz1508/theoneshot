@@ -310,7 +310,7 @@ def _dispatch(name: str, arguments: dict[str, Any] | None) -> dict[str, Any]:
 
 def create_server() -> Server:
     """Create and configure the A-Flow MCP server."""
-    server: Server = Server("audisor-aflow", version="0.9.0", instructions=_INSTRUCTIONS)
+    server: Server = Server("audisor-aflow", version="0.10.0", instructions=_INSTRUCTIONS)
 
     @server.list_tools()
     async def handle_list_tools() -> list[types.Tool]:

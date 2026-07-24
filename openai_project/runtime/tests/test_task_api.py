@@ -61,6 +61,8 @@ class FakeHttpResponse:
 
 from provider_testkit import provider_router
 
+pytestmark = pytest.mark.skip(reason="Legacy HTTP routes are tombstoned in 0.10.0 — see test_public_surface_sentinels.py")
+
 
 def client_for_router(router: ProviderRouter) -> TestClient:
     app = create_app()

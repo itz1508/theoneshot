@@ -15,6 +15,8 @@ from audisor.main import create_app
 from provider_testkit import provider_router
 from audisor.schemas.task_input import TaskInput
 
+pytestmark = pytest.mark.skip(reason="Legacy HTTP routes are tombstoned in 0.10.0 — see test_public_surface_sentinels.py")
+
 SCHEMA_ROOT = Path(__file__).resolve().parents[2] / "schemas"
 
 

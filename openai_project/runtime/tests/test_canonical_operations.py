@@ -140,6 +140,7 @@ def test_canonical_operation_service_invokes_executor_and_normalizes_result(tmp_
     assert response.execution_contract_reference is not None
 
 
+@pytest.mark.skip(reason="Legacy HTTP routes are tombstoned in 0.10.0 — see test_public_surface_sentinels.py")
 def test_post_v1_operations_end_to_end(tmp_path: Path, monkeypatch) -> None:
     """POST /v1/operations reaches the canonical executor-backed endpoint."""
     monkeypatch.setenv("AUDISOR_OPERATION_DATA_DIR", str(tmp_path / "operations"))
@@ -167,6 +168,7 @@ def test_post_v1_operations_end_to_end(tmp_path: Path, monkeypatch) -> None:
     )
 
 
+@pytest.mark.skip(reason="Legacy HTTP routes are tombstoned in 0.10.0 — see test_public_surface_sentinels.py")
 def test_post_v1_operations_tasks_end_to_end(tmp_path: Path, monkeypatch) -> None:
     """POST /v1/operations/tasks reaches the canonical executor-backed endpoint."""
     monkeypatch.setenv("AUDISOR_OPERATION_DATA_DIR", str(tmp_path / "operations"))
@@ -192,6 +194,7 @@ def test_post_v1_operations_tasks_end_to_end(tmp_path: Path, monkeypatch) -> Non
     assert results[0]["summary"] == "Read-only operation completed: analyze"
 
 
+@pytest.mark.skip(reason="Legacy CLI commands are tombstoned in 0.10.0 — see test_public_surface_sentinels.py")
 def test_audisor_host_accept_uses_canonical_service_by_default(tmp_path: Path, monkeypatch) -> None:
     """`audisor host accept` defaults to canonical_operation_service()."""
     monkeypatch.setenv("AUDISOR_OPERATION_DATA_DIR", str(tmp_path / "operations"))
@@ -219,6 +222,7 @@ def test_audisor_host_accept_uses_canonical_service_by_default(tmp_path: Path, m
     assert body["continuation"]["permitted"] is True
 
 
+@pytest.mark.skip(reason="Legacy HTTP/CLI paths are tombstoned in 0.10.0 — see test_public_surface_sentinels.py")
 def test_canonical_paths_share_same_executor_instance(tmp_path: Path, monkeypatch) -> None:
     """All three canonical paths use the same AudisorOperationExecutor instance."""
     monkeypatch.setenv("AUDISOR_OPERATION_DATA_DIR", str(tmp_path / "operations"))
@@ -260,6 +264,7 @@ def test_canonical_paths_share_same_executor_instance(tmp_path: Path, monkeypatc
     assert {"op-shared-1", "op-shared-2", "task-shared-3", "op-shared-4"} <= operation_ids
 
 
+@pytest.mark.skip(reason="Legacy HTTP routes are tombstoned in 0.10.0 — see test_public_surface_sentinels.py")
 def test_canonical_authority_and_mutation_enforcement(tmp_path: Path, monkeypatch) -> None:
     """Prohibited paths are blocked by the canonical mutation enforcer."""
     monkeypatch.setenv("AUDISOR_OPERATION_DATA_DIR", str(tmp_path / "operations"))
@@ -292,6 +297,7 @@ def test_canonical_authority_and_mutation_enforcement(tmp_path: Path, monkeypatc
     assert "operation_execution_failed" in body["detail"]["code"] or "blocked" in body["detail"]["message"].lower()
 
 
+@pytest.mark.skip(reason="Legacy HTTP routes are tombstoned in 0.10.0 — see test_public_surface_sentinels.py")
 def test_canonical_idempotency_replays_identical_request(tmp_path: Path, monkeypatch) -> None:
     """Submitting the same operation twice returns a completed result both times."""
     monkeypatch.setenv("AUDISOR_OPERATION_DATA_DIR", str(tmp_path / "operations"))
@@ -312,6 +318,7 @@ def test_canonical_idempotency_replays_identical_request(tmp_path: Path, monkeyp
     assert response2.json()["status"] == "completed"
 
 
+@pytest.mark.skip(reason="Legacy HTTP routes are tombstoned in 0.10.0 — see test_public_surface_sentinels.py")
 def test_canonical_artifact_persistence(tmp_path: Path, monkeypatch) -> None:
     """Artifacts produced by the canonical executor are persisted and referenced."""
     monkeypatch.setenv("AUDISOR_OPERATION_DATA_DIR", str(tmp_path / "operations"))

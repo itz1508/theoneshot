@@ -9,6 +9,7 @@ import threading
 import time
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 import audisor
@@ -68,6 +69,7 @@ def test_bounded_concurrent_batch_reconstructs_input_order_and_normalizes_answer
     assert 1 < worker.peak <= 2
 
 
+@pytest.mark.skip(reason="Legacy HTTP routes are tombstoned in 0.10.0 — see test_public_surface_sentinels.py")
 def test_required_ready_api_proof_has_exact_shape_and_task_id() -> None:
     app = create_app()
     app.dependency_overrides[get_task_service] = lambda: TaskService(

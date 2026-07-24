@@ -156,6 +156,7 @@ Return the changed path.""",
     assert loaded.instruction.execution_context.execution_context_sha256 == context.execution_context_sha256
 
 
+@pytest.mark.skip(reason="Legacy CLI command 'audisor codex' is tombstoned in 0.10.0 — see test_public_surface_sentinels.py")
 def test_cli_registers_only_build_id_codex_command(tmp_path):
     class FakeAdapter:
         def run(self, build_id, *, operation_id=None):

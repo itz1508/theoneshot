@@ -177,6 +177,7 @@ def test_single_word_phrase_alternative_requires_rewrite_explanation():
         service_for(FakeWorker(payload)).generate(SynonymRequest(selected_text="important", surrounding_text="An important item."))
 
 
+@pytest.mark.skip(reason="Legacy HTTP routes are tombstoned in 0.10.0 — see test_public_surface_sentinels.py")
 def test_schema_rejects_malformed_input_and_api_exposes_valid_response():
     with pytest.raises(ValueError):
         SynonymRequest(selected_text="word", selection_count=2)

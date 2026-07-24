@@ -1,4 +1,9 @@
-"""Process liveness and provider-neutral readiness endpoints."""
+"""Process liveness and tombstone readiness endpoints.
+
+In 0.10.0 the legacy BYOK/BYOM runtime is tombstoned.  /health and /ready
+return 200 with tombstone metadata so operational probes stay green while
+every functional legacy route returns 410.
+"""
 
 from __future__ import annotations
 
@@ -6,13 +11,8 @@ import json
 import os
 from pathlib import Path
 
-from fastapi import APIRouter, Depends
-
-from audisor.builder.store import BuildStore, BuildStoreError
-from audisor.routing.configuration import get_provider_router
-from audisor.routing.router import ProviderRouter
-from audisor.schemas.health import HealthResponse, ProviderReadiness, ReadinessResponse
-from audisor.workers.base import ProviderCapabilities, ProviderError
+from fastapi import APIRouter
+from fastapi.responses import JSONResponse
 
 router = APIRouter(tags=["health"])
 
@@ -25,6 +25,9 @@ def _nearest_existing_parent(path: Path) -> Path | None:
 
 
 def data_root_is_ready() -> bool:
+    """Legacy compatibility helper — imported only when explicitly called."""
+    from audisor.builder.store import BuildStore, BuildStoreError
+
     try:
         path = BuildStore.from_environment().data_dir
     except (BuildStoreError, OSError, ValueError):
@@ -56,51 +59,25 @@ def public_schemas_are_ready() -> bool:
     return True
 
 
-@router.get("/health", response_model=HealthResponse)
-def health() -> HealthResponse:
-    return HealthResponse()
-
-
-@router.get("/ready", response_model=ReadinessResponse)
-def ready(router: ProviderRouter = Depends(get_provider_router)) -> ReadinessResponse:
-    data_ready = data_root_is_ready()
-    schemas_ready = public_schemas_are_ready()
-    selected = router.selected_provider_id
-    if selected is None:
-        provider = ProviderReadiness(
-            selected=None,
-            configuration="missing",
-            capabilities_loaded=False,
-        )
-    else:
-        try:
-            selected_provider = router.select_provider()
-            capabilities = selected_provider.capabilities()
-            if not isinstance(capabilities, ProviderCapabilities):
-                raise TypeError("provider capabilities must use the typed contract")
-            configured = selected_provider.configuration_status()
-            provider = ProviderReadiness(
-                selected=selected,
-                configuration="present" if configured else "missing",
-                capabilities_loaded=capabilities is not None,
-            )
-        except (ProviderError, TypeError):
-            provider = ProviderReadiness(
-                selected=selected,
-                configuration="invalid",
-                capabilities_loaded=False,
-            )
-    status = (
-        "ready"
-        if provider.configuration == "present"
-        and provider.capabilities_loaded
-        and data_ready
-        and schemas_ready
-        else "degraded"
+@router.get("/health", deprecated=True)
+def health() -> JSONResponse:
+    return JSONResponse(
+        status_code=200,
+        content={
+            "status": "deprecated",
+            "serving_mode": "tombstone",
+            "removal_version": "1.0.0",
+        },
     )
-    return ReadinessResponse(
-        status=status,
-        provider=provider,
-        data_root_ready=data_ready,
-        schemas_ready=schemas_ready,
+
+
+@router.get("/ready", deprecated=True)
+def ready() -> JSONResponse:
+    return JSONResponse(
+        status_code=200,
+        content={
+            "ready": True,
+            "serving_mode": "tombstone",
+            "legacy_runtime_available": False,
+        },
     )

@@ -11,6 +11,8 @@ from audisor.audisor_lifecycle.ignition import IgnitionResult
 from audisor.audisor_lifecycle.operation import FrozenAudisorPolicy
 from audisor.schemas.task_output import TaskOutput
 
+pytestmark = pytest.mark.skip(reason="Legacy CLI command 'audisor run' is tombstoned in 0.10.0 — see test_public_surface_sentinels.py")
+
 
 def _write_tasks(path: Path, tasks: list[dict]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)

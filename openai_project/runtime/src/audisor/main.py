@@ -12,7 +12,7 @@ from audisor.api.synonyms import router as synonyms_router
 
 def create_app() -> FastAPI:
     """Create the local Audisor API application."""
-    application = FastAPI(title="Audisor", version="0.9.0")
+    application = FastAPI(title="Audisor", version="0.10.0")
     application.include_router(health_router)
     application.include_router(auth_router)
     application.include_router(tasks_router)

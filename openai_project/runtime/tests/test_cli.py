@@ -3,6 +3,8 @@ from __future__ import annotations
 import io
 import json
 
+import pytest
+
 from audisor import cli
 from audisor.operations.models import OperationResponse
 from audisor.operations.service import AcceptedOperationService
@@ -20,6 +22,7 @@ def test_audisor_commands_persist_and_report_state(tmp_path, monkeypatch, capsys
     assert capsys.readouterr().out.strip() == "A-Flow: ON"
 
 
+@pytest.mark.skip(reason="Legacy CLI commands are tombstoned in 0.10.0 — see test_public_surface_sentinels.py")
 def test_setup_enables_aflow_only_after_success(tmp_path, monkeypatch, capsys) -> None:
     monkeypatch.setenv("AUDISOR_CONFIG_PATH", str(tmp_path / "config.json"))
     monkeypatch.setattr(cli, "setup_ollama", lambda: type("Result", (), {"model": "qwen2.5-coder:7b"})())
@@ -29,6 +32,7 @@ def test_setup_enables_aflow_only_after_success(tmp_path, monkeypatch, capsys) -
     assert capsys.readouterr().out.strip() == "A-Flow: ON"
 
 
+@pytest.mark.skip(reason="Legacy CLI commands are tombstoned in 0.10.0 — see test_public_surface_sentinels.py")
 def test_setup_does_not_enable_aflow_before_live_verification(tmp_path, monkeypatch, capsys) -> None:
     path = tmp_path / "config.json"
     monkeypatch.setenv("AUDISOR_CONFIG_PATH", str(path))
@@ -58,6 +62,7 @@ class Service:
         return OperationResponse(request.operation_id, request.operation_kind, request.client.client_id, request.canonical_hash(), "accepted", None, None, "no_material_gap", authority_limits={"apply": False}, continuation={"permitted": True, "state": "permitted"})
 
 
+@pytest.mark.skip(reason="Legacy CLI commands are tombstoned in 0.10.0 — see test_public_surface_sentinels.py")
 def test_host_accept_reads_stdin_and_emits_only_canonical_response():
     service = Service()
     output, error = io.StringIO(), io.StringIO()
@@ -67,6 +72,7 @@ def test_host_accept_reads_stdin_and_emits_only_canonical_response():
     assert service.calls == 1
 
 
+@pytest.mark.skip(reason="Legacy CLI commands are tombstoned in 0.10.0 — see test_public_surface_sentinels.py")
 def test_host_accept_reads_request_file(tmp_path):
     path = tmp_path / "operation.json"
     path.write_text(json.dumps(build_payload()), encoding="utf-8")
@@ -76,6 +82,7 @@ def test_host_accept_reads_request_file(tmp_path):
     assert json.loads(output.getvalue())["operation_id"] == "op-1"
 
 
+@pytest.mark.skip(reason="Legacy CLI commands are tombstoned in 0.10.0 — see test_public_surface_sentinels.py")
 def test_host_accept_rejects_multiple_sources_and_invalid_json_without_service_call(tmp_path):
     service = Service()
     output, error = io.StringIO(), io.StringIO()
@@ -88,6 +95,7 @@ def test_host_accept_rejects_multiple_sources_and_invalid_json_without_service_c
     assert service.calls == 0
 
 
+@pytest.mark.skip(reason="Legacy CLI commands are tombstoned in 0.10.0 — see test_public_surface_sentinels.py")
 def test_host_accept_rejects_unknown_fields_without_service_call():
     service = Service()
     payload = build_payload()
@@ -97,6 +105,7 @@ def test_host_accept_rejects_unknown_fields_without_service_call():
     assert service.calls == 0
 
 
+@pytest.mark.skip(reason="Legacy CLI commands are tombstoned in 0.10.0 — see test_public_surface_sentinels.py")
 def test_host_accept_duplicate_and_conflict_use_shared_service(tmp_path):
     calls = []
     host = type("Host", (), {"execute": lambda self, build_id, request: calls.append((build_id, request.execution_id)) or {"status": "accepted"}})()
