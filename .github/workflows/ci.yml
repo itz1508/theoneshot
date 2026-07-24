@@ -52,6 +52,7 @@ jobs:
             --directory openai_project/runtime \
             --locked \
             --extra dev \
+            --extra aflow-mcp \
             --python 3.11
 
           openai_project/runtime/.venv/bin/python -P - <<'PY'
