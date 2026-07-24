@@ -50,9 +50,9 @@ Set `AUDISOR_DATA_DIR` to a safe external directory when an explicit location is
 
 - `GET /health` proves process liveness only. It does not construct, contact, or validate a provider.
 - `GET /ready` reports the selected provider ID, generic configuration state, whether adapter capabilities loaded, data-root readiness, and published-schema readiness. It does not contact the provider or reveal model IDs or credentials.
-- `POST /v1/tasks` executes a validated batch of typed text tasks.
-- `POST /v1/builds/prepare` requests and validates a typed build plan before atomic persistence.
-- `POST /v1/builds/{build_id}/executions` requests mutation-only action plans and applies locally enforced structured filesystem mutations in an isolated workspace.
+- `POST /v1/tasks` previously executed a validated batch of typed text tasks; now returns `410 legacy_runtime_deprecated`.
+- `POST /v1/builds/prepare` previously requested and validated a typed build plan before atomic persistence; now returns `410 legacy_runtime_deprecated`.
+- `POST /v1/builds/{build_id}/executions` previously requested mutation-only action plans and applied locally enforced structured filesystem mutations in an isolated workspace; now returns `410 legacy_runtime_deprecated`.
 - `POST /v1/operations` accepted a host-agnostic legacy operation request and routed it through `AudisorOperationExecutor`.
 - `POST /v1/operations/tasks` accepted a batch of `TaskInput` items, submitted each as a legacy `analyze` operation, and returned consolidated results.
 
