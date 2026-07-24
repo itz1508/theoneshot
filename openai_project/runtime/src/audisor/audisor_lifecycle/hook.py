@@ -72,16 +72,34 @@ def is_mutation_attempt(payload: Mapping[str, Any]) -> bool:
     return False
 
 
+_WINDOWS_DRIVE_RE = re.compile(r"^[A-Za-z]:[/\\]")
+
+
 def _normal_path(value: Any) -> str | None:
     if not isinstance(value, str):
         return None
     path = value.replace("\\", "/")
     if not path:
         return None
-    if ":" in path or path.startswith("/"):
+    is_win_abs = bool(_WINDOWS_DRIVE_RE.match(path))
+    if is_win_abs or ":" in path or path.startswith("/"):
         try:
             repo_root = Path(__file__).resolve().parents[5]
-            path = Path(value).resolve().relative_to(repo_root).as_posix()
+            if is_win_abs and os.name != "nt":
+                # Windows drive-letter path on a POSIX host: native
+                # Path.resolve() would treat it as relative.  Strip the
+                # drive letter and locate the repository root by name.
+                no_drive = path[2:].lstrip("/")
+                root_name = repo_root.name.lower()
+                parts = no_drive.split("/")
+                for i, part in enumerate(parts):
+                    if part.lower() == root_name:
+                        path = "/".join(parts[i + 1:])
+                        break
+                else:
+                    return None
+            else:
+                path = Path(value).resolve().relative_to(repo_root).as_posix()
         except (OSError, ValueError):
             return None
     if path.startswith("./") or any(part in {"", ".", ".."} for part in path.split("/")):

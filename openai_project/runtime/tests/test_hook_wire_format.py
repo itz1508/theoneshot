@@ -212,3 +212,112 @@ class TestTargetExtraction:
         from audisor.audisor_lifecycle.hook import requested_targets, is_mutation_attempt
         payload = json.loads(fixture_text("bash_readonly.json"))
         assert not is_mutation_attempt(payload)
+
+
+# ---------------------------------------------------------------------------
+# Cross-platform _normal_path tests
+# ---------------------------------------------------------------------------
+
+
+class TestNormalPathCrossPlatform:
+    """Focused tests for _normal_path cross-platform path normalization."""
+
+    def _repo_root(self) -> Path:
+        # test file is at openai_project/runtime/tests/test_hook_wire_format.py
+        # parents[3] is the repository root
+        return Path(__file__).resolve().parents[3]
+
+    def test_windows_absolute_path_on_windows_host(self) -> None:
+        """Windows drive-letter path resolves natively on Windows."""
+        import os
+        from audisor.audisor_lifecycle.hook import _normal_path
+        repo_root = self._repo_root()
+        # Build a Windows-style absolute path under the repo root
+        win_path = str(repo_root / ".codex" / "audisor-state" / "proof.txt")
+        if os.name == "nt":
+            # On Windows, native resolution handles this
+            assert _normal_path(win_path) == ".codex/audisor-state/proof.txt"
+        else:
+            # On POSIX, the drive-letter stripping logic handles this
+            # (only if repo root name appears in the path)
+            result = _normal_path(win_path)
+            # The path contains the repo root name, so it should resolve
+            assert result == ".codex/audisor-state/proof.txt"
+
+    def test_windows_absolute_path_on_posix(self) -> None:
+        """Windows drive-letter path is resolved on POSIX by repo-root name."""
+        import os
+        from audisor.audisor_lifecycle.hook import _normal_path
+        repo_root = self._repo_root()
+        root_name = repo_root.name
+        if os.name == "nt":
+            # On Windows, native resolution handles Windows paths directly.
+            win_path = str(repo_root / ".codex" / "audisor-state" / "proof.txt")
+            assert _normal_path(win_path) == ".codex/audisor-state/proof.txt"
+        else:
+            # On POSIX, the drive-letter stripping logic handles this.
+            win_path = f"C:/Users/dev/{root_name}/.codex/audisor-state/proof.txt"
+            result = _normal_path(win_path)
+            assert result == ".codex/audisor-state/proof.txt"
+
+    def test_posix_absolute_path_under_repository(self) -> None:
+        """POSIX absolute path under the repo root is made relative."""
+        from audisor.audisor_lifecycle.hook import _normal_path
+        repo_root = self._repo_root()
+        posix_path = str(repo_root / "openai_project" / "runtime" / "src" / "audisor" / "api" / "tasks.py")
+        result = _normal_path(posix_path)
+        assert result == "openai_project/runtime/src/audisor/api/tasks.py"
+
+    def test_already_relative_path(self) -> None:
+        """Already-relative paths pass through unchanged."""
+        from audisor.audisor_lifecycle.hook import _normal_path
+        assert _normal_path("openai_project/runtime/src/audisor/api/tasks.py") == "openai_project/runtime/src/audisor/api/tasks.py"
+        assert _normal_path(".codex/audisor-state/proof.txt") == ".codex/audisor-state/proof.txt"
+
+    def test_path_outside_repository_returns_none(self) -> None:
+        """Paths outside the repository return None."""
+        from audisor.audisor_lifecycle.hook import _normal_path
+        # Windows path with a repo root name that doesn't match
+        assert _normal_path("C:/Other/UnrelatedProject/file.txt") is None
+        # POSIX path outside repo
+        assert _normal_path("/tmp/unrelated/file.txt") is None
+
+    def test_mixed_slash_direction(self) -> None:
+        """Backslashes are normalized to forward slashes."""
+        from audisor.audisor_lifecycle.hook import _normal_path
+        repo_root = self._repo_root()
+        root_name = repo_root.name
+        # Mixed slashes in a Windows-style path
+        win_path = f"D:\\Dev\\{root_name}\\.codex\\audisor-state\\proof.txt"
+        result = _normal_path(win_path)
+        assert result == ".codex/audisor-state/proof.txt"
+
+    def test_drive_letter_case_insensitive(self) -> None:
+        """Drive letter case does not affect detection."""
+        from audisor.audisor_lifecycle.hook import _normal_path
+        repo_root = self._repo_root()
+        root_name = repo_root.name
+        # Lowercase drive letter
+        lower_path = f"d:/Dev/{root_name}/.codex/proof.txt"
+        assert _normal_path(lower_path) == ".codex/proof.txt"
+        # Uppercase drive letter
+        upper_path = f"D:/Dev/{root_name}/.codex/proof.txt"
+        assert _normal_path(upper_path) == ".codex/proof.txt"
+
+    def test_repo_root_name_case_insensitive_match(self) -> None:
+        """Repository root name matching is case-insensitive."""
+        import os
+        from audisor.audisor_lifecycle.hook import _normal_path
+        repo_root = self._repo_root()
+        root_name = repo_root.name
+        swapped = root_name.swapcase()
+        if os.name == "nt":
+            # On Windows, native resolution is case-insensitive.
+            win_path = str(repo_root.parent / swapped / ".codex" / "proof.txt")
+            result = _normal_path(win_path)
+            assert result == ".codex/proof.txt"
+        else:
+            # On POSIX, the drive-letter stripping logic matches case-insensitively.
+            win_path = f"C:/work/{swapped}/.codex/proof.txt"
+            result = _normal_path(win_path)
+            assert result == ".codex/proof.txt"
