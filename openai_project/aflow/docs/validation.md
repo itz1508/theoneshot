@@ -9,5 +9,5 @@ The package-local suite separates proof groups:
 - acceptance tests evaluate every isolated fixture and the exact nine-step demo;
 - CLI tests prove successful and nonzero exit contracts.
 
-These tests do not prove any external build. Docker, Edge, network services, and live model providers are deliberately outside the package and were not used.
+These tests do not prove any external build. Docker, external coding agents, network services, and live model providers are deliberately outside the package and were not used.
 

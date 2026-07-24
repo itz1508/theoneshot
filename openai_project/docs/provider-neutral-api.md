@@ -1,8 +1,11 @@
-# Provider-neutral Audisor API
+# Legacy Audisor Runtime API
 
-Audisor's local API dispatches work through one explicitly selected provider. Core task, build-preparation, and build-execution services depend only on the typed `WorkerProvider` contract; provider-specific HTTP endpoints, request payloads, authentication, and model identifiers stay inside adapters.
+> **Status:** The legacy Audisor Runtime is tombstoned in 0.10.0. Only `/health`
+> and `/ready` remain active. This document describes the historical API design.
 
-Audisor does not require Fireworks. Audisor does not require a fixed model. Provider switching is configuration-driven. Automatic provider fallback is not enabled. Provider selection policy will later belong to A-Flow.
+The legacy Audisor Runtime's local API dispatched work through one explicitly selected provider. Core task, build-preparation, and build-execution services depended only on the typed `WorkerProvider` contract; provider-specific HTTP endpoints, request payloads, authentication, and model identifiers stayed inside adapters.
+
+The legacy runtime did not require Fireworks. It did not require a fixed model. Provider switching was configuration-driven. Automatic provider fallback was not enabled. Provider selection policy will later belong to A-Flow.
 
 ## Local startup
 
@@ -41,7 +44,7 @@ Do not place credentials in `AUDISOR_PROVIDER`, request bodies, logs, readiness 
 
 ## Data root behavior
 
-Set `AUDISOR_DATA_DIR` to a safe external directory when an explicit location is required. Otherwise the runtime selects the platform user-data directory. Product source, snapshot, reference repositories, and protected skill paths cannot be used as the data root. `/ready` reports only a boolean data-root result and does not expose the resolved private path.
+Set `AUDISOR_DATA_DIR` to a safe external directory when an explicit location is required. Otherwise the legacy runtime selects the platform user-data directory. Product source, snapshot, reference repositories, and protected skill paths cannot be used as the data root. `/ready` reports only a boolean data-root result and does not expose the resolved private path.
 
 ## Endpoints
 
@@ -50,14 +53,14 @@ Set `AUDISOR_DATA_DIR` to a safe external directory when an explicit location is
 - `POST /v1/tasks` executes a validated batch of typed text tasks.
 - `POST /v1/builds/prepare` requests and validates a typed build plan before atomic persistence.
 - `POST /v1/builds/{build_id}/executions` requests mutation-only action plans and applies locally enforced structured filesystem mutations in an isolated workspace.
-- `POST /v1/operations` accepts a host-agnostic canonical operation request and routes it through `AudisorOperationExecutor`.
-- `POST /v1/operations/tasks` accepts a batch of `TaskInput` items, submits each as a canonical `analyze` operation, and returns consolidated results.
+- `POST /v1/operations` accepted a host-agnostic legacy operation request and routed it through `AudisorOperationExecutor`.
+- `POST /v1/operations/tasks` accepted a batch of `TaskInput` items, submitted each as a legacy `analyze` operation, and returned consolidated results.
 
 Provider-backed endpoints do not execute arbitrary commands, tests, scripts, or shells. Executable validation remains deferred until a separately authorized sandbox service exists.
 
-## Host-agnostic canonical operations
+## Host-agnostic legacy operations
 
-The `/v1/operations` endpoints are the canonical entry point for all hosts (Codex, generic MCP, CLI, Responses-compatible). They translate legacy `OperationRequest` envelopes into `AudisorOperationRequest`, execute through `AudisorOperationExecutor`, and normalize results back into the legacy `OperationResponse` shape. All paths share the same executor instance and enforce authority, mutation policy, idempotency, artifact persistence, and canonical result normalization.
+The `/v1/operations` endpoints were the legacy entry point for all hosts (Codex, generic MCP, CLI, Responses-compatible). They translated legacy `OperationRequest` envelopes into `AudisorOperationRequest`, executed through `AudisorOperationExecutor`, and normalized results back into the legacy `OperationResponse` shape. All paths shared the same executor instance and enforced authority, mutation policy, idempotency, artifact persistence, and canonical result normalization.
 
 ## Capabilities and errors
 

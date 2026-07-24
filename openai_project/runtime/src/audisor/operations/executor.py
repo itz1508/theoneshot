@@ -54,7 +54,7 @@ WorkerFactory = Callable[[AudisorConfig | None], LocalWorker]
 class FixDispatcher(Protocol):
     """Protocol for routing Fix operations to the backend Fix dispatcher.
 
-    Defined here so the canonical runtime does not import audisor_backend
+    Defined here so the legacy Audisor Runtime does not import audisor_backend
     at module load time.  The transport layer provides a lazy concrete
     implementation that imports audisor_backend only when a Fix request
     is actually dispatched.
@@ -573,7 +573,7 @@ class AudisorOperationExecutor:
         """Reconstruct typed Fix objects from the serialized Fix package.
 
         Imports from audisor_backend are lazy so that importing the
-        canonical runtime does not fail when no Fix request is processed.
+        legacy Audisor Runtime does not fail when no Fix request is processed.
         """
         try:
             from audisor_backend.controllers.fix_host import AcceptedFixOperation

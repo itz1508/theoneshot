@@ -2,7 +2,7 @@
 
 A-Flow is the `theoneshot-aflow` package and `aflow` CLI. It is an independent, provider-neutral plan-readiness tool that admits and adversarially analyzes a structured Codex plan, verifies revision closure, locks an accepted plan, detects relevant repository drift, and evaluates returned build evidence against a separately confirmed success definition.
 
-A-Flow consumes plans and build results. It does not build products, execute plan commands, mutate the analyzed repository, call the network, invoke Docker, or invoke Edge.
+A-Flow consumes plans and build results. It does not build products, execute plan commands, mutate the analyzed repository, call the network, invoke Docker, or invoke any external coding agent.
 
 ## CLI discovery
 

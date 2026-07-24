@@ -177,7 +177,7 @@ def canonical_operation_service():
 
     Uses AudisorOperationExecutor as the execution core and the new
     AudisorOperationStore for persistence.  This is the production path
-    for the host-agnostic runtime; it does not depend on BuildExecutor.
+    for the legacy Audisor Runtime; it does not depend on BuildExecutor.
 
     Fix operations are routed to the existing audisor_backend Fix
     dispatcher via FixRouteConfig so they never enter the generic

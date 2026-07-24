@@ -1,10 +1,11 @@
-# Audisor Runtime
+# Legacy Audisor Runtime
 
-This directory is the canonical OpenAI project for the Audisor runtime. The
+This directory contains the legacy Audisor Runtime (tombstoned in 0.10.0). The
 Python package is named `audisor`; the filesystem root is `openai_project` so
 the separate Audisor Toolkit repository at `../audisor` remains independent.
 
-The local API is provider-neutral and exposes these stable surfaces:
+The legacy runtime exposed these surfaces (all tombstoned in 0.10.0 except
+/health and /ready):
 
 ```text
 GET /health
@@ -19,8 +20,8 @@ selection, readiness, errors, extension, and current limitations.
 
 ## Environment
 
-Runtime configuration uses these variables. Never store their values in the
-repository.
+Legacy runtime configuration used these variables (tombstoned in 0.10.0).
+Never store their values in the repository.
 
 - `AUDISOR_PROVIDER` (`fireworks` or `local-openai-compatible`; no default)
 - `FIREWORKS_API_KEY`
@@ -46,7 +47,7 @@ Pipenv, or PDM manifest is used.
 
 ### Fix Engine Adapter (Optional)
 
-The canonical Fix engine is decoupled from the base runtime. To enable Fix
+The OneShot Fix engine is decoupled from the legacy Audisor Runtime. To enable Fix
 capabilities natively without modifying tracked path dependencies, install
 the engine interactively before running:
 
@@ -54,7 +55,7 @@ the engine interactively before running:
 uv pip install -e ../../audisor_backend
 ```
 
-If the engine is not installed, the runtime falls back gracefully and returns
+If the engine is not installed, the legacy runtime falls back gracefully and returns
 `fix_engine_unavailable`.
 
 ## Run locally
@@ -100,7 +101,7 @@ does not invalidate the provider-neutral API foundation.
 
 ## Builder preparation
 
-The runtime exposes:
+The legacy runtime exposes:
 
     POST /v1/builds/prepare
 
@@ -109,7 +110,7 @@ worker as a planning worker, validates a strict ready-or-blocked plan, orders
 task dependencies deterministically, renders one-time SKILL.md artifacts, and
 publishes the complete prepared build atomically.
 
-Prepared builds use `AUDISOR_DATA_DIR`. When it is unset, the runtime selects
+Prepared builds use `AUDISOR_DATA_DIR`. When it is unset, the legacy runtime selects
 the platform user-data directory rather than a product-local source path:
 
     <data-root>/builds/<build-id>/instruction.json
@@ -122,12 +123,12 @@ persists instruction.json and plan.json, and generates no task skills.
 
 Preparation also publishes `integrity.json` inside the same atomic staging
 directory. It is an unsigned SHA-256 consistency anchor over the exact
-instruction, plan, task records, and rendered skills. The runtime rejects legacy
+instruction, plan, task records, and rendered skills. The legacy runtime rejects legacy
 or altered builds without silently regenerating or repairing that anchor.
 
 ## Isolated prepared-build execution
 
-The runtime exposes:
+The legacy runtime exposes:
 
     POST /v1/builds/{build_id}/executions
 
@@ -168,8 +169,8 @@ idempotent requests return the existing durable state.
 
 ## Roadmap
 
-The following capabilities are intentionally not part of the current runtime and
+The following capabilities are intentionally not part of the legacy runtime and
 are reserved for future work: executable validation, real-target apply, retries,
 resume, parallel execution, queues and percentage progress, A-Flow policy,
-UiPath-derived orchestration, Audisor/Edge governance, evidence UI, frontend
+UiPath-derived orchestration, Audisor governance, evidence UI, frontend
 work, deployment, and production packaging.

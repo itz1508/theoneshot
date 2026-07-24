@@ -1,6 +1,9 @@
 # Local pre-build snapshot; refreshed and discarded outside Git history.
 /snapshot/
 
+# Temporary verification / proof artifacts (disposable, never product source).
+/TempProof/
+
 # Python bytecode / caches
 __pycache__/
 *.py[cod]

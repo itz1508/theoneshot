@@ -3,8 +3,9 @@
 Theoneshot is a platform for closing the gap between a plan and a verified
 result. It fills the gaps before execution and delivers one clean, verified fix.
 
-All three products are coordinated at version **0.9.0** (release candidate).
-They are independent and separately deployable.
+The container images are coordinated at version **0.9.0** (release candidate).
+The `audisor` Python package is at **0.10.0** (legacy runtime tombstoned).
+All products are independent and separately deployable.
 
 ## Products
 
@@ -12,12 +13,12 @@ They are independent and separately deployable.
 |---|---|---|---|
 | A-Flow | `theoneshot-aflow` | `openai_project/aflow/` | Plan-readiness analysis: admit and adversarially analyze a plan, verify revision closure, lock an accepted plan, detect drift, and evaluate build evidence. |
 | OneShot Fix | `audisor-backend` | `audisor_backend/` | Governed, issue-scoped build/fix execution (the canonical Fix engine). |
-| Audisor Runtime | `audisor` | `openai_project/runtime/` | Provider-neutral local task execution API. |
+| Legacy Audisor Runtime | `audisor` | `openai_project/runtime/` | Legacy BYOK/BYOM model-execution API (tombstoned in 0.10.0); /health and /ready only. |
 | Audisor Toolkit | `audisor-local` | `audisor/` (submodule) | Tokenless, read-only local repository inspection: scan, inspect, trace, normalize, validate, replay (CLI + MCP). |
 
-Dependencies: A-Flow is standalone. The runtime optionally depends on the Fix
+Dependencies: A-Flow is standalone. The legacy runtime optionally depends on the Fix
 engine and degrades gracefully (`fix_engine_unavailable`) when it is absent. The
-Fix engine depends on the runtime and A-Flow. The toolkit is standalone.
+Fix engine depends on the legacy runtime and A-Flow. The toolkit is standalone.
 
 ## Prerequisites
 
@@ -36,9 +37,9 @@ uv run aflow demo
 
 See [openai_project/aflow/README.md](openai_project/aflow/README.md).
 
-## OneShot Fix + Audisor Runtime
+## OneShot Fix + Legacy Audisor Runtime
 
-The Fix engine installs as an optional dependency of the runtime. From
+The Fix engine installs as an optional dependency of the legacy runtime. From
 `openai_project/runtime`:
 
 ```powershell
@@ -48,8 +49,8 @@ uv pip install -e ../../audisor_backend
 uv run uvicorn audisor.main:app --host 127.0.0.1 --port 8000
 ```
 
-The runtime exposes `GET /health`, `GET /ready`, `POST /v1/tasks`,
-`POST /v1/builds/prepare`, and `POST /v1/builds/{build_id}/executions`.
+The legacy runtime exposes `GET /health` and `GET /ready` only. All other
+endpoints are tombstoned in 0.10.0.
 See [openai_project/README.md](openai_project/README.md).
 
 ## Audisor Toolkit
@@ -97,7 +98,7 @@ they are deselected by default.
 ## Repository layout
 
 ```text
-openai_project/runtime/   Audisor runtime (package `audisor`)
+openai_project/runtime/   legacy Audisor Runtime (package `audisor`, tombstoned in 0.10.0)
 openai_project/aflow/     A-Flow (package `theoneshot-aflow`)
 openai_project/schemas/   JSON schemas for tasks, builds, executions, evidence
 openai_project/docs/      Architecture and lifecycle documentation
