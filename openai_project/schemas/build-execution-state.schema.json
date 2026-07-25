@@ -7,7 +7,7 @@
   "properties": {
     "build_id": {"$ref": "#/$defs/identifier"},
     "execution_id": {"$ref": "#/$defs/identifier"},
-    "status": {"enum": ["running", "completed", "failed", "interrupted", "not_valid"]},
+    "status": {"enum": ["running", "suspended", "completed", "failed", "interrupted", "not_valid"]},
     "terminal_manifest_sha256": {
       "type": ["string", "null"],
       "pattern": "^[0-9a-f]{64}$"

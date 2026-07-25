@@ -50,7 +50,7 @@ WORKDIR /workspace
 
 # ── Health / readiness check ────────────────────────────────────────────────
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-    CMD ["audisor", "aflow", "status"]
+    CMD ["python", "-m", "audisor_backend.fix_service", "health"]
 
-ENTRYPOINT ["audisor"]
-CMD ["host", "accept"]
+ENTRYPOINT ["python", "-m", "audisor_backend.fix_service"]
+CMD ["health"]

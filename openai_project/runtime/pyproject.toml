@@ -10,7 +10,9 @@ requires-python = ">=3.11"
 dependencies = [
     "dulwich>=1.2.1,<2",
     "fastapi>=0.116,<1",
+    "jsonschema>=4.24,<5",
     "pydantic>=2.11,<3",
+    "referencing>=0.36,<1",
     "requests>=2.32,<3",
     "uvicorn>=0.35,<1",
 ]
@@ -41,4 +43,6 @@ pythonpath = ["src"]
 markers = [
     "live_fireworks: requires complete Fireworks configuration",
     "live_local: requires a configured local OpenAI-compatible endpoint",
+    "hard_stop_behavior: tests that assert legacy terminal/hard-stop behavior (flag unset)",
+    "routing_behavior: tests that assert routing/suspension behavior (AUDISOR_ROUTING_ENABLED=1)",
 ]

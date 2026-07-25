@@ -48,8 +48,10 @@ class HookOutputError(Exception):
 # Detection patterns
 # ---------------------------------------------------------------------------
 
-MUTATING_TOOL_NAMES = {"applypatch", "edit", "write", "writefile", "filesystemwrite"}
-MUTATING_COMMAND = re.compile(r"(?:apply_patch|set-content|out-file|add-content|new-item|remove-item|move-item|copy-item|git\s+(?:add|commit|reset|checkout)|>\s*[^&|])", re.I)
+MUTATING_TOOL_NAMES = {"applypatch", "edit", "write", "writefile", "filesystemwrite", "create", "delete", "rename", "move", "patch", "replace"}
+MUTATING_COMMAND = re.compile(r"(?:apply_patch|set-content|out-file|add-content|new-item|remove-item|move-item|copy-item|git\s+(?:add|commit|reset|checkout)|sed\s+-i|tee\s|>\s*[^&|])", re.I)
+# Known read-only tools that should never be classified as mutations
+READ_ONLY_TOOL_NAMES = {"read", "readfile", "grep", "search", "find", "list", "cat", "head", "tail", "ls", "dir", "echo", "print", "view", "show", "get", "fetch", "query", "status"}
 PATCH_TARGET = re.compile(r"(?:^\+\+\+ b/|^(?:\*\*\* (?:Add|Update|Delete) File: ))([^\r\n]+)", re.M)
 PATH_IN_COMMAND = re.compile(r"(?<![\w.-])(openai_project/[\w./-]+)")
 
@@ -63,12 +65,22 @@ def _text(value: Any) -> str:
 
 
 def is_mutation_attempt(payload: Mapping[str, Any]) -> bool:
-    name = str(payload.get("tool_name") or payload.get("tool") or "").replace("_", "").lower()
+    raw_name = str(payload.get("tool_name") or payload.get("tool") or "")
+    name = raw_name.replace("_", "").lower()
     if name in MUTATING_TOOL_NAMES:
         return True
+    if name in READ_ONLY_TOOL_NAMES:
+        return False
     if name in {"bash", "shell", "command", "powershell"}:
         source = payload.get("tool_input") or payload.get("input") or payload.get("command") or ""
         return bool(MUTATING_COMMAND.search(_text(source)))
+    # MCP tool calls are server-mediated and not workspace mutations; the MCP
+    # server enforces its own state authority (see test_hook_wire_format).
+    if raw_name.lower().startswith("mcp__"):
+        return False
+    # Conservative fallback: unknown tools are treated as potentially mutating
+    if name and name not in READ_ONLY_TOOL_NAMES:
+        return True
     return False
 
 
@@ -131,6 +143,54 @@ def _ready_contract(contract: Mapping[str, Any]) -> bool:
     readiness = contract.get("readiness")
     gates = readiness.get("execution_permitted_when") if isinstance(readiness, Mapping) else None
     return verify_contract(contract) and isinstance(readiness, Mapping) and readiness.get("aflow_decision") == "no_material_gap" and readiness.get("contract_decision") == "no_material_gap" and readiness.get("unresolved_items") == [] and isinstance(gates, Mapping) and all(value is True for value in gates.values())
+
+
+def _check_slice_authority(state: Mapping[str, Any], targets: list[str]) -> tuple[bool, str]:
+    """Per-slice mutation authority check (schema_version >= 2).
+
+    If the active-state has schema_version 2+ and slices, checks whether the
+    target paths fall within a slice that has ready authority. Independent
+    slices can proceed even when other slices are blocked.
+
+    Returns (authorized, reason).
+    """
+    schema_version = state.get("schema_version", 1)
+    if schema_version < 2:
+        return True, "legacy_global_check"  # Fall through to global check
+
+    slices = state.get("slices")
+    if not isinstance(slices, Mapping) or not slices:
+        return True, "no_slices_global_check"  # No slices = global check
+
+    # Check each target against slice allowed_paths
+    for target in targets:
+        target_authorized = False
+        for slice_id, slice_data in slices.items():
+            if not isinstance(slice_data, Mapping):
+                continue
+            slice_status = slice_data.get("status", "")
+            allowed_paths = slice_data.get("allowed_paths", [])
+            if not isinstance(allowed_paths, list):
+                continue
+
+            # Check if target falls within this slice's allowed paths
+            target_in_slice = any(
+                PurePosixPath(target) == PurePosixPath(p) or PurePosixPath(p) in PurePosixPath(target).parents
+                for p in allowed_paths
+            )
+
+            if target_in_slice:
+                if slice_status == "locked":
+                    target_authorized = True
+                    break
+                else:
+                    return False, f"target {target} belongs to slice '{slice_id}' which is in state '{slice_status}' (not locked)"
+
+        if not target_authorized:
+            # Target doesn't belong to any slice — deny
+            return False, f"target {target} does not belong to any authorized slice"
+
+    return True, "slice_authority_verified"
 
 
 def _load_active_state(state_root: Path) -> Mapping[str, Any] | None:
@@ -218,12 +278,22 @@ def evaluate_hook_payload(payload: Mapping[str, Any], state_root: Path) -> dict[
             elif state is None:
                 decision, reason = "deny", "no active Audisor execution lock exists"
             else:
-                lock_valid, reason, contract = verify_active_state(state)
-                if not lock_valid:
-                    decision = "deny"
+                # Schema v2 per-slice check — if slices exist, use slice authority
+                slice_ok, slice_reason = _check_slice_authority(state, targets)
+                if slice_reason not in ("legacy_global_check", "no_slices_global_check"):
+                    # Slice-based decision applies
+                    lock_valid = slice_ok
+                    authority_valid = slice_ok
+                    decision = "allow" if slice_ok else "deny"
+                    reason = slice_reason
                 else:
-                    authority_valid, reason = _targets_authorized(targets, contract)
-                    decision = "allow" if authority_valid else "deny"
+                    # Global check (legacy or no slices)
+                    lock_valid, reason, contract = verify_active_state(state)
+                    if not lock_valid:
+                        decision = "deny"
+                    else:
+                        authority_valid, reason = _targets_authorized(targets, contract)
+                        decision = "allow" if authority_valid else "deny"
     except HookAuditError:
         raise
     except Exception as exc:

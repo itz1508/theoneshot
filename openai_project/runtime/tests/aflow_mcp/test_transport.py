@@ -74,7 +74,7 @@ def _review_arguments(state_root: str) -> dict:
 class TestMcpTransport:
     """Real MCP stdio transport integration tests."""
 
-    def test_tools_list_returns_exactly_two_tools(self) -> None:
+    def test_tools_list_returns_exactly_three_tools(self) -> None:
         asyncio.run(self._tools_list())
 
     async def _tools_list(self) -> None:
@@ -85,7 +85,7 @@ class TestMcpTransport:
                     await session.initialize()
                     tools = (await session.list_tools()).tools
                     names = {t.name for t in tools}
-                    assert names == {"aflow_review", "aflow_status"}
+                    assert names == {"aflow_submit_plan", "aflow_review", "aflow_status"}
 
     def test_unknown_property_rejected_through_transport(self) -> None:
         """Prove additionalProperties:false is enforced at transport level."""

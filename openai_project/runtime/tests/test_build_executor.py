@@ -4,6 +4,8 @@ import json
 import shutil
 from pathlib import Path
 
+import pytest
+
 from audisor.builder.authority import TargetAuthorityResolver, capture_tree
 from audisor.builder.execution_store import ExecutionStore
 from audisor.builder.executor import BuildExecutor
@@ -189,6 +191,7 @@ def test_enabled_build_invokes_once_persists_before_implementation_and_replays(t
     assert (store.build_path("builder-proof-001") / "executions" / "execution-001" / "evidence" / "aflow-operation-result.json").is_file()
 
 
+@pytest.mark.hard_stop_behavior
 def test_audisor_rejection_terminalizes_releases_authority_and_cleans_workspace(tmp_path: Path) -> None:
     events: list = []
     def reject(**kwargs):

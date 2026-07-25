@@ -1,0 +1,55 @@
+{
+  "meta": {
+    "generated": "phase-0.5-contract-matrix",
+    "source_inspections": ["D:\\Dev\\Aflow_cli", "D:\\Dev\\Theoneshot\\agent_gateway", "D:\\Dev\\Theoneshot\\web", "C:\\Users\\itz15\\.codex\\skills"],
+    "identity_decision": "Aflow_cli (theoneshot-aflow) is the canonical A-Flow product. Theoneshot/aflow is the analysis engine library. Runtime wraps both."
+  },
+  "matrix": {
+    "input_types": {
+      "aflow_cli": "original_plan (str) + plan_id (str) via MCP aflow_review tool",
+      "theoneshot_aflow_engine": "8-field schema-v1 analysis request (analysis_id, success_definition, plan, authority_evidence, repository_evidence, baseline, evidence, schema_version)",
+      "runtime_lifecycle": "BuildExecutionRequest (build_id, execution_id, input) → IgnitionResult → scheduler",
+      "audisor_skill": "3-field payload: original_plan, plan_id, plan_digest"
+    },
+    "commands": {
+      "aflow_cli": "review, validate-bundle, setup, doctor, demo, serve, mcp, progress, resume, verify, status",
+      "theoneshot_aflow_engine": "analyze (Python API, no CLI)",
+      "runtime_lifecycle": "aflow on/off/status (tombstoned CLI), MCP aflow_review/aflow_status/aflow_submit_plan",
+      "audisor_skill": "tool call via MCP transport (aflow_submit_plan)"
+    },
+    "gap_fulfilment": {
+      "aflow_cli": "IMPLEMENTED at src/aflow/stages/gap_resolution.py — built-in _MATERIAL_GAP_RESOLUTIONS dict with deterministic corrections",
+      "theoneshot_aflow_engine": "detects only (closure.py close_findings validates caller-supplied revisions)",
+      "runtime_lifecycle": "detects only (executor suspends on material_gap_found)",
+      "audisor_skill": "N/A"
+    },
+    "hashing": {
+      "aflow_cli": "IMPLEMENTED — sha256 in src/aflow/hashing.py, used for plan_digest and bundle verification",
+      "theoneshot_aflow_engine": "sha256 seal on every artifact (lock_payload, contract, analysis_package)",
+      "runtime_lifecycle": "sha256 on contract, lock, terminal manifest",
+      "audisor_skill": "plan_digest field (auto-computed if 'auto')"
+    },
+    "locks": {
+      "aflow_cli": "IMPLEMENTED — progress tracking with state persistence, resume capability",
+      "theoneshot_aflow_engine": "lock_plan via FrozenAudisorPolicy + active-lock.json",
+      "runtime_lifecycle": "global authority claim + active-state lock",
+      "audisor_skill": "N/A"
+    },
+    "storage": {
+      "aflow_cli": "File-based state under .aflow/ directory, JSON artifacts",
+      "theoneshot_aflow_engine": "atomic file writes to .codex/audisor-state/",
+      "runtime_lifecycle": "ExecutionStore + BuildStore + OperationEnvelope suspended-ops/",
+      "audisor_skill": "N/A (delegates to MCP server)"
+    },
+    "tests": {
+      "aflow_cli": "10 test files under tests/ (unit + integration)",
+      "theoneshot_aflow_engine": "54 passing tests",
+      "runtime_lifecycle": "54+ tests in runtime/tests/, 89 in audisor_backend/tests/",
+      "audisor_skill": "N/A"
+    }
+  },
+  "agent_gateway_verdict": "DOES NOT EXIST — Operation Controller must be created as new package at openai_project/operation_controller/",
+  "web_integration": "React+Vite+Tailwind+Zustand app (audisor-web) — chat interface only, no direct A-Flow or operation state integration currently",
+  "skill_conflicts": "aflow-plan-review skill at C:\\Users\\itz15\\.codex\\skills\\aflow-plan-review matches Aflow_cli MCP contract (3-field). No conflict with audisor/.agents/skills/ (different purpose).",
+  "unverified_cells_remaining": 0
+}

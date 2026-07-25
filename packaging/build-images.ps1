@@ -70,8 +70,9 @@ Write-Output "    aflow demo: OK (exit 0)"
 docker run --rm "theoneshot-audisor-agent:$Tag" --version
 if ($LASTEXITCODE -ne 0) { throw 'toolkit --version failed' }
 
-docker run --rm --entrypoint python "theoneshot-fix:$Tag" -c "import audisor_backend, audisor; print('    oneshot-fix imports: OK', audisor.__version__)"
-if ($LASTEXITCODE -ne 0) { throw 'oneshot-fix import check failed' }
+docker run --rm --entrypoint python "theoneshot-fix:$Tag" -m audisor_backend.fix_service health
+if ($LASTEXITCODE -ne 0) { throw 'oneshot-fix health check failed' }
+Write-Output "    oneshot-fix health: OK (exit 0)"
 
 Write-Output ""
 Write-Output "All images built and smoke-checked: theoneshot-aflow:$Tag, theoneshot-fix:$Tag, theoneshot-audisor-agent:$Tag"

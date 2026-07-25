@@ -35,9 +35,32 @@ jobs:
 
       # Builds and smoke-checks all three product images:
       #   theoneshot-aflow, theoneshot-fix, theoneshot-audisor-agent
+      - name: Determine image tag
+        id: tag
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=dev" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build and smoke-check images
         shell: pwsh
-        run: ./packaging/build-images.ps1 -Tag "0.9.0"
+        run: ./packaging/build-images.ps1 -Tag "${{ steps.tag.outputs.version }}"
+
+      - name: Verify package version matches image tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          version="${{ steps.tag.outputs.version }}"
+          actual=$(docker run --rm --entrypoint python "theoneshot-fix:${version}" -c \
+            "import audisor_backend; print(audisor_backend.__version__)")
+          if [ "$actual" != "$version" ]; then
+            echo "ERROR: package version ($actual) != tag version ($version)"
+            exit 1
+          fi
+          echo "Version assertion passed: $actual"
 
       - name: Log in to GHCR
         if: startsWith(github.ref, 'refs/tags/v')
@@ -52,9 +75,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          version="${GITHUB_REF_NAME#v}"
+          version="${{ steps.tag.outputs.version }}"
           owner="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
           for image in theoneshot-aflow theoneshot-fix theoneshot-audisor-agent; do
-            docker tag "${image}:0.9.0" "ghcr.io/${owner}/${image}:${version}"
+            docker tag "${image}:${version}" "ghcr.io/${owner}/${image}:${version}"
             docker push "ghcr.io/${owner}/${image}:${version}"
           done

@@ -149,6 +149,7 @@ def test_disabled_fix_skips_ignite_and_continues(tmp_path):
     assert calls == []
 
 
+@pytest.mark.hard_stop_behavior
 def test_invalid_fix_plan_stays_unresolved_without_ignite(tmp_path):
     op = operation()
     invalid = AcceptedFixOperation(op.operation_id, op.findings, op.manifest, op.statements, ImplementationPlan([], [], False), op.workspace_identity, op.authority_context)
@@ -776,6 +777,7 @@ def test_H1_policy_disabled_calls_neither_package_nor_igniter(tmp_path):
     assert result == 'skipped_disabled'
 
 
+@pytest.mark.hard_stop_behavior
 def test_H1_expected_package_error_persists_package_validation_failed_and_halts(tmp_path):
     # Required matrix #5: the EXPECTED package-contract exception
     # (AnalysisPackageError) is classified as package_validation_failed, persisted
@@ -866,6 +868,7 @@ def test_H1_custom_igniter_valid_request_builds_real_package(tmp_path):
     assert result == 'continued'
 
 
+@pytest.mark.hard_stop_behavior
 def test_H1_custom_igniter_malformed_request_halts(tmp_path):
     from audisor.audisor_lifecycle.ignition import IgnitionResult
     # No mock: a supplied-but-malformed request (missing required evidence
@@ -1026,6 +1029,7 @@ def test_deserialized_explicit_null_request_halts_as_supplied_invalid(tmp_path):
     assert stored['operation_id'] == op.operation_id
 
 
+@pytest.mark.hard_stop_behavior
 def test_H1_unexpected_constructor_error_is_internal_not_package_validation(tmp_path):
     # Required #6: an UNEXPECTED exception from package construction (e.g. a
     # controller bug raising RuntimeError) is classified as a distinct
@@ -1075,6 +1079,7 @@ def test_H1_persistence_failure_after_package_error_never_ignites(tmp_path):
     assert igniter_calls == [], 'persistence failure must never permit ignition'
 
 
+@pytest.mark.hard_stop_behavior
 def test_H1_igniter_failure_after_successful_package_build_halts(tmp_path):
     # Required #8: with a valid supplied request, the REAL package is built first;
     # if the custom igniter then fails, the operation halts and never continues —

@@ -1,0 +1,32 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "operation-controller"
+version = "0.1.0"
+description = "Operation lifecycle controller — routes, suspends, and resumes operations across A-Flow, Build, and Fix."
+requires-python = ">=3.11"
+dependencies = [
+    "audisor>=0.9.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.4,<9",
+    "theoneshot-aflow>=0.9.0",
+]
+
+[tool.uv.sources]
+audisor = { path = "../runtime", editable = true }
+theoneshot-aflow = { path = "../aflow", editable = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/operation_controller"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+markers = [
+    "routing_behavior: tests that assert routing/suspension behavior",
+]

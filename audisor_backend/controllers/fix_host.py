@@ -7,7 +7,7 @@ import hashlib
 import os
 import tempfile
 import threading
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from pathlib import Path
 from typing import Any, Callable
 
@@ -15,11 +15,29 @@ from audisor.audisor_lifecycle.artifacts import audisor_operation_artifact
 from audisor.audisor_lifecycle.analysis_package import AnalysisPackageError, package_from_context
 from audisor.audisor_lifecycle.ignition import ignite
 from audisor.audisor_lifecycle.operation import AudisorOperationContext, FrozenAudisorPolicy, make_operation_context, read_frozen_audisor_policy
+from audisor.builder.operation_envelope import is_routing_enabled
 from audisor.workers.local import LocalWorker
 
 from audisor_backend.schemas.fix.models import FixScopedManifest, FindingsList, ImplementationPlan, Statement
 from audisor_backend.adapters.aflow_fix import invoke_local_fix
 from audisor_backend.scanning.dependency_closure import resolve_dependency_details
+
+
+@dataclass(frozen=True)
+class FixRoutingResult:
+    """Structured routing result instead of terminal finalization.
+
+    When the dispatcher operates in routing mode, it returns this instead
+    of calling finalize_unresolved. The caller (Operation Controller or
+    fix_service) handles routing decisions.
+    """
+    operation_id: str
+    route: str  # "continue" | "suspend_evidence" | "suspend_decision" | "suspend_repair" | "rejected"
+    artifact: dict[str, Any] = field(default_factory=dict)
+    suspend_reason: str | None = None
+    resume_input_schema: dict[str, Any] | None = None
+    affected_finding_ids: list[str] = field(default_factory=list)
+    independent_finding_ids: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -264,11 +282,36 @@ def _prepare_dependency_evidence(
 
 
 class AcceptedFixDispatcher:
-    def __init__(self, store: FixOperationStore, *, policy_reader=read_frozen_audisor_policy, aflow_igniter=ignite, worker_factory=LocalWorker):
+    def __init__(self, store: FixOperationStore, *, policy_reader=read_frozen_audisor_policy, aflow_igniter=ignite, worker_factory=LocalWorker, routing_mode: str = "legacy"):
         self.store = store
         self.policy_reader = policy_reader
         self.aflow_igniter = aflow_igniter
         self.worker_factory = worker_factory
+        # routing_mode: "legacy" = existing callback behavior, "routing" = return FixRoutingResult
+        self.routing_mode = routing_mode if is_routing_enabled() else "legacy"
+
+    def _route_or_finalize(
+        self,
+        operation: AcceptedFixOperation,
+        artifact: dict[str, Any],
+        finalize_unresolved: Callable[[AcceptedFixOperation, dict[str, Any]], Any],
+        route: str,
+        suspend_reason: str | None = None,
+    ) -> Any:
+        """Either return FixRoutingResult (routing mode) or call finalize_unresolved (legacy)."""
+        if self.routing_mode == "routing":
+            # Classify findings into affected vs independent
+            affected_ids = [f.id for f in operation.findings if hasattr(f, 'id')]
+            return FixRoutingResult(
+                operation_id=operation.operation_id,
+                route=route,
+                artifact=artifact,
+                suspend_reason=suspend_reason,
+                resume_input_schema={"type": "object", "properties": {}} if suspend_reason else None,
+                affected_finding_ids=affected_ids,
+                independent_finding_ids=[],
+            )
+        return finalize_unresolved(operation, artifact)
 
     def dispatch(self, operation: AcceptedFixOperation, continue_implementation: Callable[[AcceptedFixOperation, Any], Any], finalize_unresolved: Callable[[AcceptedFixOperation, dict[str, Any]], Any]) -> Any:
         # Single-flight per operation_id: concurrent duplicate dispatches serialize
@@ -296,13 +339,13 @@ class AcceptedFixDispatcher:
                 "error": {"code": "scoped_snapshot_required", "message": str(exc)},
             }
             self.store.persist(operation.operation_id, artifact)
-            return finalize_unresolved(operation, artifact)
+            return self._route_or_finalize(operation, artifact, finalize_unresolved, "suspend_repair", "needs_package_repair")
         try:
             operation.plan.validate(operation.manifest)
         except Exception as exc:
             artifact = {"operation_id": operation.operation_id, "operation_type": "fix", "status": "validation_failed", "implementation_eligible": False, "error": {"code": "invalid_fix_plan", "message": str(exc)}}
             self.store.persist(operation.operation_id, artifact)
-            return finalize_unresolved(operation, artifact)
+            return self._route_or_finalize(operation, artifact, finalize_unresolved, "suspend_repair", "needs_package_repair")
 
         # --- Deterministic dependency preparation (before model evaluation) ---
         repository_root = operation.workspace_identity.get("root", str(Path.cwd()))
@@ -368,14 +411,14 @@ class AcceptedFixDispatcher:
                 # explicit null or otherwise invalid. Halt before ignition.
                 artifact = audisor_operation_artifact(failure_context, policy, status="package_validation_failed", error=exc)
                 self.store.persist(enriched_operation.operation_id, artifact)
-                return finalize_unresolved(enriched_operation, artifact)
+                return self._route_or_finalize(enriched_operation, artifact, finalize_unresolved, "suspend_repair", "needs_package_repair")
             except Exception as exc:
                 # Unexpected defect (controller bug, filesystem error, hash defect,
                 # unrelated dependency failure). Classify distinctly so a product
                 # defect is never hidden as bad user input; still halt before ignition.
                 artifact = audisor_operation_artifact(failure_context, policy, status="internal_error", error=exc)
                 self.store.persist(enriched_operation.operation_id, artifact)
-                return finalize_unresolved(enriched_operation, artifact)
+                return self._route_or_finalize(enriched_operation, artifact, finalize_unresolved, "suspend_repair", "needs_package_repair")
         context = make_operation_context(
             operation_id=enriched_operation.operation_id,
             operation_type="fix",
@@ -409,7 +452,7 @@ class AcceptedFixDispatcher:
                 "authority_evaluation": authority_eval.to_mapping(),
             }
             self.store.persist(enriched_operation.operation_id, blocked_artifact)
-            return finalize_unresolved(enriched_operation, blocked_artifact)
+            return self._route_or_finalize(enriched_operation, blocked_artifact, finalize_unresolved, "suspend_decision", "needs_decision")
 
         # --- Model evaluation with enriched manifest ---
         worker = self.worker_factory(policy.base_url, policy.model_id, timeout_seconds=policy.timeout_seconds)
@@ -421,7 +464,7 @@ class AcceptedFixDispatcher:
         except Exception as exc:
             artifact = audisor_operation_artifact(context, policy, status="provider_failed" if getattr(exc, "code", "").startswith("provider") else "validation_failed", error=exc)
             self.store.persist(enriched_operation.operation_id, artifact)
-            return finalize_unresolved(enriched_operation, artifact)
+            return self._route_or_finalize(enriched_operation, artifact, finalize_unresolved, "suspend_evidence", "needs_provider_recovery")
 
         # --- Completeness evaluation using resolution evidence ---
         from audisor_backend.policies.fix.completeness import evaluate_fix_completeness
@@ -455,12 +498,12 @@ class AcceptedFixDispatcher:
                 "attempted_resolution_count": 1,
             }
             self.store.persist(enriched_operation.operation_id, blocked_artifact)
-            return finalize_unresolved(enriched_operation, blocked_artifact)
+            return self._route_or_finalize(enriched_operation, blocked_artifact, finalize_unresolved, "suspend_evidence", "needs_evidence")
 
         artifact = audisor_operation_artifact(context, policy, status="accepted" if result.implementation_eligible else "rejected", result=result)
         if result.implementation_eligible:
             artifact["handoff_path"] = self.store.persist_handoff(enriched_operation, result)
         self.store.persist(enriched_operation.operation_id, artifact)
         if not result.implementation_eligible:
-            return finalize_unresolved(enriched_operation, artifact)
+            return self._route_or_finalize(enriched_operation, artifact, finalize_unresolved, "rejected", None)
         return continue_implementation(enriched_operation, result)

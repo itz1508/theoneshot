@@ -19,7 +19,7 @@ TaskExecutionStatus = Literal[
     "blocked",
     "interrupted",
 ]
-ExecutionStatus = Literal["running", "completed", "failed", "interrupted", "not_valid"]
+ExecutionStatus = Literal["running", "suspended", "completed", "failed", "interrupted", "not_valid"]
 
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 WINDOWS_RESERVED = {
