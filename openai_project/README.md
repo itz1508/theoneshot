@@ -58,7 +58,10 @@ uv pip install -e ../../audisor_backend
 If the engine is not installed, the legacy runtime falls back gracefully and returns
 `fix_engine_unavailable`.
 
-## Run locally
+## Run locally (tombstone-status verification only)
+
+The legacy runtime execution service is deprecated and tombstoned in 0.10.0.
+For tombstone-status verification only:
 
 From `openai_project/runtime`:
 
@@ -67,27 +70,16 @@ uv sync --extra dev --locked
 uv run uvicorn audisor.main:app --host 127.0.0.1 --port 8000
 ```
 
-Example request:
+Valid responses:
+- `GET /health` returns `{"status":"ok"}`
+- `GET /ready` reports readiness
 
-```json
-[
-  {
-    "task_id": "task-001",
-    "prompt": "Return the word ready."
-  }
-]
-```
+All legacy POST endpoints return `410 legacy_runtime_deprecated`:
+- `POST /v1/tasks`
+- `POST /v1/builds/prepare`
+- `POST /v1/builds/{build_id}/executions`
 
-Response shape:
-
-```json
-[
-  {
-    "task_id": "task-001",
-    "answer": "ready"
-  }
-]
-```
+New integrations must not use those routes.
 
 ## Test
 
@@ -99,60 +91,64 @@ Optional live adapter smokes run only when every required variable for that
 provider is present. Missing live configuration is reported as not run and
 does not invalidate the provider-neutral API foundation.
 
-## Builder preparation
+## Builder preparation (deprecated)
 
-The legacy runtime exposes:
+The legacy runtime exposed:
 
     POST /v1/builds/prepare
 
-The endpoint accepts a build ID and complete instruction, invokes the selected
-worker as a planning worker, validates a strict ready-or-blocked plan, orders
-task dependencies deterministically, renders one-time SKILL.md artifacts, and
-publishes the complete prepared build atomically.
+This endpoint now returns `410 legacy_runtime_deprecated`. New integrations must not use this route.
 
-Prepared builds use `AUDISOR_DATA_DIR`. When it is unset, the legacy runtime selects
+Historically, the endpoint accepted a build ID and complete instruction, invoked the selected
+worker as a planning worker, validated a strict ready-or-blocked plan, ordered
+task dependencies deterministically, rendered one-time SKILL.md artifacts, and
+published the complete prepared build atomically.
+
+Prepared builds used `AUDISOR_DATA_DIR`. When it was unset, the legacy runtime selected
 the platform user-data directory rather than a product-local source path:
 
     <data-root>/builds/<build-id>/instruction.json
     <data-root>/builds/<build-id>/plan.json
     <data-root>/builds/<build-id>/skills/<task-id>-<slug>/SKILL.md
 
-Generated skills are build artifacts and are never installed into permanent
-.agents/skills directories. A blocked plan returns HTTP 200 with specific gaps,
-persists instruction.json and plan.json, and generates no task skills.
+Generated skills were build artifacts and were never installed into permanent
+.agents/skills directories. A blocked plan returned HTTP 200 with specific gaps,
+persisted instruction.json and plan.json, and generated no task skills.
 
-Preparation also publishes `integrity.json` inside the same atomic staging
-directory. It is an unsigned SHA-256 consistency anchor over the exact
-instruction, plan, task records, and rendered skills. The legacy runtime rejects legacy
+Preparation also published `integrity.json` inside the same atomic staging
+directory. It was an unsigned SHA-256 consistency anchor over the exact
+instruction, plan, task records, and rendered skills. The legacy runtime rejected legacy
 or altered builds without silently regenerating or repairing that anchor.
 
-## Isolated prepared-build execution
+## Isolated prepared-build execution (deprecated)
 
-The legacy runtime exposes:
+The legacy runtime exposed:
 
     POST /v1/builds/{build_id}/executions
 
-The endpoint binds a prepared build to an explicit target root and allowed
-write paths, records a target baseline, copies that baseline into a per-
-execution workspace, re-verifies preparation integrity, and executes tasks
-sequentially in deterministic dependency order. Workers continue to receive the
-minimal `{task_id, prompt}` task boundary; their answer contains a strict
-JSON action plan that is parsed completely before local actions begin.
+This endpoint now returns `410 legacy_runtime_deprecated`. New integrations must not use this route.
 
-Only these action types are accepted:
+Historically, the endpoint bound a prepared build to an explicit target root and allowed
+write paths, recorded a target baseline, copied that baseline into a per-
+execution workspace, re-verified preparation integrity, and executed tasks
+sequentially in deterministic dependency order. Workers continued to receive the
+minimal `{task_id, prompt}` task boundary; their answer contained a strict
+JSON action plan that was parsed completely before local actions began.
+
+Only these action types were accepted:
 
     write_file
     create_directory
     delete_file
 
-Filesystem effects are resolved against the isolated workspace and its allowed
+Filesystem effects were resolved against the isolated workspace and its allowed
 paths. Expected outputs, planned and actual changed paths, write authority,
-target-baseline preservation, hashes, and terminal evidence are verified
-deterministically. Prepared executable validation metadata is hashed and
+target-baseline preservation, hashes, and terminal evidence were verified
+deterministically. Prepared executable validation metadata was hashed and
 retained but not executed by this endpoint. Python, tests, scripts, shells, and
-arbitrary commands are not run by the execution endpoint.
+arbitrary commands were not run by the execution endpoint.
 
-Durable execution data is stored beneath the prepared build:
+Durable execution data was stored beneath the prepared build:
 
     <data-root>/builds/<build-id>/executions/<execution-id>/
         authority.json
@@ -163,9 +159,9 @@ Durable execution data is stored beneath the prepared build:
         evidence/<task-id>/
         workspace/
 
-The real target is never used as a task write root. Failed prerequisites block
-their dependents, interrupted running tasks are not retried, and identical
-idempotent requests return the existing durable state.
+The real target was never used as a task write root. Failed prerequisites blocked
+their dependents, interrupted running tasks were not retried, and identical
+idempotent requests returned the existing durable state.
 
 ## Roadmap
 

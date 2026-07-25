@@ -9,16 +9,18 @@ All products are independent and separately deployable.
 
 ## Products
 
-| Product | Package | Location | Purpose |
-|---|---|---|---|
-| A-Flow | `theoneshot-aflow` | `openai_project/aflow/` | Plan-readiness analysis: admit and adversarially analyze a plan, verify revision closure, lock an accepted plan, detect drift, and evaluate build evidence. |
-| OneShot Fix | `audisor-backend` | `audisor_backend/` | Governed, issue-scoped build/fix execution (the canonical Fix engine). |
-| Legacy Audisor Runtime | `audisor` | `openai_project/runtime/` | Legacy BYOK/BYOM model-execution API (tombstoned in 0.10.0); /health and /ready only. |
-| Audisor Toolkit | `audisor-local` | `audisor/` (submodule) | Tokenless, read-only local repository inspection: scan, inspect, trace, normalize, validate, replay (CLI + MCP). |
+| Product | Package | Location | Status | Purpose |
+|---|---|---|---|---|
+| A-Flow | `theoneshot-aflow` | `openai_project/aflow/` | Active | Standalone deterministic plan-readiness and locking product: admit and adversarially analyze a plan, verify revision closure, lock an accepted plan, detect drift, and evaluate build evidence. |
+| OneShot Fix | `audisor-backend` | `audisor_backend/` | Active | Governed, issue-scoped build/fix execution (the canonical Fix engine). |
+| Audisor Toolkit | `audisor-local` | `audisor/` (submodule) | Active | Tokenless, read-only local repository inspection: scan, inspect, trace, normalize, validate, replay (CLI + MCP). |
+| Legacy Audisor Runtime | `audisor` | `openai_project/runtime/` | Deprecated, tombstoned in 0.10.0 | Legacy BYOK/BYOM model-execution API; only `/health` and `/ready` remain for tombstone/status reporting. |
 
-Dependencies: A-Flow is standalone. The legacy runtime optionally depends on the Fix
-engine and degrades gracefully (`fix_engine_unavailable`) when it is absent. The
-Fix engine depends on the legacy runtime and A-Flow. The toolkit is standalone.
+Dependencies: A-Flow is standalone. The Fix engine is standalone. The legacy
+runtime optionally depended on the Fix engine and degraded gracefully
+(`fix_engine_unavailable`) when it was absent; the runtime is now tombstoned
+and retained only for compatibility/reference pending planned removal. The
+toolkit is standalone.
 
 ## Prerequisites
 
@@ -37,20 +39,43 @@ uv run aflow demo
 
 See [openai_project/aflow/README.md](openai_project/aflow/README.md).
 
-## OneShot Fix + Legacy Audisor Runtime
+## OneShot Fix
 
-The Fix engine installs as an optional dependency of the legacy runtime. From
-`openai_project/runtime`:
+The Fix engine is a standalone product:
+
+```powershell
+cd audisor_backend
+uv sync --locked
+uv run pytest
+```
+
+See [audisor_backend/](audisor_backend/).
+
+## Legacy Audisor Runtime (Deprecated)
+
+The legacy Audisor Runtime execution service is deprecated and was tombstoned
+in version 0.10.0. Only `/health` and `/ready` remain operational for
+tombstone/status reporting. The three legacy POST endpoints all return
+`410 legacy_runtime_deprecated`:
+
+- `POST /v1/tasks`
+- `POST /v1/builds/prepare`
+- `POST /v1/builds/{build_id}/executions`
+
+New integrations must not use those routes. Retained source is temporary
+compatibility/reference code pending planned removal.
+
+For tombstone-status verification only:
 
 ```powershell
 cd openai_project/runtime
 uv sync --extra dev --locked
-uv pip install -e ../../audisor_backend
 uv run uvicorn audisor.main:app --host 127.0.0.1 --port 8000
 ```
 
-The legacy runtime exposes `GET /health` and `GET /ready` only. All other
-endpoints are tombstoned in 0.10.0.
+Valid responses: `GET /health` returns `{"status":"ok"}`, `GET /ready` reports
+readiness. All other endpoints return `410 legacy_runtime_deprecated`.
+
 See [openai_project/README.md](openai_project/README.md).
 
 ## Audisor Toolkit
@@ -98,7 +123,7 @@ they are deselected by default.
 ## Repository layout
 
 ```text
-openai_project/runtime/   legacy Audisor Runtime (package `audisor`, tombstoned in 0.10.0)
+openai_project/runtime/   Legacy Audisor Runtime, tombstoned in 0.10.0
 openai_project/aflow/     A-Flow (package `theoneshot-aflow`)
 openai_project/schemas/   JSON schemas for tasks, builds, executions, evidence
 openai_project/docs/      Architecture and lifecycle documentation

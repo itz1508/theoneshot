@@ -7,7 +7,10 @@ The legacy Audisor Runtime's local API dispatched work through one explicitly se
 
 The legacy runtime did not require Fireworks. It did not require a fixed model. Provider switching was configuration-driven. Automatic provider fallback was not enabled. Provider selection policy will later belong to A-Flow.
 
-## Local startup
+## Local startup (tombstone-status verification only)
+
+The legacy Audisor Runtime execution service is deprecated and tombstoned in 0.10.0.
+For tombstone-status verification only:
 
 From `openai_project/runtime`, install the locked development environment and bind only to loopback:
 
@@ -17,6 +20,7 @@ uv run uvicorn audisor.main:app --host 127.0.0.1 --port 8000
 ```
 
 Use `GET http://127.0.0.1:8000/health` for liveness and `GET http://127.0.0.1:8000/ready` for generic readiness.
+All legacy POST endpoints return `410 legacy_runtime_deprecated`. New integrations must not use those routes.
 
 ## Provider selection
 
@@ -53,8 +57,8 @@ Set `AUDISOR_DATA_DIR` to a safe external directory when an explicit location is
 - `POST /v1/tasks` previously executed a validated batch of typed text tasks; now returns `410 legacy_runtime_deprecated`.
 - `POST /v1/builds/prepare` previously requested and validated a typed build plan before atomic persistence; now returns `410 legacy_runtime_deprecated`.
 - `POST /v1/builds/{build_id}/executions` previously requested mutation-only action plans and applied locally enforced structured filesystem mutations in an isolated workspace; now returns `410 legacy_runtime_deprecated`.
-- `POST /v1/operations` accepted a host-agnostic legacy operation request and routed it through `AudisorOperationExecutor`.
-- `POST /v1/operations/tasks` accepted a batch of `TaskInput` items, submitted each as a legacy `analyze` operation, and returned consolidated results.
+- `POST /v1/operations` accepted a host-agnostic legacy operation request and routed it through `AudisorOperationExecutor`; now returns `410 legacy_runtime_deprecated`.
+- `POST /v1/operations/tasks` accepted a batch of `TaskInput` items, submitted each as a legacy `analyze` operation, and returned consolidated results; now returns `410 legacy_runtime_deprecated`.
 
 Provider-backed endpoints do not execute arbitrary commands, tests, scripts, or shells. Executable validation remains deferred until a separately authorized sandbox service exists.
 
