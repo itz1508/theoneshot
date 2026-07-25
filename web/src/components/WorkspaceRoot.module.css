@@ -1,0 +1,116 @@
+.root {
+  padding: 2px 0;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 4px;
+  transition: background 0.1s ease;
+}
+
+.header:hover {
+  background: #0f0f10;
+}
+
+.expandBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: #52525b;
+  flex-shrink: 0;
+}
+
+.rootChevron {
+  transition: transform 0.12s ease;
+}
+
+.rootChevronOpen {
+  transform: rotate(90deg);
+}
+
+.name {
+  font-size: 13px;
+  font-weight: 500;
+  color: #e4e4e7;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.badge {
+  font-size: 9px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: #18181b;
+  color: #52525b;
+  flex-shrink: 0;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.tree {
+  padding: 2px 0 4px 4px;
+}
+
+/* Tree rows (shared for folders and files) */
+.row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #a1a1aa;
+  text-align: left;
+  transition: background 0.1s ease;
+}
+
+.row:hover {
+  background: #18181b;
+}
+
+.chevron {
+  flex-shrink: 0;
+  color: #52525b;
+  transition: transform 0.12s ease;
+}
+
+.chevronOpen {
+  transform: rotate(90deg);
+}
+
+.folderIcon {
+  flex-shrink: 0;
+  color: #71717a;
+}
+
+.folderName {
+  color: #d4d4d8;
+  font-size: 12px;
+}
+
+.fileIndent {
+  width: 10px;
+  flex-shrink: 0;
+}
+
+.fileIcon {
+  flex-shrink: 0;
+  color: #3f3f46;
+}
+
+.fileName {
+  color: #a1a1aa;
+  font-size: 12px;
+}

@@ -1,0 +1,45 @@
+/* ActivityRail — 52px fixed vertical icon rail */
+
+.rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 52px;
+  min-width: 52px;
+  padding: 8px 0;
+  gap: 2px;
+  background: #09090b;
+  border-right: 1px solid #1e1e22;
+  overflow-y: auto;
+}
+
+.btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  color: #52525b;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.btn:hover {
+  background: #18181b;
+  color: #a1a1aa;
+}
+
+.active {
+  color: #e4e4e7;
+  background: #18181b;
+}
+
+.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  width: 2px;
+  height: 20px;
+  background: #e4e4e7;
+  border-radius: 0 2px 2px 0;
+}

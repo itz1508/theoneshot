@@ -1,0 +1,264 @@
+/* ═══════════════════════════════════════════
+   AttachmentGroup — scrollable, snapping row
+   ═══════════════════════════════════════════ */
+.group {
+  position: relative;
+  overflow: hidden;
+  /* Edge fade */
+  mask-image: linear-gradient(to right, transparent 0%, black 8px, black calc(100% - 8px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, black 8px, black calc(100% - 8px), transparent 100%);
+}
+
+.groupScroll {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  padding: 4px 8px;
+}
+
+.groupScroll::-webkit-scrollbar {
+  display: none;
+}
+
+.groupScroll > * {
+  scroll-snap-align: start;
+  flex-shrink: 0;
+}
+
+/* ═══════════════════════════════════════════
+   Attachment (Root)
+   ═══════════════════════════════════════════ */
+.root {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #1e1e22;
+  background: #0c0c0e;
+  transition: border-color 0.15s ease, background 0.15s ease;
+  overflow: hidden;
+}
+
+.root:hover {
+  border-color: #27272a;
+  background: #111113;
+}
+
+/* Orientation */
+.orient_horizontal {
+  flex-direction: row;
+}
+
+.orient_vertical {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+/* Sizes */
+.size_sm {
+  padding: 6px 8px;
+  gap: 8px;
+  border-radius: 6px;
+}
+
+.size_md {
+  padding: 8px 10px;
+  gap: 10px;
+  border-radius: 8px;
+}
+
+.size_lg {
+  padding: 10px 12px;
+  gap: 12px;
+  border-radius: 10px;
+}
+
+/* States */
+.state_idle {
+  border-color: #1e1e22;
+}
+
+.state_uploading {
+  border-color: #1d4ed8;
+}
+
+.state_processing {
+  border-color: #7c3aed;
+}
+
+.state_error {
+  border-color: #7f1d1d;
+  background: #0c0808;
+}
+
+.state_done {
+  border-color: #166534;
+}
+
+/* Shimmer for in-progress states */
+.shimmer::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.03) 40%,
+    rgba(255, 255, 255, 0.06) 50%,
+    rgba(255, 255, 255, 0.03) 60%,
+    transparent 100%
+  );
+  animation: shimmerMove 2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes shimmerMove {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* ═══════════════════════════════════════════
+   AttachmentMedia
+   ═══════════════════════════════════════════ */
+.media {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  border-radius: 6px;
+  background: #18181b;
+  color: #71717a;
+  flex-shrink: 0;
+}
+
+.size_sm .media {
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  border-radius: 4px;
+}
+
+.size_lg .media {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  border-radius: 8px;
+}
+
+.media_idle { color: #71717a; }
+.media_uploading { color: #60a5fa; }
+.media_processing { color: #a78bfa; }
+.media_error { color: #f87171; }
+.media_done { color: #4ade80; }
+
+/* ═══════════════════════════════════════════
+   AttachmentContent
+   ═══════════════════════════════════════════ */
+.content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+/* ═══════════════════════════════════════════
+   AttachmentTitle
+   ═══════════════════════════════════════════ */
+.title {
+  font-size: 12px;
+  font-weight: 500;
+  color: #e4e4e7;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.size_sm .title {
+  font-size: 11px;
+}
+
+.size_lg .title {
+  font-size: 13px;
+}
+
+/* ═══════════════════════════════════════════
+   AttachmentDescription
+   ═══════════════════════════════════════════ */
+.description {
+  font-size: 11px;
+  color: #52525b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.size_lg .description {
+  font-size: 12px;
+}
+
+.state_error .description {
+  color: #f87171;
+}
+
+/* ═══════════════════════════════════════════
+   AttachmentActions
+   ═══════════════════════════════════════════ */
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
+
+/* ═══════════════════════════════════════════
+   AttachmentAction
+   ═══════════════════════════════════════════ */
+.action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  color: #52525b;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.action:hover {
+  background: #27272a;
+  color: #a1a1aa;
+}
+
+.size_sm .action {
+  width: 20px;
+  height: 20px;
+}
+
+/* ═══════════════════════════════════════════
+   AttachmentTrigger — full-card click target
+   ═══════════════════════════════════════════ */
+.trigger {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  cursor: pointer;
+  border-radius: inherit;
+  background: none;
+  border: none;
+  text-decoration: none;
+  color: inherit;
+}
+
+.trigger:focus-visible {
+  outline: 2px solid #60a5fa;
+  outline-offset: -2px;
+}

@@ -1,0 +1,74 @@
+/* ActivityLED — 5 states with animation + reduced-motion fallback */
+
+.led {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  white-space: nowrap;
+}
+
+.led:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.dot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+}
+
+.label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+/* ─── idle: dim grey, static ─── */
+.idle .dot { color: #52525b; }
+.idle .label { color: #52525b; }
+
+/* ─── working: single steady pulse ─── */
+.working .dot { color: #60a5fa; animation: pulse 1.8s ease-in-out infinite; }
+.working .label { color: #93c5fd; }
+
+/* ─── waiting: amber, slow blink ─── */
+.waiting .dot { color: #f59e0b; animation: blink 2.4s ease-in-out infinite; }
+.waiting .label { color: #fbbf24; }
+
+/* ─── blocked: red, static or slow blink ─── */
+.blocked .dot { color: #ef4444; animation: blink 1.6s ease-in-out infinite; }
+.blocked .label { color: #f87171; }
+
+/* ─── completed: solid green ─── */
+.completed .dot { color: #22c55e; }
+.completed .label { color: #4ade80; }
+
+/* ─── Animations ─── */
+@keyframes pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.2; }
+}
+
+/* ─── Reduced motion: no animation, rely on colour + icon + label ─── */
+@media (prefers-reduced-motion: reduce) {
+  .working .dot,
+  .waiting .dot,
+  .blocked .dot {
+    animation: none;
+    opacity: 1;
+  }
+}

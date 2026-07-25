@@ -1,0 +1,56 @@
+/* Explorer — 260px collapsible panel */
+
+.panel {
+  overflow: hidden;
+  transition: width 0.2s ease;
+  border-right: 1px solid #1e1e22;
+  flex-shrink: 0;
+}
+
+.inner {
+  width: 260px;
+  min-width: 260px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #09090b;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  padding: 10px 12px;
+  border-bottom: 1px solid #1e1e22;
+}
+
+.title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #71717a;
+}
+
+.list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+/* Add folder button */
+.addBtn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 12px;
+  border-top: 1px solid #1e1e22;
+  font-size: 12px;
+  color: #52525b;
+  width: 100%;
+  transition: color 0.12s ease, background 0.12s ease;
+}
+
+.addBtn:hover {
+  color: #a1a1aa;
+  background: #18181b;
+}

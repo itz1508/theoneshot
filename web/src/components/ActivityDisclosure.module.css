@@ -1,0 +1,62 @@
+.item {
+  display: flex;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 4px;
+  background: transparent;
+  transition: background 0.1s ease;
+}
+
+.item:hover {
+  background: #111113;
+}
+
+.indicator {
+  width: 3px;
+  border-radius: 2px;
+  flex-shrink: 0;
+  align-self: stretch;
+}
+
+.completed {
+  background: #4ade80;
+}
+
+.running {
+  background: #60a5fa;
+}
+
+.pending {
+  background: #27272a;
+}
+
+.body {
+  flex: 1;
+  min-width: 0;
+}
+
+.header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #a1a1aa;
+}
+
+.statusLabel {
+  font-size: 10px;
+  color: #3f3f46;
+  flex-shrink: 0;
+}
+
+.detail {
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #52525b;
+}

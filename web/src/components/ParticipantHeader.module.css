@@ -1,0 +1,112 @@
+/* ParticipantHeader — 3D flip animation for participant transitions */
+
+.header {
+  padding: 12px 16px;
+  border-bottom: 1px solid #27272a;
+  perspective: 600px;
+}
+
+.empty {
+  color: #71717a;
+  font-size: 12px;
+  text-align: center;
+  padding: 8px 0;
+}
+
+.card {
+  transform-style: preserve-3d;
+  transition: transform 0.3s ease-in-out;
+}
+
+.card.flipping {
+  transform: rotateX(90deg);
+}
+
+.face {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #fafafa;
+}
+
+.indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #71717a;
+  flex-shrink: 0;
+}
+
+.indicator_working {
+  background: #3b82f6;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.indicator_waiting {
+  background: #f59e0b;
+  animation: blink 1s ease-in-out infinite;
+}
+
+.indicator_blocked {
+  background: #ef4444;
+}
+
+.indicator_completed {
+  background: #22c55e;
+}
+
+.indicator_failed {
+  background: #ef4444;
+}
+
+.indicator_cancelled {
+  background: #71717a;
+}
+
+.indicator_idle {
+  background: #52525b;
+}
+
+.status {
+  font-size: 12px;
+  color: #a1a1aa;
+}
+
+.summary {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #d4d4d8;
+  line-height: 1.4;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* prefers-reduced-motion: replace 3D flip with cross-fade */
+@media (prefers-reduced-motion: reduce) {
+  .card {
+    transition: opacity 0.15s ease;
+  }
+
+  .card.flipping {
+    transform: none;
+    opacity: 0;
+  }
+
+  .indicator_working,
+  .indicator_waiting {
+    animation: none;
+  }
+}
