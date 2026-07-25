@@ -56,41 +56,6 @@ def _schema(properties: dict[str, Any], required: list[str]) -> dict[str, Any]:
 
 _TOOLS: list[types.Tool] = [
     types.Tool(
-        name="aflow_submit_plan",
-        description=(
-            "High-level plan submission tool matching the skill contract. "
-            "Accepts a plan with minimal fields (original_plan, plan_id, plan_digest) "
-            "and internally builds the full 8-field review request. "
-            "Use this tool when calling from agent skills or when you have a plan "
-            "but not the full structured analysis context."
-        ),
-        inputSchema=_schema(
-            {
-                "original_plan": {
-                    "type": "string",
-                    "description": "The unchanged plan text to review.",
-                },
-                "plan_id": {
-                    "type": "string",
-                    "description": "A stable, non-empty plan identifier.",
-                },
-                "plan_digest": {
-                    "type": "string",
-                    "description": "SHA-256 digest of plan, or 'auto' for server-computed.",
-                },
-                "operation_id": {
-                    "type": ["string", "null"],
-                    "description": "Optional caller-supplied operation identifier.",
-                },
-                "repository_root": {
-                    "type": ["string", "null"],
-                    "description": "Optional repository root for evidence collection.",
-                },
-            },
-            ["original_plan", "plan_id"],
-        ),
-    ),
-    types.Tool(
         name="aflow_review",
         description=(
             "Review a complete A-Flow analysis request. On a clean decision, "
@@ -187,71 +152,6 @@ def _resolve_state_root(arguments: dict[str, Any] | None) -> Path:
     if explicit:
         return Path(explicit)
     return default_state_root()
-
-
-def _dispatch_submit_plan(arguments: dict[str, Any]) -> dict[str, Any]:
-    """Handle aflow_submit_plan — high-level skill-compatible entry point.
-
-    Bridges the 3-field skill contract to the full 8-field review request
-    by constructing the structured analysis context from the plan text.
-    """
-    import hashlib
-
-    original_plan = arguments["original_plan"]
-    plan_id = arguments["plan_id"]
-    plan_digest = arguments.get("plan_digest", "auto")
-    operation_id = arguments.get("operation_id") or f"aflow-{plan_id}"
-    repository_root = arguments.get("repository_root")
-
-    # Compute digest if "auto"
-    if plan_digest == "auto" or not plan_digest:
-        plan_digest = hashlib.sha256(original_plan.encode("utf-8")).hexdigest()
-
-    # Build the full structured analysis request from the plan text
-    analysis_request = {
-        "schema_version": "1",
-        "plan_id": plan_id,
-        "plan_digest": plan_digest,
-        "original_plan": original_plan,
-        "operation_type": "implementation",
-        "repository_root": repository_root or str(Path.cwd()),
-    }
-
-    # Build minimal but valid structured inputs
-    accepted_task_input = {
-        "plan_id": plan_id,
-        "source": "skill_submit",
-        "original_plan_digest": plan_digest,
-    }
-    candidate_implementation_plan = {
-        "plan_text": original_plan,
-        "plan_id": plan_id,
-        "plan_digest": plan_digest,
-    }
-    authority = {
-        "allowed_paths": [],
-        "prohibited_paths": [],
-        "mutation_authority": "pending_review",
-    }
-
-    # Delegate to the full review
-    full_arguments = {
-        "analysis_request": analysis_request,
-        "accepted_task_input": accepted_task_input,
-        "candidate_implementation_plan": candidate_implementation_plan,
-        "authority": authority,
-        "baseline_evidence": {},
-        "accepted_constraints": {"source": "skill_submit"},
-        "required_outputs": [],
-        "operation_id": operation_id,
-        "state_root": arguments.get("state_root"),
-    }
-
-    result = _dispatch_review(full_arguments)
-    # Add the operation_id to the result for easy reference
-    result["operation_id"] = operation_id
-    result["plan_digest"] = plan_digest
-    return result
 
 
 def _dispatch_review(arguments: dict[str, Any]) -> dict[str, Any]:
@@ -400,9 +300,24 @@ def _dispatch_status(arguments: dict[str, Any] | None) -> dict[str, Any]:
 def _dispatch(name: str, arguments: dict[str, Any] | None) -> dict[str, Any]:
     """Route a tool call to the appropriate handler."""
     if name == "aflow_submit_plan":
-        if not arguments:
-            return {"status": "blocked", "error": {"code": "missing_arguments", "detail": "arguments required"}}
-        return _dispatch_submit_plan(arguments)
+        # Retired compatibility bridge: it fabricated a non-conforming
+        # analysis request from bare plan text (all eight schema-v1 fields
+        # missing or wrong) and its every submission was rejected at
+        # admission. Synthesizing the evidence fields server-side would be
+        # fabricated evidence, so the tool is retired, not repaired.
+        return {
+            "status": "blocked",
+            "error": {
+                "code": "tool_retired",
+                "detail": (
+                    "aflow_submit_plan is retired: it constructed a "
+                    "non-conforming analysis request and could not honestly "
+                    "synthesize schema-v1 evidence from plan text alone. "
+                    "Use aflow_review with a complete 8-field analysis "
+                    "request, or an external plan-qualification surface."
+                ),
+            },
+        }
     if name == "aflow_review":
         if not arguments:
             return {"status": "blocked", "error": {"code": "missing_arguments", "detail": "arguments required"}}

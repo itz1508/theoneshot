@@ -74,7 +74,7 @@ def _review_arguments(state_root: str) -> dict:
 class TestMcpTransport:
     """Real MCP stdio transport integration tests."""
 
-    def test_tools_list_returns_exactly_three_tools(self) -> None:
+    def test_tools_list_returns_exactly_two_tools(self) -> None:
         asyncio.run(self._tools_list())
 
     async def _tools_list(self) -> None:
@@ -85,7 +85,36 @@ class TestMcpTransport:
                     await session.initialize()
                     tools = (await session.list_tools()).tools
                     names = {t.name for t in tools}
-                    assert names == {"aflow_submit_plan", "aflow_review", "aflow_status"}
+                    assert names == {"aflow_review", "aflow_status"}
+
+    def test_submit_plan_bridge_is_retired_through_transport(self) -> None:
+        """The defective aflow_submit_plan bridge must stay retired.
+
+        It is not advertised, and a live transport call must fail
+        deterministically instead of fabricating an analysis request.
+        """
+        asyncio.run(self._submit_plan_retired())
+
+    async def _submit_plan_retired(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            params = _server_params(tmp)
+            async with stdio_client(params) as (read, write):
+                async with ClientSession(read, write) as session:
+                    await session.initialize()
+
+                    tools = {t.name for t in (await session.list_tools()).tools}
+                    assert "aflow_submit_plan" not in tools
+
+                    result = await session.call_tool(
+                        "aflow_submit_plan",
+                        {"original_plan": "plan text", "plan_id": "plan.retired-probe"},
+                    )
+                    if getattr(result, "isError", False):
+                        # SDK rejected the unregistered tool at transport level.
+                        return
+                    payload = _result_json(result)
+                    assert payload["status"] == "blocked"
+                    assert payload["error"]["code"] == "tool_retired"
 
     def test_unknown_property_rejected_through_transport(self) -> None:
         """Prove additionalProperties:false is enforced at transport level."""
