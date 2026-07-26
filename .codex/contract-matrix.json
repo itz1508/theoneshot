@@ -13,9 +13,9 @@
     },
     "commands": {
       "aflow_cli": "review, validate-bundle, setup, doctor, demo, serve, mcp, progress, resume, verify, status",
-      "theoneshot_aflow_engine": "analyze (Python API, no CLI)",
-      "runtime_lifecycle": "aflow on/off/status (tombstoned CLI), MCP aflow_review/aflow_status/aflow_submit_plan",
-      "audisor_skill": "tool call via MCP transport (aflow_submit_plan)"
+      "theoneshot_aflow_engine": "aflow CLI (aflow.cli:main): analyze, close, evaluate-result, evaluate-fixtures, demo — plus analyze Python API (verified 2026-07-25; earlier 'no CLI' claim wrong, [project.scripts] declares aflow)",
+      "runtime_lifecycle": "aflow on/off/status (tombstoned CLI, verified cli.py L205-206), MCP aflow_review/aflow_status only (aflow_submit_plan bridge retired in commit 94d6aa0)",
+      "audisor_skill": "tool call via MCP transport (aflow_review — external CLI 3-field surface; earlier aflow_submit_plan reference obsolete after bridge retirement)"
     },
     "gap_fulfilment": {
       "aflow_cli": "IMPLEMENTED at src/aflow_cli/stages/gap_resolution.py — built-in _MATERIAL_GAP_RESOLUTIONS dict with deterministic corrections",
@@ -31,13 +31,13 @@
     },
     "locks": {
       "aflow_cli": "IMPLEMENTED — progress tracking with state persistence, resume capability",
-      "theoneshot_aflow_engine": "lock_plan via FrozenAudisorPolicy + active-lock.json",
+      "theoneshot_aflow_engine": "lock_plan in src/aflow/lifecycle/locking.py produces locked-plan artifact with lock_id (verified 2026-07-25); FrozenAudisorPolicy and active-lock.json are runtime audisor_lifecycle surfaces, not engine code",
       "runtime_lifecycle": "global authority claim + active-state lock",
       "audisor_skill": "N/A"
     },
     "storage": {
       "aflow_cli": "File-based state under .aflow/ directory, JSON artifacts",
-      "theoneshot_aflow_engine": "atomic file writes to .codex/audisor-state/",
+      "theoneshot_aflow_engine": "path-agnostic atomic JSON writes via src/aflow/storage/atomic_write.py (refuses .git/.codex/Agents.md targets) + hashing.py; .codex/audisor-state/ is the runtime lifecycle state dir, not engine storage (verified 2026-07-25)",
       "runtime_lifecycle": "ExecutionStore + BuildStore + OperationEnvelope suspended-ops/",
       "audisor_skill": "N/A (delegates to MCP server)"
     },
