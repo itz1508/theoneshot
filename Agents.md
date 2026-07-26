@@ -58,6 +58,21 @@ must replace the previous snapshot completely; do not carry forward files
 from an older snapshot. After every successful Git commit, delete the
 snapshot.
 
+## Safe removal of non-authoritative residue
+
+After direct inspection proves that an item is generated, machine-local,
+secret-bearing, duplicate, historical, deprecated, or otherwise
+non-authoritative, remove it in place when removal cannot affect active
+runtime behavior, public interfaces, packaging, deployment, persisted user
+data, or intended design. Remove the item as found; do not replace it with
+guessed behavior or introduce a substitute feature.
+
+Before removal, inventory the exact paths, verify active ownership and
+references, establish rollback or recovery, and run focused validation. If
+ownership, impact, recoverability, or design intent is uncertain, stop and
+report the evidence instead of deleting it. This rule does not authorize
+changes to protected paths, commits, pushes, or releases.
+
 ## Automatic A-Flow lifecycle
 
 For every non-trivial repository mutation task, primary Codex must invoke the
@@ -69,6 +84,21 @@ That layer calls the existing adapter and schema; only its ready, valid contract
 permits implementation. Collect the contract-required evidence. A non-ready,
 malformed, tampered, or unresolved contract is never execution authority.
 Read-only factual or inspection tasks do not invoke the full lifecycle.
+
+### Ordered phase continuation
+
+For an authorized multi-phase task, once a phase commit is complete and its
+post-commit verification succeeds, the agent must continue directly to the
+next authorized phase in the same run. It must not stop merely to ask whether
+to start that next phase. “Begin” means perform the next phase’s stated
+discovery, review gate, and implementation steps; it does not waive any
+required A-Flow or authority gate, or authorize a commit or push for that
+phase.
+
+The agent must stop before the next phase’s commit and report the diff and
+validation for review unless that commit was separately authorized. If
+post-commit verification fails, preserve the failed transition state, report
+the evidence, and do not begin the next phase.
 
 ## Protected — do not touch without explicit human confirmation
 
