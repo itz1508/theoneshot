@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Local OpenAI-compatible provider adapter; endpoint details stay here."""
 
 from __future__ import annotations

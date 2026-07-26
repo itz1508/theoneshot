@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Idempotent local Ollama setup and live verification."""
 
 from __future__ import annotations

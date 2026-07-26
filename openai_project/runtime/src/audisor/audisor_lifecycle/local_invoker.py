@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Strict host boundary for the frozen Audisor analysis decision."""
 
 from __future__ import annotations
