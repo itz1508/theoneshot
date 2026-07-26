@@ -2,7 +2,7 @@
   "meta": {
     "generated": "phase-0.5-contract-matrix",
     "source_inspections": ["D:\\Dev\\Aflow_cli", "D:\\Dev\\Theoneshot\\agent_gateway", "D:\\Dev\\Theoneshot\\web", "C:\\Users\\itz15\\.codex\\skills"],
-    "identity_decision": "Aflow_cli (theoneshot-aflow) is the canonical A-Flow product. Theoneshot/aflow is the analysis engine library. Runtime wraps both."
+    "identity_decision": "Resolved 2026-07-25: openai_project/aflow is the production analysis engine — distribution theoneshot-aflow 0.9.0, import package aflow, command aflow. D:\\Dev\\Aflow_cli is a separate interactive review CLI product — distribution theoneshot-aflow-cli 0.1.0, import package aflow_cli, command aflow-cli (renamed at Aflow_cli commit 541d77a24a4c8aa65aef13585dd27a92ba4e68ce). The two lineages share no code and no identities; no single canonical-product claim is made for the external CLI."
   },
   "matrix": {
     "input_types": {
@@ -18,13 +18,13 @@
       "audisor_skill": "tool call via MCP transport (aflow_submit_plan)"
     },
     "gap_fulfilment": {
-      "aflow_cli": "IMPLEMENTED at src/aflow/stages/gap_resolution.py — built-in _MATERIAL_GAP_RESOLUTIONS dict with deterministic corrections",
+      "aflow_cli": "IMPLEMENTED at src/aflow_cli/stages/gap_resolution.py — built-in _MATERIAL_GAP_RESOLUTIONS dict with deterministic corrections",
       "theoneshot_aflow_engine": "detects only (closure.py close_findings validates caller-supplied revisions)",
       "runtime_lifecycle": "detects only (executor suspends on material_gap_found)",
       "audisor_skill": "N/A"
     },
     "hashing": {
-      "aflow_cli": "IMPLEMENTED — sha256 in src/aflow/hashing.py, used for plan_digest and bundle verification",
+      "aflow_cli": "IMPLEMENTED — sha256 in src/aflow_cli/cli.py, stages/evidence.py, stages/intake.py, stages/preserve_plan.py (no dedicated hashing.py module; earlier claim of src/aflow/hashing.py never existed in any commit), used for plan_digest and bundle verification",
       "theoneshot_aflow_engine": "sha256 seal on every artifact (lock_payload, contract, analysis_package)",
       "runtime_lifecycle": "sha256 on contract, lock, terminal manifest",
       "audisor_skill": "plan_digest field (auto-computed if 'auto')"
@@ -42,9 +42,9 @@
       "audisor_skill": "N/A (delegates to MCP server)"
     },
     "tests": {
-      "aflow_cli": "10 test files under tests/ (unit + integration)",
-      "theoneshot_aflow_engine": "54 passing tests",
-      "runtime_lifecycle": "54+ tests in runtime/tests/, 89 in audisor_backend/tests/",
+      "aflow_cli": "10 test files under tests/ (61 tests pass, verified 2026-07-25 post-rename at commit 541d77a)",
+      "theoneshot_aflow_engine": "56 tests pass (verified 2026-07-25)",
+      "runtime_lifecycle": "665 passed + 61 skipped in runtime/tests/, 93 in audisor_backend/tests/ (verified 2026-07-25)",
       "audisor_skill": "N/A"
     }
   },
