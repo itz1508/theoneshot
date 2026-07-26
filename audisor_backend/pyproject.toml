@@ -12,6 +12,9 @@ dependencies = [
     "audisor>=0.9.0",
 ]
 
+[tool.uv.sources]
+audisor = { path = "../openai_project/runtime", editable = true }
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = [
