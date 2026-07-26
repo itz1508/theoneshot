@@ -11,13 +11,19 @@ from dataclasses import dataclass, asdict, field
 from pathlib import Path
 from typing import Any, Callable
 
-from audisor.audisor_lifecycle.artifacts import audisor_operation_artifact
-from audisor.audisor_lifecycle.analysis_package import AnalysisPackageError, package_from_context
-from audisor.audisor_lifecycle.ignition import ignite
-from audisor.audisor_lifecycle.operation import AudisorOperationContext, FrozenAudisorPolicy, make_operation_context, read_frozen_audisor_policy
 from audisor.builder.operation_envelope import is_routing_enabled
 from audisor.workers.local import LocalWorker
 
+from audisor_backend.adapters.lifecycle import (
+    AnalysisPackageError,
+    AudisorOperationContext,
+    FrozenAudisorPolicy,
+    audisor_operation_artifact,
+    ignite,
+    make_operation_context,
+    package_from_context,
+    read_frozen_audisor_policy,
+)
 from audisor_backend.schemas.fix.models import FixScopedManifest, FindingsList, ImplementationPlan, Statement
 from audisor_backend.adapters.aflow_fix import invoke_local_fix
 from audisor_backend.scanning.dependency_closure import resolve_dependency_details
