@@ -29,13 +29,11 @@ Evidence: verified 2026-07-21 by direct filesystem inspection.
 * `openai_project/infra/` — sandbox Dockerfile.
 * `packaging/oneshot-fix/` — container packaging for the OneShot Fix image
   (`Dockerfile`, `runtime-requirements.txt`, `backend-requirements.txt`).
-* `.codex/config.toml` — workspace-level Codex configuration. Defines the
-  `aflow` agent and enables `hooks = true`. This is the root authority
-  surface for the A-Flow lifecycle hook integration.
-* `.codex/agents/aflow.toml` — A-Flow agent definition. Read-only analysis
-  agent for pre-build review and post-build evaluation.
-* `.codex/hooks.json` — PreToolUse hook that intercepts mutations and verifies
-  active Audisor execution locks via `audisor.audisor_lifecycle.hook`.
+* `.codex/config.toml` — workspace-level Codex configuration. Registers the
+  `aflow-runtime` MCP server (canonical A-Flow artifact lifecycle) and sets
+  `hooks = false`.
+* `.codex/audisor-state/` — gitignored runtime state; lifecycle results are
+  persisted under `artifacts/`.
 * `audisor/.codex/config.toml` + `audisor/.codex/agents/{explorer,reviewer,validator}.toml`
   — the standalone toolkit's agent-definition source of truth. Role authority
   lives here, not at root.
@@ -75,15 +73,28 @@ changes to protected paths, commits, pushes, or releases.
 
 ## Automatic A-Flow lifecycle
 
-For every non-trivial repository mutation task, primary Codex must invoke the
-project-scoped `aflow` agent before the first mutation. Reuse a structurally
-usable supplied plan; create one candidate plan only when none is supplied.
-Pass task, plan, applicable authority, and repository context to A-Flow, then
-run its returned data through `openai_project/runtime/src/audisor/audisor_lifecycle/ignition.py`.
-That layer calls the existing adapter and schema; only its ready, valid contract
-permits implementation. Collect the contract-required evidence. A non-ready,
-malformed, tampered, or unresolved contract is never execution authority.
-Read-only factual or inspection tasks do not invoke the full lifecycle.
+When an actionable artifact draft is complete (a plan, design, or spec that
+implementation will follow), submit it via the `aflow_submit_artifact` MCP
+tool with `status: "draft_complete"`, the full artifact text, its intent, and
+the relevant repository context. The runtime engine
+(`openai_project/runtime/src/audisor/audisor_lifecycle/artifact_flow.py`) owns
+the stage order: gap finding, gap fixing, the unresolved-gap barrier,
+evaluation, success criteria, then fixture design.
+
+Act on the result status:
+
+* `improved` — implement against the improved artifact, its success criteria,
+  and its fixture cases. The handoff package is advisory: it is
+  execution-ready because every gap was fixed, evaluation passed, and success
+  criteria plus fixture cases exist.
+* `unresolved_gap` — report each listed gap's requirements
+  (`required_to_resolve`, `successful_resolution`) to the user; once the
+  inputs exist, submit the revised artifact as a new cycle.
+* `skip` — the artifact was not a completed draft; continue drafting.
+* `error` — report the stage and detail; use `aflow_last_result` to reattach
+  to the most recent persisted result after a transport timeout.
+
+Read-only factual or inspection tasks do not submit artifacts.
 
 ### Ordered phase continuation
 
@@ -140,10 +151,10 @@ as directories. Until they are created, route setup/configuration requests to
 
 ## Agent roles (Codex)
 
-Root `.codex/config.toml` defines the `aflow` agent and enables hooks.
+Root `.codex/config.toml` registers the `aflow-runtime` MCP server.
 `audisor/.codex/agents/` defines `explorer`, `reviewer`, and `validator`.
-Both surfaces are authoritative: root config for A-Flow lifecycle hook
-integration, `audisor/.codex/agents/` for the explorer/reviewer/validator
+Both surfaces are authoritative: root config for the A-Flow artifact
+lifecycle tools, `audisor/.codex/agents/` for the explorer/reviewer/validator
 agent triad.
 
 `audisor/.codex/agents/` defines three roles:

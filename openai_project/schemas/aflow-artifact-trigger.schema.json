@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://audisor.local/schemas/aflow-artifact-trigger.schema.json",
+  "title": "A-Flow Artifact Lifecycle Trigger",
+  "description": "Submission contract for one artifact review cycle. Only status 'draft_complete' with non-empty content runs the lifecycle; anything else is skipped. Re-submission of a revised artifact is a new cycle.",
+  "type": "object",
+  "required": ["artifact_id", "artifact_type", "status", "content", "intent", "context"],
+  "additionalProperties": false,
+  "properties": {
+    "artifact_id": {"type": "string", "minLength": 1},
+    "artifact_type": {"type": "string", "minLength": 1},
+    "status": {"type": "string", "minLength": 1},
+    "content": {"type": "string"},
+    "intent": {"type": "string"},
+    "context": {"type": "string"}
+  }
+}

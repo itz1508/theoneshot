@@ -1,6 +1,15 @@
 # Workspace-level Codex configuration.
-# A-Flow MCP server is registered via the audisor installer (managed block).
-# See: audisor integrate codex --scope repo --status
 
 [features]
-hooks = true
+hooks = false
+
+# Canonical A-Flow artifact lifecycle server (repo-scoped registration).
+# Verified: this exact command boots from the repo root and completes a real
+# stdio initialize + list_tools + call_tool session (aflow_submit_artifact,
+# aflow_last_result). Verified: the installed Codex (codex-cli 0.145.0)
+# honors repo-scope mcp_servers — `codex mcp list` from the repo root shows
+# aflow-runtime; from outside the repo it does not.
+[mcp_servers.aflow-runtime]
+command = "uv"
+args = ["run", "--directory", "openai_project/runtime", "python", "-m", "audisor.aflow_mcp_server"]
+tool_timeout_sec = 900

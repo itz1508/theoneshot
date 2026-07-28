@@ -36,7 +36,7 @@ _DEPRECATED_MESSAGES: dict[str, list[str]] = {
         "Supported workflow:",
         "1. Run: audisor integrate codex --scope repo --apply",
         "2. Start Codex directly in the target repository.",
-        "3. Use the aflow_review MCP tool before implementation.",
+        "3. Use the aflow_submit_artifact MCP tool when an artifact draft is complete.",
     ],
     "run": [
         "audisor run is deprecated.",

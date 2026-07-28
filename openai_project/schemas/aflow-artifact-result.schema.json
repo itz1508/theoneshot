@@ -1,0 +1,350 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://audisor.local/schemas/aflow-artifact-result.schema.json",
+  "title": "A-Flow Artifact Lifecycle Result",
+  "description": "Result of one artifact review lifecycle. Flow: submission -> runtime identity and prior-state check -> gap_finding -> gap_fixing when required -> unresolved barrier -> evaluation -> at most one bounded evaluation repair cycle -> success_criteria -> fixture_design -> improved artifact. Status is exactly improved | unresolved_gap | skip | error. If any identified gap remains unresolved, evaluation, success_criteria, and fixture_cases are null. The fixture_design stage produces fixture_cases. A failed first evaluation produces structured re-fix findings and receives one additional gap_fixing attempt followed by one final evaluation; evaluation_repair records that cycle's evidence. No artifact change, or a final evaluation that still finds deficiencies, produces unresolved_gap. The final evaluation must verify that the reported deficiencies were corrected while preserving explicit intent, exclusions, scope, and artifact type. An improved result is advisory and non-mutating: no identified gap remains unresolved, evaluation passed, and success criteria plus fixture cases exist. Recorded-removal-v1 is permitted only for gap_finding and gap_fixing output; evaluation, success_criteria, and fixture_design are validated strictly as emitted, and a repaired output must include output_repaired, output_repairs, and repair_policy together. Identity is derived by the runtime. content_digest identifies canonical artifact content; submission_digest also includes artifact_type, intent, and context. An unchanged submission reuses its existing active or completed lifecycle (submission_disposition records replay). A changed submission starts a new lifecycle; artifact_revision advances only when canonical content changes. lifecycle_run_id, started_at, and completed_at identify the run that performed the review. Active-run and invalid-persisted-state outcomes are bounded non-completed error results.",
+  "oneOf": [
+    {
+      "type": "object",
+      "description": "Completed lifecycle whose evaluation passed: the improved artifact is advisory and execution-ready.",
+      "required": ["status", "artifact_id", "submission_disposition", "submission_digest", "content_digest", "artifact_revision", "lifecycle_run_id", "started_at", "completed_at", "evaluation_repair_cycles", "original_artifact", "gap_findings", "gap_fixes", "improved_artifact", "evaluation", "success_criteria", "fixture_cases"],
+      "additionalProperties": false,
+      "dependentRequired": {
+        "output_repaired": ["output_repairs", "repair_policy"],
+        "output_repairs": ["output_repaired", "repair_policy"],
+        "repair_policy": ["output_repaired", "output_repairs"]
+      },
+      "if": {"properties": {"evaluation_repair_cycles": {"const": 1}}},
+      "then": {"required": ["evaluation_repair"]},
+      "else": {"not": {"required": ["evaluation_repair"]}},
+      "properties": {
+        "status": {"const": "improved"},
+        "artifact_id": {"type": "string", "minLength": 1},
+        "submission_disposition": {"$ref": "#/$defs/submission_disposition"},
+        "output_repaired": {"const": true},
+        "output_repairs": {"$ref": "#/$defs/output_repairs"},
+        "repair_policy": {"$ref": "#/$defs/repair_policy"},
+        "evaluation_repair_cycles": {"$ref": "#/$defs/evaluation_repair_cycles"},
+        "evaluation_repair": {"$ref": "#/$defs/evaluation_repair"},
+        "submission_digest": {"$ref": "#/$defs/submission_digest"},
+        "content_digest": {"$ref": "#/$defs/content_digest"},
+        "artifact_revision": {"$ref": "#/$defs/artifact_revision"},
+        "lifecycle_run_id": {"type": "string", "minLength": 1},
+        "started_at": {"$ref": "#/$defs/timestamp"},
+        "completed_at": {"$ref": "#/$defs/timestamp"},
+        "original_artifact": {"type": "string", "description": "The submitted artifact text exactly as received, never canonicalized."},
+        "gap_findings": {"type": "array", "items": {"$ref": "#/$defs/gap_finding"}},
+        "gap_fixes": {"type": "array", "items": {"$ref": "#/$defs/gap_fix"}},
+        "improved_artifact": {"type": "string"},
+        "evaluation": {
+          "type": "object",
+          "required": ["passed", "summary", "findings"],
+          "additionalProperties": false,
+          "properties": {
+            "passed": {"const": true},
+            "summary": {"type": "string", "minLength": 1},
+            "findings": {
+              "type": "array",
+              "description": "Non-blocking observations recorded by a passed evaluation. Deficiencies never appear here: a deficiency forces passed false and the bounded repair cycle instead.",
+              "items": {"$ref": "#/$defs/evaluation_finding"}
+            }
+          }
+        },
+        "success_criteria": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["criterion", "validation"],
+            "additionalProperties": false,
+            "properties": {
+              "criterion": {"type": "string", "minLength": 1},
+              "validation": {"type": "string", "minLength": 1}
+            }
+          }
+        },
+        "fixture_cases": {
+          "type": "array",
+          "description": "Produced by the fixture_design stage.",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["name", "expectation"],
+            "additionalProperties": false,
+            "properties": {
+              "name": {"type": "string", "minLength": 1},
+              "expectation": {"type": "string", "minLength": 1},
+              "setup": {"type": "string"},
+              "criterion": {"type": "string"}
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "description": "Completed lifecycle blocked by the unresolved barrier: downstream evaluation output, success_criteria, and fixture_cases are null. When the block came from a failed final evaluation, evaluation_repair.final_evaluation preserves that failure as diagnostic evidence.",
+      "required": ["status", "artifact_id", "submission_disposition", "submission_digest", "content_digest", "artifact_revision", "lifecycle_run_id", "started_at", "completed_at", "evaluation_repair_cycles", "original_artifact", "gap_findings", "gap_fixes", "unresolved_gaps", "evaluation", "success_criteria", "fixture_cases"],
+      "additionalProperties": false,
+      "dependentRequired": {
+        "output_repaired": ["output_repairs", "repair_policy"],
+        "output_repairs": ["output_repaired", "repair_policy"],
+        "repair_policy": ["output_repaired", "output_repairs"]
+      },
+      "if": {"properties": {"evaluation_repair_cycles": {"const": 1}}},
+      "then": {"required": ["evaluation_repair"]},
+      "else": {"not": {"required": ["evaluation_repair"]}},
+      "properties": {
+        "status": {"const": "unresolved_gap"},
+        "artifact_id": {"type": "string", "minLength": 1},
+        "submission_disposition": {"$ref": "#/$defs/submission_disposition"},
+        "output_repaired": {"const": true},
+        "output_repairs": {"$ref": "#/$defs/output_repairs"},
+        "repair_policy": {"$ref": "#/$defs/repair_policy"},
+        "evaluation_repair_cycles": {"$ref": "#/$defs/evaluation_repair_cycles"},
+        "evaluation_repair": {"$ref": "#/$defs/evaluation_repair"},
+        "submission_digest": {"$ref": "#/$defs/submission_digest"},
+        "content_digest": {"$ref": "#/$defs/content_digest"},
+        "artifact_revision": {"$ref": "#/$defs/artifact_revision"},
+        "lifecycle_run_id": {"type": "string", "minLength": 1},
+        "started_at": {"$ref": "#/$defs/timestamp"},
+        "completed_at": {"$ref": "#/$defs/timestamp"},
+        "original_artifact": {"type": "string", "description": "The submitted artifact text exactly as received, never canonicalized."},
+        "gap_findings": {"type": "array", "items": {"$ref": "#/$defs/gap_finding"}},
+        "gap_fixes": {"type": "array", "items": {"$ref": "#/$defs/gap_fix"}},
+        "unresolved_gaps": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["gap", "why_unresolved", "required_to_resolve", "successful_resolution"],
+            "additionalProperties": false,
+            "properties": {
+              "gap": {"type": "string", "minLength": 1},
+              "why_unresolved": {"type": "string", "minLength": 1},
+              "required_to_resolve": {"type": "array", "items": {"type": "string", "minLength": 1}},
+              "successful_resolution": {"type": "string", "minLength": 1}
+            }
+          }
+        },
+        "evaluation": {"type": "null"},
+        "success_criteria": {"type": "null"},
+        "fixture_cases": {"type": "null"}
+      }
+    },
+    {
+      "type": "object",
+      "description": "Submission never started a lifecycle (wrong status, empty content, or missing artifact_id).",
+      "required": ["status", "reason"],
+      "additionalProperties": false,
+      "properties": {
+        "status": {"const": "skip"},
+        "artifact_id": {"type": "string", "minLength": 1},
+        "reason": {"type": "string", "minLength": 1}
+      }
+    },
+    {
+      "type": "object",
+      "description": "Bounded active-run response: an identical submission arrived while a prior run for the same submission_digest is still active. Carries the active run's identity; no completed_at because that run has not finished. Reattach with aflow_last_result once it completes.",
+      "required": ["status", "stage", "detail", "artifact_id", "submission_digest", "lifecycle_run_id"],
+      "additionalProperties": false,
+      "properties": {
+        "status": {"const": "error"},
+        "stage": {"const": "active_run"},
+        "detail": {"type": "string", "minLength": 1},
+        "artifact_id": {"type": "string", "minLength": 1},
+        "submission_digest": {"$ref": "#/$defs/submission_digest"},
+        "lifecycle_run_id": {"type": "string", "minLength": 1, "description": "Identity of the already-active run, not a new one."}
+      }
+    },
+    {
+      "type": "object",
+      "description": "Bounded structured diagnostic: the newest persisted result for this artifact is corrupt or incomplete. Never treated as a completed outcome, never persisted (persisting would bury the damaged file), and carries no run identity because no lifecycle ran. Recovery: inspect or remove the file at state_path, then resubmit.",
+      "required": ["status", "stage", "detail", "artifact_id", "state_path", "failure"],
+      "additionalProperties": false,
+      "properties": {
+        "status": {"const": "error"},
+        "stage": {"const": "persisted_state"},
+        "detail": {"type": "string", "minLength": 1},
+        "artifact_id": {"type": "string", "minLength": 1},
+        "state_path": {"type": "string", "minLength": 1, "description": "Filesystem path of the damaged persisted result."},
+        "failure": {"type": "string", "enum": ["corrupt", "incomplete"], "description": "corrupt: unreadable or not a result object; incomplete: missing or invalid status."}
+      }
+    },
+    {
+      "type": "object",
+      "description": "A started lifecycle ended in a bounded stage or configuration error. Full runtime-derived identity is present; errors are never replayed, so resubmission retries.",
+      "required": ["status", "stage", "detail", "artifact_id", "submission_disposition", "submission_digest", "content_digest", "artifact_revision", "lifecycle_run_id", "started_at", "completed_at", "evaluation_repair_cycles"],
+      "additionalProperties": false,
+      "dependentRequired": {
+        "output_repaired": ["output_repairs", "repair_policy"],
+        "output_repairs": ["output_repaired", "repair_policy"],
+        "repair_policy": ["output_repaired", "output_repairs"],
+        "evaluation_repair": ["evaluation_repair_cycles"]
+      },
+      "properties": {
+        "status": {"const": "error"},
+        "stage": {"type": "string", "enum": ["gap_finding", "gap_fixing", "evaluation", "success_criteria", "fixture_design", "configuration"]},
+        "detail": {"type": "string", "minLength": 1},
+        "artifact_id": {"type": "string", "minLength": 1},
+        "submission_disposition": {"const": "started"},
+        "output_repaired": {"const": true},
+        "output_repairs": {"$ref": "#/$defs/output_repairs"},
+        "repair_policy": {"$ref": "#/$defs/repair_policy"},
+        "evaluation_repair_cycles": {"$ref": "#/$defs/evaluation_repair_cycles"},
+        "evaluation_repair": {"$ref": "#/$defs/evaluation_repair"},
+        "submission_digest": {"$ref": "#/$defs/submission_digest"},
+        "content_digest": {"$ref": "#/$defs/content_digest"},
+        "artifact_revision": {"$ref": "#/$defs/artifact_revision"},
+        "lifecycle_run_id": {"type": "string", "minLength": 1},
+        "started_at": {"$ref": "#/$defs/timestamp"},
+        "completed_at": {"$ref": "#/$defs/timestamp"}
+      }
+    },
+    {
+      "type": "object",
+      "description": "Transport-level error emitted before any lifecycle identity exists: tool input validation, dispatch, missing last result, or an unexpected engine exception.",
+      "required": ["status", "stage", "detail"],
+      "additionalProperties": false,
+      "properties": {
+        "status": {"const": "error"},
+        "stage": {"type": "string", "enum": ["input_validation", "lifecycle", "last_result", "dispatch"]},
+        "detail": {"type": "string", "minLength": 1},
+        "artifact_id": {"type": "string", "minLength": 1}
+      }
+    }
+  ],
+  "$defs": {
+    "submission_disposition": {
+      "type": "string",
+      "enum": ["started", "replayed"],
+      "description": "started: this result came from a lifecycle run this submission triggered (persisted records always say started). replayed: an unchanged resubmission returned the persisted completed result without running any stage."
+    },
+    "submission_digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256 over canonical content plus artifact_type, intent, and context. Unchanged submission_digest reuses the existing completed lifecycle (replay) or reports the active run; changed submission_digest starts a new lifecycle. A new lifecycle does not always imply a new content revision."
+    },
+    "content_digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256 of the canonical artifact content. Canonicalisation is line-ending normalization only (CRLF and CR become LF); all other whitespace is significant, so the digest is safe for patches, source code, YAML, and whitespace-sensitive templates. original_artifact always retains the submitted text verbatim."
+    },
+    "artifact_revision": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Runtime-derived revision sequence for this artifact_id. Advances only when content_digest changes; a new lifecycle with unchanged canonical content keeps its revision."
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "minLength": 1,
+      "description": "Runtime-derived ISO 8601 UTC timestamp. The runtime guarantees completed_at is never earlier than started_at."
+    },
+    "repair_policy": {
+      "const": "recorded-removal-v1",
+      "description": "Unknown-field removal is permitted only for gap_finding and gap_fixing output, bounded by the repair ceiling; evaluation, success_criteria, and fixture_design output is validated strictly as emitted. Present only together with output_repaired and output_repairs."
+    },
+    "evaluation_repair_cycles": {
+      "type": "integer",
+      "enum": [0, 1],
+      "description": "Explicit count of bounded evaluation repair cycles: 0 means none ran; 1 means exactly one ran and evaluation_repair records its evidence. Never more than one."
+    },
+    "evaluation_repair": {
+      "type": "object",
+      "description": "Evidence that the single bounded evaluation repair cycle actually occurred: the structured re-fix findings derived from the failed first evaluation, the before/after canonical digest comparison used for no-progress detection, the re-fix gap_fixing output, and the final evaluation (null when it never ran: re-fix hit the unresolved barrier, made no progress, or errored).",
+      "required": ["findings", "before_content_digest", "after_content_digest", "gap_fixes", "final_evaluation"],
+      "additionalProperties": false,
+      "properties": {
+        "findings": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/refix_finding"}},
+        "before_content_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "after_content_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$", "description": "Equal to before_content_digest exactly when the cycle made no progress."},
+        "gap_fixes": {"type": "array", "items": {"$ref": "#/$defs/gap_fix"}},
+        "final_evaluation": {
+          "oneOf": [
+            {"type": "null"},
+            {
+              "type": "object",
+              "required": ["passed", "summary", "findings"],
+              "additionalProperties": false,
+              "properties": {
+                "passed": {"type": "boolean"},
+                "summary": {"type": "string", "minLength": 1},
+                "findings": {"type": "array", "items": {"$ref": "#/$defs/evaluation_finding"}}
+              }
+            }
+          ]
+        }
+      }
+    },
+    "refix_finding": {
+      "type": "object",
+      "description": "Structured re-fix contract entry derived in code from one failed-evaluation finding; the model never classifies resolvability.",
+      "required": ["finding_id", "deficiency", "evidence", "required_correction", "success_condition"],
+      "additionalProperties": false,
+      "properties": {
+        "finding_id": {"type": "string", "minLength": 1},
+        "deficiency": {"type": "string", "minLength": 1},
+        "evidence": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "required_correction": {"type": "string", "minLength": 1},
+        "success_condition": {"type": "string", "minLength": 1}
+      }
+    },
+    "output_repairs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["stage", "removed_fields"],
+        "additionalProperties": false,
+        "properties": {
+          "stage": {"type": "string", "minLength": 1},
+          "removed_fields": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["path", "removed"],
+              "additionalProperties": false,
+              "properties": {
+                "path": {"type": "string", "minLength": 1},
+                "removed": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "gap_finding": {
+      "type": "object",
+      "required": ["gap"],
+      "additionalProperties": false,
+      "properties": {
+        "gap": {"type": "string", "minLength": 1},
+        "category": {"type": "string", "enum": ["missing", "weak", "unsupported", "contradictory", "risky"]},
+        "evidence_basis": {"type": "string", "minLength": 1}
+      }
+    },
+    "gap_fix": {
+      "type": "object",
+      "required": ["gap", "fix"],
+      "additionalProperties": false,
+      "properties": {
+        "gap": {"type": "string", "minLength": 1},
+        "fix": {"type": "string", "minLength": 1},
+        "evidence_basis": {"type": "string", "minLength": 1}
+      }
+    },
+    "evaluation_finding": {
+      "type": "object",
+      "required": ["finding"],
+      "additionalProperties": false,
+      "properties": {
+        "finding": {"type": "string", "minLength": 1},
+        "evidence": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "required_to_resolve": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "successful_resolution": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}

@@ -1,46 +1,42 @@
-"""A-Flow MCP server — host-neutral foundation demonstrated with the Codex hook.
+"""A-Flow MCP server — canonical artifact lifecycle surface.
 
 Exposes exactly two tools:
 
-* ``aflow_review`` — accepts a complete schema-v1 analysis request and explicit
-  contract-assembly inputs, calls the real ``aflow.analyze()``, and on a clean
-  decision persists the operation record and writes a hook-compatible
-  active-state envelope.
-* ``aflow_status`` — reads the active-state envelope and independently
-  recomputes lock, contract, readiness, and drift validity.
+* ``aflow_submit_artifact`` — accepts the six-field artifact trigger and runs
+  one deterministic lifecycle cycle (gap_finding -> gap_fixing ->
+  unresolved-gap barrier -> evaluation -> success_criteria -> fixture_design),
+  returning the full result JSON.
+* ``aflow_last_result`` — returns the most recent persisted result for an
+  artifact, so a client can reattach after a transport timeout.
 
 Start with::
 
     python -m audisor.aflow_mcp_server
 
-This module imports only public names from the runtime lifecycle and A-Flow.
+This module imports only public names from the runtime lifecycle.
 """
 from __future__ import annotations
 
 import asyncio
 import json
-import os
-from pathlib import Path
 from typing import Any
 
 import mcp.types as types
 from mcp.server.lowlevel import Server
 from mcp.server.stdio import stdio_server
 
-from audisor.audisor_lifecycle.active_state import (
-    default_state_root,
-    read_active_state,
+from audisor.audisor_lifecycle.artifact_flow import (
+    PersistedResultError,
+    read_last_result,
+    run_artifact_lifecycle,
 )
-from audisor.audisor_lifecycle.adapter import verify_contract
-from audisor.audisor_lifecycle.contract import AudisorLifecycleError, verify_lock
-from audisor.audisor_lifecycle.hook import verify_active_state
-from audisor.audisor_lifecycle.review_contract import review_and_lock
-from audisor.operations.store import AudisorOperationStore
 
 _INSTRUCTIONS = (
-    "A-Flow plan review and execution-state tools. "
-    "aflow_review requires a complete structured analysis request. "
-    "aflow_status reports the current active execution state."
+    "Canonical A-Flow artifact lifecycle tools. Submit a completed artifact "
+    "draft with aflow_submit_artifact; the runtime runs gap finding, gap "
+    "fixing, the unresolved-gap barrier, evaluation, success criteria, and "
+    "fixture design in fixed order and returns the result. Use "
+    "aflow_last_result to reattach to the most recent persisted result."
 )
 
 
@@ -54,277 +50,182 @@ def _schema(properties: dict[str, Any], required: list[str]) -> dict[str, Any]:
     }
 
 
+_SUBMIT_REQUIRED = ["artifact_id", "artifact_type", "status", "content", "intent", "context"]
+
+# Mirrors the minLength: 1 constraints in aflow-artifact-trigger.schema.json.
+_SUBMIT_NON_EMPTY = ["artifact_id", "artifact_type", "status"]
+
 _TOOLS: list[types.Tool] = [
     types.Tool(
-        name="aflow_review",
+        name="aflow_submit_artifact",
         description=(
-            "Review a complete A-Flow analysis request. On a clean decision, "
-            "creates the execution contract, primary lock, and active state. "
-            "Requires complete structured input; raw plan text is not accepted."
+            "Run one A-Flow artifact review cycle. Only status "
+            "'draft_complete' with non-empty content runs the lifecycle; "
+            "anything else returns a skip. Result status is exactly one of "
+            "improved | unresolved_gap | skip | error. On unresolved_gap, "
+            "report the listed requirements to the user; on improved, the "
+            "handoff package carries the improved artifact, success "
+            "criteria, and fixture cases."
         ),
         inputSchema=_schema(
             {
-                "analysis_request": {
-                    "type": "object",
-                    "description": "Complete schema-v1 analysis request (8 fields).",
-                },
-                "accepted_task_input": {
-                    "type": "object",
-                    "description": "Task input for contract assembly.",
-                },
-                "candidate_implementation_plan": {
-                    "type": "object",
-                    "description": "Plan with all 7 PLAN_SECTIONS.",
-                },
-                "authority": {
-                    "type": "object",
-                    "description": "Authority mapping (allowed_paths, prohibited_paths, etc.).",
-                },
-                "baseline_evidence": {
-                    "description": "Baseline evidence for contract assembly.",
-                },
-                "accepted_constraints": {
-                    "description": "Constraints for contract assembly.",
-                },
-                "required_outputs": {
-                    "description": "Required outputs for contract assembly.",
-                },
-                "operation_id": {
+                "artifact_id": {
                     "type": "string",
-                    "description": "Caller-supplied operation identifier.",
+                    "minLength": 1,
+                    "description": "Stable identifier for this artifact.",
                 },
-                "state_root": {
-                    "type": ["string", "null"],
-                    "description": "Optional state directory path.",
+                "artifact_type": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Kind of artifact, e.g. plan, design, spec.",
+                },
+                "status": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Artifact state; only 'draft_complete' triggers a cycle.",
+                },
+                "content": {
+                    "type": "string",
+                    "description": "Full artifact text to review.",
+                },
+                "intent": {
+                    "type": "string",
+                    "description": "What the artifact is meant to achieve.",
+                },
+                "context": {
+                    "type": "string",
+                    "description": "Repository facts, constraints, and decisions relevant to review.",
                 },
             },
-            [
-                "analysis_request",
-                "accepted_task_input",
-                "candidate_implementation_plan",
-                "authority",
-                "baseline_evidence",
-                "accepted_constraints",
-                "required_outputs",
-                "operation_id",
-            ],
+            _SUBMIT_REQUIRED,
         ),
     ),
     types.Tool(
-        name="aflow_status",
+        name="aflow_last_result",
         description=(
-            "Report the current active execution state. Independently "
-            "recomputes lock, contract, readiness, and drift validity. "
-            "Optionally reports operation store state for a given operation_id."
+            "Return the most recent persisted lifecycle result for an "
+            "artifact_id, for reattaching after a client timeout."
         ),
         inputSchema=_schema(
             {
-                "state_root": {
-                    "type": ["string", "null"],
-                    "description": "Optional state directory path.",
-                },
-                "operation_id": {
-                    "type": ["string", "null"],
-                    "description": "Optional operation ID to query from the operation store.",
+                "artifact_id": {
+                    "type": "string",
+                    "description": "Artifact identifier used at submission.",
                 },
             },
-            [],
+            ["artifact_id"],
         ),
     ),
 ]
 
 
-def _resolve_state_root(arguments: dict[str, Any] | None) -> Path:
-    """Resolve state root from environment (authoritative) or arguments.
-
-    Raises:
-        ValueError: If both env and tool argument specify different roots.
-    """
-    env = os.environ.get("AUDISOR_STATE_ROOT") or os.environ.get("AFLOW_STATE_ROOT")
-    explicit = arguments.get("state_root") if arguments else None
-    if env and explicit and Path(explicit) != Path(env):
-        raise ValueError(
-            f"state_root conflict: env={env!r} vs argument={explicit!r}; "
-            "environment is authoritative"
-        )
-    if env:
-        return Path(env)
-    if explicit:
-        return Path(explicit)
-    return default_state_root()
-
-
-def _dispatch_review(arguments: dict[str, Any]) -> dict[str, Any]:
-    """Handle aflow_review tool call."""
-    try:
-        state_root = _resolve_state_root(arguments)
-    except ValueError as exc:
-        return {
-            "status": "blocked",
-            "decision": "error",
-            "blocking": True,
-            "execution_ready": False,
-            "findings": [],
-            "lock_state": {"present": False, "valid": False},
-            "contract_sha256": None,
-            "state_path": None,
-            "operation_id": arguments.get("operation_id", ""),
-            "error": {"code": "state_root_conflict", "detail": str(exc)},
-        }
-    try:
-        result = review_and_lock(
-            analysis_request=arguments["analysis_request"],
-            accepted_task_input=arguments["accepted_task_input"],
-            candidate_implementation_plan=arguments["candidate_implementation_plan"],
-            authority=arguments["authority"],
-            baseline_evidence=arguments["baseline_evidence"],
-            accepted_constraints=arguments["accepted_constraints"],
-            required_outputs=arguments["required_outputs"],
-            operation_id=arguments["operation_id"],
-            state_root=state_root,
-        )
-        return result
-    except AudisorLifecycleError as exc:
-        return {
-            "status": "blocked",
-            "decision": "error",
-            "blocking": True,
-            "execution_ready": False,
-            "findings": [],
-            "lock_state": {"present": False, "valid": False},
-            "contract_sha256": None,
-            "state_path": None,
-            "operation_id": arguments.get("operation_id", ""),
-            "error": {"code": "lifecycle_error", "detail": str(exc)},
-        }
-    except Exception as exc:
-        return {
-            "status": "blocked",
-            "decision": "error",
-            "blocking": True,
-            "execution_ready": False,
-            "findings": [],
-            "lock_state": {"present": False, "valid": False},
-            "contract_sha256": None,
-            "state_path": None,
-            "operation_id": arguments.get("operation_id", ""),
-            "error": {"code": "internal_error", "detail": f"{type(exc).__name__}: {exc}"},
-        }
-
-
-def _dispatch_status(arguments: dict[str, Any] | None) -> dict[str, Any]:
-    """Handle aflow_status tool call."""
-    try:
-        state_root = _resolve_state_root(arguments)
-    except ValueError as exc:
+def _reject_unknown(arguments: dict[str, Any], allowed: set[str]) -> dict[str, Any] | None:
+    """Runtime unknown-property rejection, independent of client-side schema use."""
+    unknown = sorted(set(arguments) - allowed)
+    if unknown:
         return {
             "status": "error",
-            "lock_present": False,
-            "lock_valid": False,
-            "contract_valid": False,
-            "readiness": None,
-            "drift_valid": False,
-            "error": {"code": "state_root_conflict", "detail": str(exc)},
+            "stage": "input_validation",
+            "detail": f"unknown properties: {', '.join(unknown)}",
         }
-    try:
-        state = read_active_state(state_root)
-    except AudisorLifecycleError as exc:
+    return None
+
+
+def _dispatch_submit(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Handle aflow_submit_artifact tool call."""
+    rejection = _reject_unknown(arguments, set(_SUBMIT_REQUIRED))
+    if rejection:
+        return rejection
+    missing = sorted(name for name in _SUBMIT_REQUIRED if name not in arguments)
+    if missing:
         return {
             "status": "error",
-            "lock_present": False,
-            "lock_valid": False,
-            "contract_valid": False,
-            "readiness": None,
-            "drift_valid": False,
-            "error": str(exc),
+            "stage": "input_validation",
+            "detail": f"missing properties: {', '.join(missing)}",
+        }
+    non_string = sorted(
+        name for name in _SUBMIT_REQUIRED if not isinstance(arguments[name], str)
+    )
+    if non_string:
+        return {
+            "status": "error",
+            "stage": "input_validation",
+            "detail": f"properties must be strings: {', '.join(non_string)}",
+        }
+    empty = sorted(name for name in _SUBMIT_NON_EMPTY if not arguments[name])
+    if empty:
+        return {
+            "status": "error",
+            "stage": "input_validation",
+            "detail": f"properties must be non-empty: {', '.join(empty)}",
+        }
+    try:
+        return run_artifact_lifecycle(arguments)
+    except Exception as exc:  # defensive: the engine already bounds worker errors
+        return {
+            "status": "error",
+            "stage": "lifecycle",
+            "detail": f"{type(exc).__name__}: {exc}",
         }
 
-    if state is None:
-        result: dict[str, Any] = {
-            "status": "ok",
-            "lock_present": False,
-            "lock_valid": False,
-            "contract_valid": False,
-            "readiness": None,
-            "drift_valid": False,
+
+def _dispatch_last_result(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Handle aflow_last_result tool call."""
+    rejection = _reject_unknown(arguments, {"artifact_id"})
+    if rejection:
+        return rejection
+    artifact_id = arguments.get("artifact_id")
+    if not isinstance(artifact_id, str) or not artifact_id.strip():
+        return {
+            "status": "error",
+            "stage": "input_validation",
+            "detail": "artifact_id must be a non-empty string",
         }
-    else:
-        # Independently recompute validity
-        lock = state.get("primary_lock")
-        contract = state.get("execution_contract")
-        lock_valid = isinstance(lock, dict) and verify_lock(lock)
-        contract_valid = isinstance(contract, dict) and verify_contract(contract)
-        drift_valid = state.get("drift_state") == "valid"
-
-        # Full envelope verification
-        envelope_valid, reason, verified_contract = verify_active_state(state)
-
-        readiness = None
-        if isinstance(contract, dict):
-            readiness_obj = contract.get("readiness")
-            if isinstance(readiness_obj, dict):
-                readiness = readiness_obj.get("aflow_decision")
-
-        result = {
-            "status": "ok",
-            "lock_present": True,
-            "lock_valid": lock_valid,
-            "contract_valid": contract_valid,
-            "readiness": readiness,
-            "drift_valid": drift_valid,
-            "envelope_valid": envelope_valid,
-            "operation_id": state.get("operation_id"),
+    try:
+        result = read_last_result(artifact_id)
+    except PersistedResultError as exc:
+        # Corrupt or incomplete persisted state is a bounded structured
+        # error, never silently treated as a completed outcome.
+        return {
+            "status": "error",
+            "stage": "persisted_state",
+            "detail": str(exc),
+            "artifact_id": artifact_id,
+            "state_path": exc.state_path,
+            "failure": exc.failure,
         }
-
-    # Query operation store if operation_id is provided
-    if arguments:
-        op_id = arguments.get("operation_id")
-        if op_id:
-            try:
-                op_store = AudisorOperationStore(state_root / "operations")
-                op_state = op_store.get(op_id)
-                if op_state is not None:
-                    result["operation_state"] = op_state.to_mapping()
-                else:
-                    result["operation_state"] = None
-            except (OSError, json.JSONDecodeError, KeyError) as exc:
-                result["operation_state"] = None
-                result["operation_store_error"] = {
-                    "code": "store_unreadable",
-                    "detail": f"{type(exc).__name__}: {exc}",
-                }
-
-    return result
+    if result is None:
+        return {
+            "status": "error",
+            "stage": "last_result",
+            "detail": f"no persisted result for artifact_id {artifact_id!r}",
+        }
+    return dict(result)
 
 
 def _dispatch(name: str, arguments: dict[str, Any] | None) -> dict[str, Any]:
     """Route a tool call to the appropriate handler."""
-    if name == "aflow_submit_plan":
-        # Retired compatibility bridge: it fabricated a non-conforming
-        # analysis request from bare plan text (all eight schema-v1 fields
-        # missing or wrong) and its every submission was rejected at
-        # admission. Synthesizing the evidence fields server-side would be
-        # fabricated evidence, so the tool is retired, not repaired.
-        return {
-            "status": "blocked",
-            "error": {
-                "code": "tool_retired",
-                "detail": (
-                    "aflow_submit_plan is retired: it constructed a "
-                    "non-conforming analysis request and could not honestly "
-                    "synthesize schema-v1 evidence from plan text alone. "
-                    "Use aflow_review with a complete 8-field analysis "
-                    "request, or an external plan-qualification surface."
-                ),
-            },
-        }
-    if name == "aflow_review":
+    if name == "aflow_submit_artifact":
         if not arguments:
-            return {"status": "blocked", "error": {"code": "missing_arguments", "detail": "arguments required"}}
-        return _dispatch_review(arguments)
-    if name == "aflow_status":
-        return _dispatch_status(arguments)
-    return {"status": "blocked", "error": {"code": "unknown_tool", "detail": f"unknown tool: {name}"}}
+            return {
+                "status": "error",
+                "stage": "input_validation",
+                "detail": "arguments required",
+            }
+        return _dispatch_submit(arguments)
+    if name == "aflow_last_result":
+        if not arguments:
+            return {
+                "status": "error",
+                "stage": "input_validation",
+                "detail": "arguments required",
+            }
+        return _dispatch_last_result(arguments)
+    return {
+        "status": "error",
+        "stage": "dispatch",
+        "detail": f"unknown tool: {name}",
+    }
 
 
 def create_server() -> Server:
@@ -337,7 +238,7 @@ def create_server() -> Server:
 
     @server.call_tool()
     async def handle_call_tool(name: str, arguments: dict[str, Any] | None) -> list[types.TextContent]:
-        result = _dispatch(name, arguments)
+        result = await asyncio.to_thread(_dispatch, name, arguments)
         return [types.TextContent(type="text", text=json.dumps(result, ensure_ascii=False, indent=2))]
 
     return server

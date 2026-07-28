@@ -16,7 +16,6 @@ from audisor.audisor_lifecycle.contract import (
     verify_lock,
     write_lock,
 )
-from audisor.audisor_lifecycle.hook import default_state_root, evaluate_hook_payload
 
 
 def analysis(*, state: str = "no_material_gap", ready: bool = True, gaps: list[object] | None = None) -> dict:
@@ -129,20 +128,6 @@ def test_material_deviation_requires_a_new_analysis_lock() -> None:
 def test_malformed_analysis_fails_closed() -> None:
     with pytest.raises(AudisorLifecycleError):
         accept_for_primary({"decision": {"aflow_decision": "no_material_gap", "plan_ready_for_primary_decision": True}})
-
-
-def test_pretool_hook_denies_mutation_without_lock(tmp_path: Path) -> None:
-    result = evaluate_hook_payload({"tool_name": "ApplyPatch", "tool_input": {}}, tmp_path)
-    assert result["decision"] == "deny"
-
-
-def test_pretool_hook_allows_read_only_work_without_lock(tmp_path: Path) -> None:
-    result = evaluate_hook_payload({"tool_name": "Bash", "tool_input": {"command": "git status --short"}}, tmp_path)
-    assert result["decision"] == "allow"
-
-
-def test_hook_default_state_root_is_project_scoped() -> None:
-    assert default_state_root() == Path(__file__).resolve().parents[3] / ".codex" / "audisor-state"
 
 
 def test_post_build_evaluation_runs_before_completion() -> None:
