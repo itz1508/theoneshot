@@ -119,6 +119,13 @@ jobs:
           uv pip install --python openai_project/runtime/.venv -e audisor_backend
           uv run --directory openai_project/runtime --locked pytest ../../audisor_backend/tests -q
 
+      - name: Install ripgrep
+        if: matrix.name == 'toolkit'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ripgrep
+          rg --version
+
       - name: Test Toolkit
         if: matrix.name == 'toolkit'
         run: uv run --directory audisor/backend --locked --extra dev pytest -q
