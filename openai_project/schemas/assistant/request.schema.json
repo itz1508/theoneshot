@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://audisor.local/schemas/assistant/request.schema.json",
+  "title": "Audisor assistant request",
+  "description": "Body of POST /v1/assistant/requests. Unknown fields are rejected; credentials never travel in the body and provider selection is never client-controlled.",
+  "type": "object",
+  "required": ["request_id", "mode", "text"],
+  "additionalProperties": false,
+  "properties": {
+    "request_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "Client-generated identifier echoed back in the response."
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "fix_wording",
+        "draft_three_replies",
+        "translate_slang_jargon",
+        "teach_clearly",
+        "expand_idea",
+        "visualize_design"
+      ]
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 20000,
+      "description": "Primary user text the mode operates on."
+    },
+    "selected_text": {
+      "type": ["string", "null"],
+      "maxLength": 1000,
+      "description": "User-selected span; required by translate_slang_jargon."
+    },
+    "context": {
+      "type": ["string", "null"],
+      "maxLength": 8000,
+      "description": "Optional surrounding context."
+    },
+    "tone": {
+      "type": ["string", "null"],
+      "maxLength": 200,
+      "description": "Optional tone hint to preserve."
+    },
+    "workspace_id": {
+      "type": ["string", "null"],
+      "maxLength": 128,
+      "description": "Opaque workspace identifier."
+    }
+  }
+}

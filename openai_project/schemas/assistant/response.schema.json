@@ -1,0 +1,244 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://audisor.local/schemas/assistant/response.schema.json",
+  "title": "Audisor assistant response envelope",
+  "description": "Response of POST /v1/assistant/requests. The result payload is one of the per-mode contracts, a selection-required notice, or a sanitized error object. Responses never contain credentials, raw provider payloads, stack traces, hidden prompts, or filesystem paths.",
+  "type": "object",
+  "required": ["request_id", "mode", "status", "result", "warnings", "uncertainty"],
+  "additionalProperties": false,
+  "properties": {
+    "request_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "fix_wording",
+        "draft_three_replies",
+        "translate_slang_jargon",
+        "teach_clearly",
+        "expand_idea",
+        "visualize_design"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "enum": ["completed", "uncertainty", "failed"]
+    },
+    "result": {
+      "oneOf": [
+        { "$ref": "#/$defs/fixWordingResult" },
+        { "$ref": "#/$defs/draftThreeRepliesResult" },
+        { "$ref": "#/$defs/translateSlangJargonResult" },
+        { "$ref": "#/$defs/teachClearlyResult" },
+        { "$ref": "#/$defs/expandIdeaResult" },
+        { "$ref": "#/$defs/visualizeDesignResult" },
+        { "$ref": "#/$defs/selectionRequiredResult" },
+        { "$ref": "#/$defs/errorResult" }
+      ]
+    },
+    "warnings": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "provider": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "required": ["id", "source"],
+          "additionalProperties": false,
+          "properties": {
+            "id": { "type": "string", "minLength": 1 },
+            "source": { "type": "string", "enum": ["local", "cloud"] }
+          }
+        }
+      ]
+    },
+    "usage": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        }
+      ]
+    },
+    "engine": {
+      "description": "Execution engine that produced the result (fix_wording only). Null when no engine selection applies.",
+      "oneOf": [
+        { "type": "null" },
+        { "type": "string", "enum": ["model", "languagetool"] }
+      ]
+    },
+    "fallback_used": {
+      "description": "True when the configured engine failed and the fallback engine served the request.",
+      "type": "boolean"
+    },
+    "fallback_reason": {
+      "description": "Sanitized reason the fallback engine was used; empty when fallback_used is false.",
+      "type": "string"
+    },
+    "uncertainty": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "$defs": {
+    "fixWordingResult": {
+      "type": "object",
+      "required": ["corrected_text"],
+      "additionalProperties": false,
+      "properties": {
+        "corrected_text": { "type": "string" },
+        "result_kind": {
+          "description": "Semantic shape of this result: produced by a language model or assembled from LanguageTool matches.",
+          "type": "string",
+          "enum": ["model", "languagetool"]
+        },
+        "changes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["original", "correction", "reason"],
+            "additionalProperties": false,
+            "properties": {
+              "original": { "type": "string" },
+              "correction": { "type": "string" },
+              "reason": { "type": "string" },
+              "intentional_possible": { "type": "boolean" },
+              "offset": {
+                "description": "0-based character offset of the issue in the submitted text (grammar-checker results).",
+                "oneOf": [{ "type": "null" }, { "type": "integer", "minimum": 0 }]
+              },
+              "length": {
+                "description": "Length in characters of the flagged span (grammar-checker results).",
+                "oneOf": [{ "type": "null" }, { "type": "integer", "minimum": 0 }]
+              },
+              "rule_id": {
+                "description": "Grammar-checker rule identifier; empty for model-produced changes.",
+                "type": "string"
+              },
+              "replacements": {
+                "description": "Alternative replacements offered for the flagged span.",
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            }
+          }
+        },
+        "no_changes_needed": { "type": "boolean" },
+        "inferred_intent": { "type": "string" },
+        "tone": { "type": "string" },
+        "context": { "type": "string" },
+        "assumptions": { "type": "array", "items": { "type": "string" } },
+        "uncertainty": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "draftThreeRepliesResult": {
+      "type": "object",
+      "required": ["in_short", "brief", "thorough", "diplomatic", "message_purpose", "tone"],
+      "additionalProperties": false,
+      "properties": {
+        "in_short": { "type": "string" },
+        "brief": { "type": "string" },
+        "thorough": { "type": "string" },
+        "diplomatic": { "type": "string" },
+        "message_purpose": { "type": "string" },
+        "tone": { "type": "string" },
+        "uncertainty": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "translateSlangJargonResult": {
+      "type": "object",
+      "required": ["term", "professional_translation", "plain_meaning", "origin_context", "example"],
+      "additionalProperties": false,
+      "properties": {
+        "term": { "type": "string" },
+        "professional_translation": { "type": "string" },
+        "plain_meaning": { "type": "string" },
+        "origin_context": { "type": "string" },
+        "usage_notes": { "type": "array", "items": { "type": "string" } },
+        "example": {
+          "type": "object",
+          "required": ["original", "professional"],
+          "additionalProperties": false,
+          "properties": {
+            "original": { "type": "string" },
+            "professional": { "type": "string" }
+          }
+        }
+      }
+    },
+    "selectionRequiredResult": {
+      "type": "object",
+      "required": ["selection_required", "message"],
+      "additionalProperties": false,
+      "properties": {
+        "selection_required": { "const": true },
+        "message": { "type": "string" }
+      }
+    },
+    "teachClearlyResult": {
+      "type": "object",
+      "required": ["basics", "why_this_matters"],
+      "additionalProperties": false,
+      "properties": {
+        "basics": { "type": "string" },
+        "building_from_there": { "type": "array", "items": { "type": "string" } },
+        "key_insights": { "type": "array", "items": { "type": "string" } },
+        "common_misconceptions": { "type": "array", "items": { "type": "string" } },
+        "why_this_matters": { "type": "string" },
+        "check_your_understanding": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "expandIdeaResult": {
+      "type": "object",
+      "required": ["expanded_text", "preserved_intent"],
+      "additionalProperties": false,
+      "properties": {
+        "expanded_text": { "type": "string" },
+        "preserved_intent": { "type": "string" },
+        "added_assumptions": { "type": "array", "items": { "type": "string" } },
+        "uncertainty": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "visualizeDesignResult": {
+      "type": "object",
+      "required": ["diagram_code", "summary", "builder_prompt"],
+      "additionalProperties": false,
+      "properties": {
+        "diagram_code": { "type": "string" },
+        "summary": { "type": "string" },
+        "builder_prompt": { "type": "string" },
+        "warnings": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "errorResult": {
+      "type": "object",
+      "required": ["error"],
+      "additionalProperties": false,
+      "properties": {
+        "error": {
+          "type": "object",
+          "required": ["category", "message"],
+          "additionalProperties": false,
+          "properties": {
+            "category": {
+              "type": "string",
+              "enum": [
+                "configuration",
+                "unavailable",
+                "timeout",
+                "authentication",
+                "rate_limited",
+                "invalid_response",
+                "unsupported",
+                "internal"
+              ]
+            },
+            "message": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}
