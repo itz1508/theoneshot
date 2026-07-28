@@ -2,6 +2,66 @@
   "entries": [
     {
       "metric": "symbol_span",
+      "path": "audisor/backend/recheck/clean_install_proof.py",
+      "symbol": "main",
+      "value": 78
+    },
+    {
+      "metric": "symbol_span",
+      "path": "audisor/backend/recheck/clean_installed_mcp_proof.py",
+      "symbol": "main",
+      "value": 78
+    },
+    {
+      "metric": "symbol_span",
+      "path": "audisor/backend/recheck/cli_readonly_proof.py",
+      "symbol": "main",
+      "value": 133
+    },
+    {
+      "metric": "symbol_span",
+      "path": "audisor/backend/recheck/codex_registration_proof.py",
+      "symbol": "main",
+      "value": 106
+    },
+    {
+      "metric": "symbol_span",
+      "path": "audisor/backend/recheck/evidence_bundle_proof.py",
+      "symbol": "main",
+      "value": 79
+    },
+    {
+      "metric": "symbol_span",
+      "path": "audisor/backend/recheck/mcp_recheck_proof.py",
+      "symbol": "_run",
+      "value": 148
+    },
+    {
+      "metric": "symbol_span",
+      "path": "audisor/backend/src/audisor/cli.py",
+      "symbol": "main",
+      "value": 79
+    },
+    {
+      "metric": "symbol_span",
+      "path": "audisor/backend/src/audisor/replay.py",
+      "symbol": "replay_inspection",
+      "value": 71
+    },
+    {
+      "metric": "symbol_span",
+      "path": "audisor/backend/src/audisor/scanner.py",
+      "symbol": "scan_report",
+      "value": 72
+    },
+    {
+      "metric": "symbol_span",
+      "path": "audisor/backend/src/audisor/trace.py",
+      "symbol": "trace_inspection",
+      "value": 131
+    },
+    {
+      "metric": "symbol_span",
       "path": "audisor_backend/adapters/aflow_fix.py",
       "symbol": "_success_definition_from_json",
       "value": 78

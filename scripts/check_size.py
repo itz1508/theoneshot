@@ -16,7 +16,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
-SCAN_ROOTS = ("openai_project", "audisor_backend", "local-server", "packaging", "scripts")
+SCAN_ROOTS = ("openai_project", "audisor_backend", "audisor/backend", "local-server", "packaging", "scripts")
 EXCLUDED_PARTS = frozenset(
     {".venv", "venv", "node_modules", "__pycache__", ".git", ".pytest_cache",
      "build", "dist", ".eggs"}

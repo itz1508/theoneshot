@@ -236,3 +236,26 @@ class TestDeterminism:
         assert code == 0
         assert "vendor.py" not in out
         assert "cached.py" not in out
+
+
+class TestAudisorBackendDiscovery:
+    """Prove audisor/backend is discovered by the size checker."""
+
+    def test_audisor_backend_violations_discovered(self, tmp_path, capsys):
+        """Violations under audisor/backend are discovered."""
+        # Create a file that exceeds the hard limit
+        _write(tmp_path / "audisor" / "backend" / "src" / "oversized.py", 600)
+        paths = _config(tmp_path)
+        code, out = _run(tmp_path, *paths, capsys, extra=["--scan-root", "audisor/backend"])
+        assert "oversized.py" in out
+        assert "physical_lines=600" in out
+
+    def test_audisor_backend_excluded_parts_respected(self, tmp_path, capsys):
+        """Excluded parts under audisor/backend are skipped."""
+        _write(tmp_path / "audisor" / "backend" / ".venv" / "vendor.py", 900)
+        _write(tmp_path / "audisor" / "backend" / "__pycache__" / "cached.py", 900)
+        paths = _config(tmp_path)
+        code, out = _run(tmp_path, *paths, capsys, extra=["--scan-root", "audisor/backend"])
+        assert code == 0
+        assert "vendor.py" not in out
+        assert "cached.py" not in out
