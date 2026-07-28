@@ -129,3 +129,31 @@ jobs:
       - name: Test Toolkit
         if: matrix.name == 'toolkit'
         run: uv run --directory audisor/backend --locked --extra dev pytest -q
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main repository
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install web dependencies
+        run: npm ci
+        working-directory: web
+
+      - name: Typecheck web
+        run: npm run typecheck
+        working-directory: web
+
+      - name: Test web
+        run: npm test
+        working-directory: web
