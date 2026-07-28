@@ -1,0 +1,336 @@
+{
+  "matrix_version": 1,
+  "notes": [
+    "Built from repository evidence after the behaviour-preserving refactor of artifact_flow.py.",
+    "Old import path is the historical defining module (artifact_flow); the new implementation path is the capability module that now owns the symbol.",
+    "A retained compatibility export of 'yes' means the symbol is re-imported into artifact_flow so legacy importers keep working.",
+    "Callers are enumerated from direct repository evidence: package __init__, aflow_mcp_server, manifest_builder, and the lifecycle test suite.",
+    "The companion test test_public_import_smoke.py imports every row from both the old and new paths; the compatibility-manifest fixture test exercises the full attribute surface via manifest_builder."
+  ],
+  "symbols": [
+    {
+      "symbol": "run_artifact_lifecycle",
+      "old_path": "audisor.audisor_lifecycle.artifact_flow",
+      "new_path": "audisor.audisor_lifecycle.artifact_flow",
+      "retained_export": true,
+      "callers": [
+        "audisor.audisor_lifecycle.__init__",
+        "audisor.aflow_mcp_server",
+        "tests.audisor_lifecycle.manifest_builder",
+        "tests.audisor_lifecycle (multiple test modules)"
+      ],
+      "validation": "tests.audisor_lifecycle.test_compatibility_manifest; tests.audisor_lifecycle.test_public_import_smoke"
+    },
+    {
+      "symbol": "LocalStageWorker",
+      "old_path": "audisor.audisor_lifecycle.artifact_flow",
+      "new_path": "audisor.audisor_lifecycle.stage_worker",
+      "retained_export": true,
+      "callers": [
+        "audisor.audisor_lifecycle.__init__",
+        "tests.audisor_lifecycle.test_artifact_stage_execution"
+      ],
+      "validation": "tests.audisor_lifecycle.test_compatibility_manifest; tests.audisor_lifecycle.test_public_import_smoke"
+    },
+    {
+      "symbol": "StageWorker",
+      "old_path": "audisor.audisor_lifecycle.artifact_flow",
+      "new_path": "audisor.audisor_lifecycle.stage_contracts",
+      "retained_export": true,
+      "callers": ["audisor.audisor_lifecycle.__init__"],
+      "validation": "tests.audisor_lifecycle.test_compatibility_manifest; tests.audisor_lifecycle.test_public_import_smoke"
+    },
+    {
+      "symbol": "StageOutputError",
+      "old_path": "audisor.audisor_lifecycle.artifact_flow",
+      "new_path": "audisor.audisor_lifecycle.stage_contracts",
+      "retained_export": true,
+      "callers": ["audisor.audisor_lifecycle.__init__", "tests.audisor_lifecycle.test_artifact_stage_execution (inline)"],
+      "validation": "tests.audisor_lifecycle.test_compatibility_manifest; tests.audisor_lifecycle.test_public_import_smoke"
+    },
+    {
+      "symbol": "PersistedResultError",
+      "old_path": "audisor.audisor_lifecycle.artifact_flow",
+      "new_path": "audisor.audisor_lifecycle.persistence",
+      "retained_export": true,
+      "callers": [
+        "audisor.audisor_lifecycle.__init__",
+        "audisor.aflow_mcp_server",
+        "tests.audisor_lifecycle.test_artifact_persistence"
+      ],
+      "validation": "tests.audisor_lifecycle.test_compatibility_manifest; tests.audisor_lifecycle.test_public_import_smoke"
+    },
+    {
+      "symbol": "read_last_result",
+      "old_path": "audisor.audisor_lifecycle.artifact_flow",
+      "new_path": "audisor.audisor_lifecycle.persistence",
+      "retained_export": true,
+      "callers": [
+        "audisor.audisor_lifecycle.__init__",
+        "audisor.aflow_mcp_server",
+        "tests.audisor_lifecycle (persistence, output_repair, stage_execution)"
+      ],
+      "validation": "tests.audisor_lifecycle.test_compatibility_manifest; tests.audisor_lifecycle.test_public_import_smoke"
+    },
+    {
+      "symbol": "_submission_digest",
+      "old_path": "audisor.audisor_lifecycle.artifact_flow",
+      "new_path": "audisor.audisor_lifecycle.identity",
+      "retained_export": true,
+      "callers": [
+        "tests.audisor_lifecycle.manifest_builder (flow._submission_digest attribute access)",
+        "tests.audisor_lifecycle.test_artifact_active_runs (direct import)",
+        "tests.audisor_lifecycle.test_artifact_result_schema (direct import)"
+      ],
+      "validation": "tests.audisor_lifecycle.test_compatibility_manifest; tests.audisor_lifecycle.test_public_import_smoke"
+    },
+    {
+      "symbol": "STAGES",
+      "old_path": "audisor.audisor_lifecycle.artifact_flow",
+      "new_path": "audisor.audisor_lifecycle.stage_contracts",
+      "retained_export": true,
+      "callers": ["audisor.audisor_lifecycle.__init__", "tests.audisor_lifecycle.manifest_builder"],
+      "validation": "tests.audisor_lifecycle.test_compatibility_manifest; tests.audisor_lifecycle.test_public_import_smoke"
+    },
+    {
+      "symbol": "RESULT_STATUSES",
+      "old_path": "audisor.audisor_lifecycle.artifact_flow",
+      "new_path": "audisor.audisor_lifecycle.stage_contracts",
+      "retained_export": true,
+      "callers": ["audisor.audisor_lifecycle.__init__", "tests.audisor_lifecycle.manifest_builder"],
+      "validation": "tests.audisor_lifecycle.test_compatibility_manifest; tests.audisor_lifecycle.test_public_import_smoke"
+    },
+    {
+      "symbol": "STAGE_OUTPUT_SCHEMAS",
+      "old_path": "audisor.audisor_lifecycle.artifact_flow",
+      "new_path": "audisor.audisor_lifecycle.stage_contracts",
+      "retained_export": true,
+      "callers": ["tests.audisor_lifecycle.manifest_builder"],
+      "validation": "tests.audisor_lifecycle.test_compatibility_manifest; tests.audisor_lifecycle.test_public_import_smoke"
+    },
+    {
+      "symbol": "REPAIR_POLICY",
+      "old_path": "audisor.audisor_lifecycle.artifact_flow",
+      "new_path": "audisor.audisor_lifecycle.stage_contracts",
+      "retained_export": true,
+      "callers": ["tests.audisor_lifecycle.manifest_builder"],
+      "validation": "tests.audisor_lifecycle.test_compatibility_manifest; tests.audisor_lifecycle.test_public_import_smoke"
+    },
+    {
+      "symbol": "default_state_root",
+      "old_path": "audisor.audisor_lifecycle.artifact_flow",
+      "new_path": "audisor.audisor_lifecycle.persistence",
+      "retained_export": true,
+      "callers": [],
+      "validation": "tests.audisor_lifecycle.test_compatibility_manifest; tests.audisor_lifecycle.test_public_import_smoke"
+    },
+    {
+      "symbol": "_REPAIRABLE_STAGES",
+      "old_path": "audisor.audisor_lifecycle.artifact_flow",
+      "new_path": "audisor.audisor_lifecycle.stage_contracts",
+      "retained_export": true,
+      "callers": ["tests.audisor_lifecycle.manifest_builder (flow._REPAIRABLE_STAGES)"],
+      "validation": "tests.audisor_lifecycle.test_compatibility_manifest"
+    },
+    {
+      "symbol": "_MAX_REPAIRED_FIELDS",
+      "old_path": "audisor.audisor_lifecycle.artifact_flow",
+      "new_path": "audisor.audisor_lifecycle.stage_contracts",
+      "retained_export": true,
+      "callers": ["tests.audisor_lifecycle.manifest_builder (flow._MAX_REPAIRED_FIELDS)"],
+      "validation": "tests.audisor_lifecycle.test_compatibility_manifest"
+    },
+    {
+      "symbol": "_ACTIVE_RUN_TTL_SECONDS",
+      "old_path": "audisor.audisor_lifecycle.artifact_flow",
+      "new_path": "audisor.audisor_lifecycle.active_runs",
+      "retained_export": true,
+      "callers": ["tests.audisor_lifecycle.manifest_builder (flow._ACTIVE_RUN_TTL_SECONDS)"],
+      "validation": "tests.audisor_lifecycle.test_compatibility_manifest"
+    },
+    {
+      "symbol": "_sanitize_artifact_id",
+      "old_path": "audisor.audisor_lifecycle.artifact_flow",
+      "new_path": "audisor.audisor_lifecycle.persistence",
+      "retained_export": true,
+      "callers": ["tests.audisor_lifecycle.manifest_builder (flow._sanitize_artifact_id)"],
+      "validation": "tests.audisor_lifecycle.test_compatibility_manifest"
+    },
+    {
+      "symbol": "_content_digest",
+      "old_path": "audisor.audisor_lifecycle.artifact_flow",
+      "new_path": "audisor.audisor_lifecycle.identity",
+      "retained_export": true,
+      "callers": ["tests.audisor_lifecycle.manifest_builder (flow._content_digest)"],
+      "validation": "tests.audisor_lifecycle.test_compatibility_manifest"
+    },
+    {
+      "symbol": "_STAGE_INSTRUCTIONS",
+      "old_path": "audisor.audisor_lifecycle.artifact_flow",
+      "new_path": "audisor.audisor_lifecycle.stage_prompts",
+      "retained_export": true,
+      "callers": ["tests.audisor_lifecycle.manifest_builder (flow._STAGE_INSTRUCTIONS)"],
+      "validation": "tests.audisor_lifecycle.test_compatibility_manifest"
+    },
+    {
+      "symbol": "_STAGE_OUTPUT_EXAMPLES",
+      "old_path": "audisor.audisor_lifecycle.artifact_flow",
+      "new_path": "audisor.audisor_lifecycle.stage_prompts",
+      "retained_export": true,
+      "callers": ["tests.audisor_lifecycle.manifest_builder (flow._STAGE_OUTPUT_EXAMPLES)"],
+      "validation": "tests.audisor_lifecycle.test_compatibility_manifest"
+    },
+    {
+      "symbol": "_guard_active_run",
+      "old_path": "audisor.audisor_lifecycle.artifact_flow",
+      "new_path": "audisor.audisor_lifecycle.active_runs",
+      "retained_export": true,
+      "callers": ["audisor.audisor_lifecycle.artifact_flow (orchestrator)"],
+      "validation": "tests.audisor_lifecycle.test_artifact_active_runs"
+    },
+    {
+      "symbol": "_active_run_marker_path",
+      "old_path": "audisor.audisor_lifecycle.artifact_flow",
+      "new_path": "audisor.audisor_lifecycle.active_runs",
+      "retained_export": true,
+      "callers": ["audisor.audisor_lifecycle.artifact_flow (orchestrator)"],
+      "validation": "tests.audisor_lifecycle.test_artifact_active_runs"
+    },
+    {
+      "symbol": "_normalize_unresolved",
+      "old_path": "audisor.audisor_lifecycle.artifact_flow",
+      "new_path": "audisor.audisor_lifecycle.evaluation_repair",
+      "retained_export": true,
+      "callers": ["audisor.audisor_lifecycle.artifact_flow (compatibility re-export)"],
+      "validation": "tests.audisor_lifecycle.test_gap_synthesis; tests.audisor_lifecycle.test_evaluation_repair"
+    },
+    {
+      "symbol": "_evaluation_findings_as_unresolved",
+      "old_path": "audisor.audisor_lifecycle.artifact_flow",
+      "new_path": "audisor.audisor_lifecycle.evaluation_repair",
+      "retained_export": true,
+      "callers": ["audisor.audisor_lifecycle.evaluation_repair (_verify_repair)"],
+      "validation": "tests.audisor_lifecycle.test_evaluation_repair"
+    },
+    {
+      "symbol": "_refix_contract",
+      "old_path": "audisor.audisor_lifecycle.artifact_flow",
+      "new_path": "audisor.audisor_lifecycle.evaluation_repair",
+      "retained_export": true,
+      "callers": ["audisor.audisor_lifecycle.evaluation_repair (_run_repair_cycle)"],
+      "validation": "tests.audisor_lifecycle.test_evaluation_repair"
+    },
+    {
+      "symbol": "_run_repair_cycle",
+      "old_path": "audisor.audisor_lifecycle.artifact_flow",
+      "new_path": "audisor.audisor_lifecycle.evaluation_repair",
+      "retained_export": true,
+      "callers": ["audisor.audisor_lifecycle.artifact_flow (orchestrator)"],
+      "validation": "tests.audisor_lifecycle.test_evaluation_repair"
+    },
+    {
+      "symbol": "_unresolved_result",
+      "old_path": "audisor.audisor_lifecycle.artifact_flow",
+      "new_path": "audisor.audisor_lifecycle.evaluation_repair",
+      "retained_export": true,
+      "callers": ["audisor.audisor_lifecycle.evaluation_repair"],
+      "validation": "tests.audisor_lifecycle.test_gap_synthesis"
+    },
+    {
+      "symbol": "_canonical_content",
+      "old_path": "audisor.audisor_lifecycle.artifact_flow",
+      "new_path": "audisor.audisor_lifecycle.identity",
+      "retained_export": true,
+      "callers": ["audisor.audisor_lifecycle.identity (_submission_digest)"],
+      "validation": "tests.audisor_lifecycle.test_artifact_identity_and_replay"
+    },
+    {
+      "symbol": "_drop_empty_optionals",
+      "old_path": "audisor.audisor_lifecycle.artifact_flow",
+      "new_path": "audisor.audisor_lifecycle.output_processing",
+      "retained_export": true,
+      "callers": ["audisor.audisor_lifecycle.output_processing (_prune_to_schema)"],
+      "validation": "tests.audisor_lifecycle.test_artifact_output_repair"
+    },
+    {
+      "symbol": "_parse_json_object",
+      "old_path": "audisor.audisor_lifecycle.artifact_flow",
+      "new_path": "audisor.audisor_lifecycle.output_processing",
+      "retained_export": true,
+      "callers": ["audisor.audisor_lifecycle.output_processing"],
+      "validation": "tests.audisor_lifecycle.test_artifact_output_repair"
+    },
+    {
+      "symbol": "_prune_to_schema",
+      "old_path": "audisor.audisor_lifecycle.artifact_flow",
+      "new_path": "audisor.audisor_lifecycle.output_processing",
+      "retained_export": true,
+      "callers": ["audisor.audisor_lifecycle.stage_execution"],
+      "validation": "tests.audisor_lifecycle.test_artifact_output_repair"
+    },
+    {
+      "symbol": "_persist_result",
+      "old_path": "audisor.audisor_lifecycle.artifact_flow",
+      "new_path": "audisor.audisor_lifecycle.persistence",
+      "retained_export": true,
+      "callers": ["audisor.audisor_lifecycle.result_builder (_LifecycleRunState.finish)"],
+      "validation": "tests.audisor_lifecycle.test_artifact_persistence"
+    },
+    {
+      "symbol": "_LifecycleRunState",
+      "old_path": "audisor.audisor_lifecycle.artifact_flow",
+      "new_path": "audisor.audisor_lifecycle.result_builder",
+      "retained_export": true,
+      "callers": ["audisor.audisor_lifecycle.artifact_flow (orchestrator)"],
+      "validation": "tests.audisor_lifecycle.test_artifact_result_schema"
+    },
+    {
+      "symbol": "_EVIDENCE_BASIS",
+      "old_path": "audisor.audisor_lifecycle.artifact_flow",
+      "new_path": "audisor.audisor_lifecycle.stage_contracts",
+      "retained_export": true,
+      "callers": ["audisor.audisor_lifecycle.stage_contracts (internal)"],
+      "validation": "tests.audisor_lifecycle.test_compatibility_manifest"
+    },
+    {
+      "symbol": "_OPTIONAL_STRING_FIELDS",
+      "old_path": "audisor.audisor_lifecycle.artifact_flow",
+      "new_path": "audisor.audisor_lifecycle.stage_contracts",
+      "retained_export": true,
+      "callers": ["audisor.audisor_lifecycle.stage_contracts (internal)"],
+      "validation": "tests.audisor_lifecycle.test_compatibility_manifest"
+    },
+    {
+      "symbol": "_STAGE_VALIDATORS",
+      "old_path": "audisor.audisor_lifecycle.artifact_flow",
+      "new_path": "audisor.audisor_lifecycle.stage_contracts",
+      "retained_export": true,
+      "callers": ["audisor.audisor_lifecycle.stage_contracts (internal)"],
+      "validation": "tests.audisor_lifecycle.test_compatibility_manifest"
+    },
+    {
+      "symbol": "_UNRESOLVED_GAP_ITEM",
+      "old_path": "audisor.audisor_lifecycle.artifact_flow",
+      "new_path": "audisor.audisor_lifecycle.stage_contracts",
+      "retained_export": true,
+      "callers": ["audisor.audisor_lifecycle.stage_contracts (internal)"],
+      "validation": "tests.audisor_lifecycle.test_compatibility_manifest"
+    },
+    {
+      "symbol": "_call_with_timeout",
+      "old_path": "audisor.audisor_lifecycle.artifact_flow",
+      "new_path": "audisor.audisor_lifecycle.stage_execution",
+      "retained_export": true,
+      "callers": ["audisor.audisor_lifecycle.stage_execution (_execute_stage)"],
+      "validation": "tests.audisor_lifecycle.test_artifact_stage_execution"
+    },
+    {
+      "symbol": "_execute_stage",
+      "old_path": "audisor.audisor_lifecycle.artifact_flow",
+      "new_path": "audisor.audisor_lifecycle.stage_execution",
+      "retained_export": true,
+      "callers": ["audisor.audisor_lifecycle.artifact_flow (orchestrator)"],
+      "validation": "tests.audisor_lifecycle.test_artifact_stage_execution"
+    }
+  ]
+}

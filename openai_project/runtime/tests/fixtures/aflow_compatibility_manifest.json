@@ -1,0 +1,510 @@
+{
+  "active_run_ttl_seconds": 900.0,
+  "artifact_id_sanitisation": {
+    "plain": "artifact.test",
+    "specials": "a-b-c-d-e-f",
+    "truncated_length": 80
+  },
+  "canonicalisation": {
+    "crlf_digest": "1a48222cf7abb41fe994fc2a7b4a5eaec3f5290033d1ce6bd251a44a164e63e0",
+    "lf_digest": "1a48222cf7abb41fe994fc2a7b4a5eaec3f5290033d1ce6bd251a44a164e63e0",
+    "lf_equals_crlf": true,
+    "trailing_whitespace_differs": true,
+    "trailing_whitespace_digest": "80d75ea7c45b5438e6448ef5605b1fe4f961e7cd746bc7d9ac6f02384043e1e5"
+  },
+  "manifest_version": 1,
+  "max_repaired_fields": 8,
+  "persisted_filename_pattern": "{sanitized_artifact_id}-{UTC %Y%m%dT%H%M%S%fZ}.json",
+  "public_imports": [
+    "audisor.audisor_lifecycle.artifact_flow:LocalStageWorker",
+    "audisor.audisor_lifecycle.artifact_flow:PersistedResultError",
+    "audisor.audisor_lifecycle.artifact_flow:REPAIR_POLICY",
+    "audisor.audisor_lifecycle.artifact_flow:RESULT_STATUSES",
+    "audisor.audisor_lifecycle.artifact_flow:STAGES",
+    "audisor.audisor_lifecycle.artifact_flow:STAGE_OUTPUT_SCHEMAS",
+    "audisor.audisor_lifecycle.artifact_flow:StageOutputError",
+    "audisor.audisor_lifecycle.artifact_flow:StageWorker",
+    "audisor.audisor_lifecycle.artifact_flow:_submission_digest",
+    "audisor.audisor_lifecycle.artifact_flow:default_state_root",
+    "audisor.audisor_lifecycle.artifact_flow:read_last_result",
+    "audisor.audisor_lifecycle.artifact_flow:run_artifact_lifecycle",
+    "audisor.audisor_lifecycle:LocalStageWorker",
+    "audisor.audisor_lifecycle:PersistedResultError",
+    "audisor.audisor_lifecycle:RESULT_STATUSES",
+    "audisor.audisor_lifecycle:STAGES",
+    "audisor.audisor_lifecycle:StageOutputError",
+    "audisor.audisor_lifecycle:StageWorker",
+    "audisor.audisor_lifecycle:read_last_result",
+    "audisor.audisor_lifecycle:run_artifact_lifecycle"
+  ],
+  "repair_policy": "recorded-removal-v1",
+  "repairable_stages": [
+    "gap_finding",
+    "gap_fixing"
+  ],
+  "representative_results": {
+    "active_run_error": {
+      "artifact_id": "artifact.manifest",
+      "detail": "an identical submission is already running (lifecycle_run_id active123); reattach with aflow_last_result after it finishes",
+      "lifecycle_run_id": "active123",
+      "stage": "active_run",
+      "status": "error",
+      "submission_digest": "7132844bcea9a282985cce9076968c8f59b0231110b3db4510cdc262fdbaab30"
+    },
+    "corrupt_persisted_state_error": {
+      "artifact_id": "artifact.manifest",
+      "detail": "persisted result artifact.manifest-99991231T000000000000Z.json is corrupt: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)",
+      "failure": "corrupt",
+      "stage": "persisted_state",
+      "state_path": "<state-root>/artifacts/artifact.manifest-99991231T000000000000Z.json",
+      "status": "error"
+    },
+    "improved_after_repair_cycle": {
+      "artifact_id": "artifact.manifest",
+      "artifact_revision": 1,
+      "completed_at": "<timestamp>",
+      "content_digest": "c9f3252d0c450f24eeeaf8adbedc9eac16d354e69a948ab3363241ae3d31b0aa",
+      "evaluation": {
+        "findings": [],
+        "passed": true,
+        "summary": "coherent and feasible"
+      },
+      "evaluation_repair": {
+        "after_content_digest": "8a942843cd69bcbd10593c520c763ada8912eabf7e79c20fd2014e2dc4b5f05e",
+        "before_content_digest": "cfe1eff87f4d8498ee3cff66057d4b735b1e7c7447c54647ea66a37885ec8013",
+        "final_evaluation": {
+          "findings": [],
+          "passed": true,
+          "summary": "coherent and feasible"
+        },
+        "findings": [
+          {
+            "deficiency": "widget spec contradicts existing API",
+            "evidence": [],
+            "finding_id": "evaluation.1",
+            "required_correction": "align spec with API",
+            "success_condition": "spec matches the API contract"
+          }
+        ],
+        "gap_fixes": [
+          {
+            "fix": "aligned spec with API",
+            "gap": "widget spec contradicts existing API"
+          }
+        ]
+      },
+      "evaluation_repair_cycles": 1,
+      "fixture_cases": [
+        {
+          "criterion": "pytest green",
+          "expectation": "widget builds",
+          "name": "happy path"
+        }
+      ],
+      "gap_findings": [
+        {
+          "category": "missing",
+          "gap": "no rollout step"
+        }
+      ],
+      "gap_fixes": [
+        {
+          "fix": "added rollout step",
+          "gap": "no rollout step"
+        },
+        {
+          "fix": "aligned spec with API",
+          "gap": "widget spec contradicts existing API"
+        }
+      ],
+      "improved_artifact": "Build a widget with tests, documentation, rollout, and aligned API spec.",
+      "lifecycle_run_id": "<run-id>",
+      "original_artifact": "Build a widget with tests and documentation.",
+      "started_at": "<timestamp>",
+      "status": "improved",
+      "submission_digest": "7132844bcea9a282985cce9076968c8f59b0231110b3db4510cdc262fdbaab30",
+      "submission_disposition": "started",
+      "success_criteria": [
+        {
+          "criterion": "pytest green",
+          "validation": "uv run pytest exit code 0"
+        }
+      ]
+    },
+    "improved_zero_repair": {
+      "artifact_id": "artifact.manifest",
+      "artifact_revision": 1,
+      "completed_at": "<timestamp>",
+      "content_digest": "c9f3252d0c450f24eeeaf8adbedc9eac16d354e69a948ab3363241ae3d31b0aa",
+      "evaluation": {
+        "findings": [],
+        "passed": true,
+        "summary": "coherent and feasible"
+      },
+      "evaluation_repair_cycles": 0,
+      "fixture_cases": [
+        {
+          "criterion": "pytest green",
+          "expectation": "widget builds",
+          "name": "happy path"
+        }
+      ],
+      "gap_findings": [
+        {
+          "category": "missing",
+          "gap": "no rollout step"
+        }
+      ],
+      "gap_fixes": [
+        {
+          "fix": "added rollout step",
+          "gap": "no rollout step"
+        }
+      ],
+      "improved_artifact": "Build a widget with tests, documentation, and rollout.",
+      "lifecycle_run_id": "<run-id>",
+      "original_artifact": "Build a widget with tests and documentation.",
+      "started_at": "<timestamp>",
+      "status": "improved",
+      "submission_digest": "7132844bcea9a282985cce9076968c8f59b0231110b3db4510cdc262fdbaab30",
+      "submission_disposition": "started",
+      "success_criteria": [
+        {
+          "criterion": "pytest green",
+          "validation": "uv run pytest exit code 0"
+        }
+      ]
+    },
+    "malformed_stage_output_error": {
+      "artifact_id": "artifact.manifest",
+      "artifact_revision": 1,
+      "completed_at": "<timestamp>",
+      "content_digest": "c9f3252d0c450f24eeeaf8adbedc9eac16d354e69a948ab3363241ae3d31b0aa",
+      "detail": "worker output failed stage schema at $: 'fixes' is a required property",
+      "evaluation_repair_cycles": 0,
+      "lifecycle_run_id": "<run-id>",
+      "output_repaired": true,
+      "output_repairs": [
+        {
+          "removed_fields": [
+            {
+              "path": "$.unexpected",
+              "removed": "shape"
+            }
+          ],
+          "stage": "gap_fixing"
+        }
+      ],
+      "repair_policy": "recorded-removal-v1",
+      "stage": "gap_fixing",
+      "started_at": "<timestamp>",
+      "status": "error",
+      "submission_digest": "7132844bcea9a282985cce9076968c8f59b0231110b3db4510cdc262fdbaab30",
+      "submission_disposition": "started"
+    },
+    "recorded_output_repair": {
+      "artifact_id": "artifact.manifest",
+      "artifact_revision": 1,
+      "completed_at": "<timestamp>",
+      "content_digest": "c9f3252d0c450f24eeeaf8adbedc9eac16d354e69a948ab3363241ae3d31b0aa",
+      "evaluation": {
+        "findings": [],
+        "passed": true,
+        "summary": "coherent and feasible"
+      },
+      "evaluation_repair_cycles": 0,
+      "fixture_cases": [
+        {
+          "criterion": "pytest green",
+          "expectation": "widget builds",
+          "name": "happy path"
+        }
+      ],
+      "gap_findings": [
+        {
+          "category": "missing",
+          "gap": "no rollout step"
+        }
+      ],
+      "gap_fixes": [
+        {
+          "fix": "added rollout step",
+          "gap": "no rollout step"
+        }
+      ],
+      "improved_artifact": "Build a widget with tests, documentation, and rollout.",
+      "lifecycle_run_id": "<run-id>",
+      "original_artifact": "Build a widget with tests and documentation.",
+      "output_repaired": true,
+      "output_repairs": [
+        {
+          "removed_fields": [
+            {
+              "path": "$.gaps[0].severity",
+              "removed": "high"
+            },
+            {
+              "path": "$.confidence",
+              "removed": 0.9
+            }
+          ],
+          "stage": "gap_finding"
+        }
+      ],
+      "repair_policy": "recorded-removal-v1",
+      "started_at": "<timestamp>",
+      "status": "improved",
+      "submission_digest": "7132844bcea9a282985cce9076968c8f59b0231110b3db4510cdc262fdbaab30",
+      "submission_disposition": "started",
+      "success_criteria": [
+        {
+          "criterion": "pytest green",
+          "validation": "uv run pytest exit code 0"
+        }
+      ]
+    },
+    "replay": {
+      "artifact_id": "artifact.manifest",
+      "artifact_revision": 1,
+      "completed_at": "<timestamp>",
+      "content_digest": "c9f3252d0c450f24eeeaf8adbedc9eac16d354e69a948ab3363241ae3d31b0aa",
+      "evaluation": {
+        "findings": [],
+        "passed": true,
+        "summary": "coherent and feasible"
+      },
+      "evaluation_repair_cycles": 0,
+      "fixture_cases": [
+        {
+          "criterion": "pytest green",
+          "expectation": "widget builds",
+          "name": "happy path"
+        }
+      ],
+      "gap_findings": [
+        {
+          "category": "missing",
+          "gap": "no rollout step"
+        }
+      ],
+      "gap_fixes": [
+        {
+          "fix": "added rollout step",
+          "gap": "no rollout step"
+        }
+      ],
+      "improved_artifact": "Build a widget with tests, documentation, and rollout.",
+      "lifecycle_run_id": "<run-id>",
+      "original_artifact": "Build a widget with tests and documentation.",
+      "started_at": "<timestamp>",
+      "status": "improved",
+      "submission_digest": "7132844bcea9a282985cce9076968c8f59b0231110b3db4510cdc262fdbaab30",
+      "submission_disposition": "replayed",
+      "success_criteria": [
+        {
+          "criterion": "pytest green",
+          "validation": "uv run pytest exit code 0"
+        }
+      ]
+    },
+    "unresolved_first_barrier": {
+      "artifact_id": "artifact.manifest",
+      "artifact_revision": 1,
+      "completed_at": "<timestamp>",
+      "content_digest": "c9f3252d0c450f24eeeaf8adbedc9eac16d354e69a948ab3363241ae3d31b0aa",
+      "evaluation": null,
+      "evaluation_repair_cycles": 0,
+      "fixture_cases": null,
+      "gap_findings": [
+        {
+          "category": "missing",
+          "gap": "no rollout step"
+        }
+      ],
+      "gap_fixes": [],
+      "lifecycle_run_id": "<run-id>",
+      "original_artifact": "Build a widget with tests and documentation.",
+      "started_at": "<timestamp>",
+      "status": "unresolved_gap",
+      "submission_digest": "7132844bcea9a282985cce9076968c8f59b0231110b3db4510cdc262fdbaab30",
+      "submission_disposition": "started",
+      "success_criteria": null,
+      "unresolved_gaps": [
+        {
+          "gap": "deployment target unknown",
+          "required_to_resolve": [
+            "deployment environment decision"
+          ],
+          "successful_resolution": "artifact names the deployment target",
+          "why_unresolved": "no repository evidence names an environment"
+        }
+      ]
+    },
+    "unresolved_no_progress_repair": {
+      "artifact_id": "artifact.manifest",
+      "artifact_revision": 1,
+      "completed_at": "<timestamp>",
+      "content_digest": "c9f3252d0c450f24eeeaf8adbedc9eac16d354e69a948ab3363241ae3d31b0aa",
+      "evaluation": null,
+      "evaluation_repair": {
+        "after_content_digest": "cfe1eff87f4d8498ee3cff66057d4b735b1e7c7447c54647ea66a37885ec8013",
+        "before_content_digest": "cfe1eff87f4d8498ee3cff66057d4b735b1e7c7447c54647ea66a37885ec8013",
+        "final_evaluation": null,
+        "findings": [
+          {
+            "deficiency": "widget spec contradicts existing API",
+            "evidence": [],
+            "finding_id": "evaluation.1",
+            "required_correction": "align spec with API",
+            "success_condition": "spec matches the API contract"
+          }
+        ],
+        "gap_fixes": [
+          {
+            "fix": "added rollout step",
+            "gap": "no rollout step"
+          }
+        ]
+      },
+      "evaluation_repair_cycles": 1,
+      "fixture_cases": null,
+      "gap_findings": [
+        {
+          "category": "missing",
+          "gap": "no rollout step"
+        }
+      ],
+      "gap_fixes": [
+        {
+          "fix": "added rollout step",
+          "gap": "no rollout step"
+        }
+      ],
+      "lifecycle_run_id": "<run-id>",
+      "original_artifact": "Build a widget with tests and documentation.",
+      "started_at": "<timestamp>",
+      "status": "unresolved_gap",
+      "submission_digest": "7132844bcea9a282985cce9076968c8f59b0231110b3db4510cdc262fdbaab30",
+      "submission_disposition": "started",
+      "success_criteria": null,
+      "unresolved_gaps": [
+        {
+          "gap": "widget spec contradicts existing API",
+          "required_to_resolve": [
+            "align spec with API"
+          ],
+          "successful_resolution": "spec matches the API contract",
+          "why_unresolved": "discovered during evaluation; repair cycle made no progress"
+        }
+      ]
+    },
+    "unresolved_second_evaluation_failure": {
+      "artifact_id": "artifact.manifest",
+      "artifact_revision": 1,
+      "completed_at": "<timestamp>",
+      "content_digest": "c9f3252d0c450f24eeeaf8adbedc9eac16d354e69a948ab3363241ae3d31b0aa",
+      "evaluation": null,
+      "evaluation_repair": {
+        "after_content_digest": "8a942843cd69bcbd10593c520c763ada8912eabf7e79c20fd2014e2dc4b5f05e",
+        "before_content_digest": "cfe1eff87f4d8498ee3cff66057d4b735b1e7c7447c54647ea66a37885ec8013",
+        "final_evaluation": {
+          "findings": [
+            {
+              "finding": "widget spec contradicts existing API",
+              "required_to_resolve": [
+                "align spec with API"
+              ],
+              "successful_resolution": "spec matches the API contract"
+            }
+          ],
+          "passed": false,
+          "summary": "artifact contradicts repo constraints"
+        },
+        "findings": [
+          {
+            "deficiency": "widget spec contradicts existing API",
+            "evidence": [],
+            "finding_id": "evaluation.1",
+            "required_correction": "align spec with API",
+            "success_condition": "spec matches the API contract"
+          }
+        ],
+        "gap_fixes": [
+          {
+            "fix": "aligned spec with API",
+            "gap": "widget spec contradicts existing API"
+          }
+        ]
+      },
+      "evaluation_repair_cycles": 1,
+      "fixture_cases": null,
+      "gap_findings": [
+        {
+          "category": "missing",
+          "gap": "no rollout step"
+        }
+      ],
+      "gap_fixes": [
+        {
+          "fix": "added rollout step",
+          "gap": "no rollout step"
+        },
+        {
+          "fix": "aligned spec with API",
+          "gap": "widget spec contradicts existing API"
+        }
+      ],
+      "lifecycle_run_id": "<run-id>",
+      "original_artifact": "Build a widget with tests and documentation.",
+      "started_at": "<timestamp>",
+      "status": "unresolved_gap",
+      "submission_digest": "7132844bcea9a282985cce9076968c8f59b0231110b3db4510cdc262fdbaab30",
+      "submission_disposition": "started",
+      "success_criteria": null,
+      "unresolved_gaps": [
+        {
+          "gap": "widget spec contradicts existing API",
+          "required_to_resolve": [
+            "align spec with API"
+          ],
+          "successful_resolution": "spec matches the API contract",
+          "why_unresolved": "discovered during evaluation; unresolved after one repair cycle"
+        }
+      ]
+    }
+  },
+  "result_statuses": [
+    "improved",
+    "unresolved_gap",
+    "skip",
+    "error"
+  ],
+  "stage_instruction_hashes": {
+    "evaluation": "d562034b33dee453594cb0e322ff1358e36283e4ea6e964a7d6a1efd42509235",
+    "fixture_design": "aca0b450563c94f9263481bb51d2431632f57b9c5cf040a37e99b0063ad96569",
+    "gap_finding": "75de6046cce4333d40b1461936cadaa3bbfb825a571789e4fefac7fd678a3292",
+    "gap_fixing": "9e8510cbe036c6d42dbe7c580dfd08f565ada680c029d190e223a6a8cd41261f",
+    "success_criteria": "57b03740123d47959e9a2307181bc118e6a3fe6b5782a6e6d3483ed8cb5e2232"
+  },
+  "stage_output_example_hashes": {
+    "evaluation": "a154fcb7792248dcc1bcef529a668c6576c3ff33cc02005e3e57d3ee0ccb55a1",
+    "fixture_design": "209ce3eb966d8b2e2fe776098651f64832f3cea34bb76ce1e657998c405fe9e5",
+    "gap_finding": "175942c09f4cf2b7864613c657e11b95556c1617f9a67fe72fc278eb9958c21f",
+    "gap_fixing": "064dd526011393372b2a4330c00cd3c21c2da0eb1cad4f076bd44ea2f5699b6b",
+    "success_criteria": "05f67e0fe52bdfc9bc72ec2832993e918ed9375721f9fe4a4dd717c1fc3d2617"
+  },
+  "stage_schema_hashes": {
+    "evaluation": "6b90b1139ec3b6d51bd44ef65c0b2c2616c7ab990acd650b6e83c05b56a30b5e",
+    "fixture_design": "001cefebd800888b0280f5f162a743de431b623729811b481ee4dd8a46f457a0",
+    "gap_finding": "fac9c8ae3f6d0ca4c33fe0bf7f07fbf83c45b0d14f8355712cd4bc5c72905415",
+    "gap_fixing": "bf1581fa60cda4dd55d930a5162bbbc8ada2c8241f7c53c02f1f93b16f87798d",
+    "success_criteria": "b9c6627b1900afd581f6b2b93c77cb3727feee02026117a3516418a7b05826de"
+  },
+  "stages": [
+    "gap_finding",
+    "gap_fixing",
+    "evaluation",
+    "success_criteria",
+    "fixture_design"
+  ]
+}

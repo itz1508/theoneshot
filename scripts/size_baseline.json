@@ -1,0 +1,587 @@
+{
+  "entries": [
+    {
+      "metric": "symbol_span",
+      "path": "audisor_backend/adapters/aflow_fix.py",
+      "symbol": "_success_definition_from_json",
+      "value": 78
+    },
+    {
+      "metric": "symbol_span",
+      "path": "audisor_backend/adapters/aflow_fix.py",
+      "symbol": "invoke_local_fix",
+      "value": 94
+    },
+    {
+      "metric": "physical_lines",
+      "path": "audisor_backend/controllers/fix_host.py",
+      "symbol": null,
+      "value": 515
+    },
+    {
+      "metric": "symbol_span",
+      "path": "audisor_backend/controllers/fix_host.py",
+      "symbol": "AcceptedFixDispatcher",
+      "value": 226
+    },
+    {
+      "metric": "symbol_span",
+      "path": "audisor_backend/controllers/fix_host.py",
+      "symbol": "AcceptedFixDispatcher._dispatch_unlocked",
+      "value": 187
+    },
+    {
+      "metric": "symbol_span",
+      "path": "audisor_backend/controllers/fix_host.py",
+      "symbol": "_prepare_dependency_evidence",
+      "value": 110
+    },
+    {
+      "metric": "physical_lines",
+      "path": "audisor_backend/policies/fix/validation_grounding.py",
+      "symbol": null,
+      "value": 472
+    },
+    {
+      "metric": "symbol_span",
+      "path": "audisor_backend/policies/fix/validation_grounding.py",
+      "symbol": "ValidationGroundingResolver._ground_finding_check",
+      "value": 90
+    },
+    {
+      "metric": "symbol_span",
+      "path": "audisor_backend/policies/fix/validation_grounding.py",
+      "symbol": "build_validation_source_catalog",
+      "value": 64
+    },
+    {
+      "metric": "symbol_span",
+      "path": "audisor_backend/scanning/scanner.py",
+      "symbol": "DeterministicScanner",
+      "value": 256
+    },
+    {
+      "metric": "physical_lines",
+      "path": "audisor_backend/tests/fix/test_fix_host.py",
+      "symbol": null,
+      "value": 1169
+    },
+    {
+      "metric": "physical_lines",
+      "path": "audisor_backend/tests/fix/test_fix_verification.py",
+      "symbol": null,
+      "value": 1128
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/aflow/src/aflow/analysis/decision_engine.py",
+      "symbol": "analyze",
+      "value": 96
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/aflow/src/aflow/domain/models.py",
+      "symbol": "validate_domain_invariants",
+      "value": 88
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/aflow/src/aflow/evaluation/final_decision.py",
+      "symbol": "evaluate_result",
+      "value": 107
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/aflow/src/aflow/evaluation/fixture_evaluator.py",
+      "symbol": "evaluate_fixtures",
+      "value": 89
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/aflow/src/aflow/evaluation/requirement_trace.py",
+      "symbol": "build_trace",
+      "value": 98
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/aflow/src/aflow/fixtures/factory.py",
+      "symbol": "fixture_specs",
+      "value": 139
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/aflow/src/aflow/lifecycle/closure.py",
+      "symbol": "close_findings",
+      "value": 87
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/assistant_backend/src/audisor_assistant/application/service.py",
+      "symbol": "AssistantService",
+      "value": 203
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/assistant_backend/src/audisor_assistant/application/service.py",
+      "symbol": "AssistantService.handle",
+      "value": 102
+    },
+    {
+      "metric": "physical_lines",
+      "path": "openai_project/operation_controller/src/operation_controller/controller.py",
+      "symbol": null,
+      "value": 428
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/operation_controller/src/operation_controller/controller.py",
+      "symbol": "OperationController",
+      "value": 290
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/adapters/cli.py",
+      "symbol": "CLIRequestAdapter.translate_request",
+      "value": 63
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/adapters/codex.py",
+      "symbol": "CodexRequestAdapter.translate_request",
+      "value": 68
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/adapters/mcp.py",
+      "symbol": "MCPRequestAdapter.translate_request",
+      "value": 63
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/audisor_lifecycle/active_state.py",
+      "symbol": "write_active_state",
+      "value": 76
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/audisor_lifecycle/adapter.py",
+      "symbol": "_validate_traceability",
+      "value": 109
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/audisor_lifecycle/artifact_flow.py",
+      "symbol": "run_artifact_lifecycle",
+      "value": 73
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/audisor_lifecycle/artifacts.py",
+      "symbol": "audisor_operation_artifact",
+      "value": 62
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/audisor_lifecycle/ignition.py",
+      "symbol": "ignite",
+      "value": 71
+    },
+    {
+      "metric": "physical_lines",
+      "path": "openai_project/runtime/src/audisor/audisor_lifecycle/local_invoker.py",
+      "symbol": null,
+      "value": 428
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/audisor_lifecycle/local_invoker.py",
+      "symbol": "_build_contract_plan",
+      "value": 88
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/audisor_lifecycle/plan_trigger.py",
+      "symbol": "_plan_text_to_candidate",
+      "value": 76
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/audisor_lifecycle/plan_trigger.py",
+      "symbol": "auto_trigger_plan_review",
+      "value": 226
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/audisor_lifecycle/review_contract.py",
+      "symbol": "review_and_lock",
+      "value": 210
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/audisor_run_gate.py",
+      "symbol": "check_aflow_gate",
+      "value": 66
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/builder/authority.py",
+      "symbol": "TargetAuthorityResolver.resolve",
+      "value": 72
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/builder/authority.py",
+      "symbol": "_git_context",
+      "value": 64
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/builder/dependencies.py",
+      "symbol": "deterministic_topological_order",
+      "value": 69
+    },
+    {
+      "metric": "physical_lines",
+      "path": "openai_project/runtime/src/audisor/builder/execution_store.py",
+      "symbol": null,
+      "value": 673
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/builder/execution_store.py",
+      "symbol": "ExecutionStore",
+      "value": 528
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/builder/execution_store.py",
+      "symbol": "ExecutionStore.claim",
+      "value": 132
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/builder/execution_store.py",
+      "symbol": "ExecutionStore.finalize_terminal",
+      "value": 90
+    },
+    {
+      "metric": "physical_lines",
+      "path": "openai_project/runtime/src/audisor/builder/executor.py",
+      "symbol": null,
+      "value": 828
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/builder/executor.py",
+      "symbol": "BuildExecutor",
+      "value": 764
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/builder/executor.py",
+      "symbol": "BuildExecutor._run_to_terminal",
+      "value": 205
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/builder/executor.py",
+      "symbol": "BuildExecutor.execute",
+      "value": 262
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/builder/executor.py",
+      "symbol": "BuildExecutor.resume_execution",
+      "value": 108
+    },
+    {
+      "metric": "physical_lines",
+      "path": "openai_project/runtime/src/audisor/builder/global_authority.py",
+      "symbol": null,
+      "value": 655
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/builder/global_authority.py",
+      "symbol": "GlobalAuthorityRegistry",
+      "value": 311
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/builder/operation_envelope.py",
+      "symbol": "OperationEnvelope",
+      "value": 201
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/builder/safe_json.py",
+      "symbol": "normalize_json_safe",
+      "value": 95
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/builder/safe_json.py",
+      "symbol": "normalize_json_safe.visit",
+      "value": 80
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/builder/sandbox/docker.py",
+      "symbol": "DockerSandboxRunner.run",
+      "value": 87
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/builder/store.py",
+      "symbol": "BuildStore",
+      "value": 226
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/builder/store.py",
+      "symbol": "BuildStore.publish",
+      "value": 105
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/builder/task_loader.py",
+      "symbol": "PreparedBuildLoader.load",
+      "value": 124
+    },
+    {
+      "metric": "physical_lines",
+      "path": "openai_project/runtime/src/audisor/builder/terminal_manifest.py",
+      "symbol": null,
+      "value": 461
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/builder/terminal_manifest.py",
+      "symbol": "_manifest_from_payload",
+      "value": 93
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/builder/terminal_manifest.py",
+      "symbol": "verify_terminal_manifest",
+      "value": 62
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/builder/terminal_manifest.py",
+      "symbol": "write_terminal_manifest",
+      "value": 94
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/builder/tool_runtime.py",
+      "symbol": "ToolRuntime.execute",
+      "value": 79
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/codex/adapter.py",
+      "symbol": "CodexAdapter.run",
+      "value": 62
+    },
+    {
+      "metric": "physical_lines",
+      "path": "openai_project/runtime/src/audisor/codex/fix_continuation.py",
+      "symbol": null,
+      "value": 841
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/codex/fix_continuation.py",
+      "symbol": "CodexFixContinuation",
+      "value": 757
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/codex/fix_continuation.py",
+      "symbol": "CodexFixContinuation._validate_verification_contract",
+      "value": 117
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/codex/fix_continuation.py",
+      "symbol": "CodexFixContinuation._validate_verification_contract_original",
+      "value": 115
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/codex/fix_continuation.py",
+      "symbol": "CodexFixContinuation._validate_verification_grounding",
+      "value": 94
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/codex/fix_continuation.py",
+      "symbol": "CodexFixContinuation.run",
+      "value": 141
+    },
+    {
+      "metric": "physical_lines",
+      "path": "openai_project/runtime/src/audisor/codex/fix_verification.py",
+      "symbol": null,
+      "value": 1217
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/codex/fix_verification.py",
+      "symbol": "FixPostExecutionVerifier",
+      "value": 874
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/codex/fix_verification.py",
+      "symbol": "FixPostExecutionVerifier._evaluate_deterministic_assertion",
+      "value": 61
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/codex/fix_verification.py",
+      "symbol": "FixPostExecutionVerifier._evaluate_finding_checks",
+      "value": 169
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/codex/fix_verification.py",
+      "symbol": "FixPostExecutionVerifier._evaluate_validations",
+      "value": 130
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/codex/fix_verification.py",
+      "symbol": "FixPostExecutionVerifier.verify",
+      "value": 112
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/codex/fix_verification.py",
+      "symbol": "reconstruct_scan_config",
+      "value": 133
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/config/host_profiles.py",
+      "symbol": "load_audisor_config",
+      "value": 108
+    },
+    {
+      "metric": "physical_lines",
+      "path": "openai_project/runtime/src/audisor/integrate.py",
+      "symbol": null,
+      "value": 454
+    },
+    {
+      "metric": "physical_lines",
+      "path": "openai_project/runtime/src/audisor/operations/executor.py",
+      "symbol": null,
+      "value": 826
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/operations/executor.py",
+      "symbol": "AudisorOperationExecutor",
+      "value": 726
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/operations/executor.py",
+      "symbol": "AudisorOperationExecutor._execute_fix",
+      "value": 65
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/operations/executor.py",
+      "symbol": "AudisorOperationExecutor._execute_mutation",
+      "value": 70
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/operations/executor.py",
+      "symbol": "AudisorOperationExecutor._execute_read_only",
+      "value": 65
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/operations/executor.py",
+      "symbol": "AudisorOperationExecutor._fix_continue",
+      "value": 107
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/operations/executor.py",
+      "symbol": "AudisorOperationExecutor.execute",
+      "value": 114
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/operations/mutation_enforcer.py",
+      "symbol": "MutationEnforcer.authorize_mutation",
+      "value": 69
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/operations/service.py",
+      "symbol": "CanonicalOperationService",
+      "value": 202
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/operations/service.py",
+      "symbol": "CanonicalOperationService._to_canonical_request",
+      "value": 84
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/operations/store.py",
+      "symbol": "AudisorOperationStore",
+      "value": 221
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/operations/transport.py",
+      "symbol": "canonical_operation_service",
+      "value": 65
+    },
+    {
+      "metric": "physical_lines",
+      "path": "openai_project/runtime/src/audisor/schemas/execution.py",
+      "symbol": null,
+      "value": 417
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/security/path_security.py",
+      "symbol": "validate_relative_path",
+      "value": 68
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/workers/fireworks.py",
+      "symbol": "FireworksWorker.execute",
+      "value": 76
+    },
+    {
+      "metric": "symbol_span",
+      "path": "openai_project/runtime/src/audisor/workers/local.py",
+      "symbol": "LocalWorker.execute",
+      "value": 63
+    },
+    {
+      "metric": "physical_lines",
+      "path": "openai_project/runtime/tests/codex/test_fix_continuation.py",
+      "symbol": null,
+      "value": 567
+    },
+    {
+      "metric": "physical_lines",
+      "path": "openai_project/runtime/tests/operations/test_fix_routing.py",
+      "symbol": null,
+      "value": 524
+    }
+  ],
+  "version": 1
+}

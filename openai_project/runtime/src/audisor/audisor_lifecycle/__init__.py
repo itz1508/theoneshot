@@ -1,8 +1,8 @@
 """Repository-local Audisor lifecycle adapter.
 
 This module deliberately does not import or modify the frozen Audisor package.
-It gives primary Codex deterministic lock, guard, and completion primitives
-around the frozen package's documented analysis/evaluation interfaces.
+It exposes the canonical artifact lifecycle engine plus the legacy contract
+primitives still consumed by the phased-out ignition path.
 """
 
 from .contract import (
@@ -18,7 +18,6 @@ from .contract import (
 )
 from .adapter import assemble_contract, verify_contract
 from .ignition import IgnitionResult, ignite, is_mutation_task, select_candidate_plan
-from .plan_trigger import auto_trigger_plan_review
 from .analysis_package import (
     AnalysisPackageError,
     FrozenAnalysisPackage,
@@ -26,15 +25,15 @@ from .analysis_package import (
     package_from_context,
     validate_analysis_request,
 )
-from .active_state import (
-    clear_active_state,
-    read_active_state,
-    write_active_state,
-)
-from .review_contract import (
-    build_analysis_for_lock,
-    map_decision_to_frozen,
-    review_and_lock,
+from .artifact_flow import (
+    RESULT_STATUSES,
+    STAGES,
+    LocalStageWorker,
+    PersistedResultError,
+    StageOutputError,
+    StageWorker,
+    read_last_result,
+    run_artifact_lifecycle,
 )
 
 __all__ = [
@@ -53,16 +52,17 @@ __all__ = [
     "ignite",
     "is_mutation_task",
     "select_candidate_plan",
-    "auto_trigger_plan_review",
     "AnalysisPackageError",
     "FrozenAnalysisPackage",
     "assemble_analysis_package",
     "package_from_context",
     "validate_analysis_request",
-    "clear_active_state",
-    "read_active_state",
-    "write_active_state",
-    "build_analysis_for_lock",
-    "map_decision_to_frozen",
-    "review_and_lock",
+    "RESULT_STATUSES",
+    "STAGES",
+    "LocalStageWorker",
+    "PersistedResultError",
+    "StageOutputError",
+    "StageWorker",
+    "read_last_result",
+    "run_artifact_lifecycle",
 ]
