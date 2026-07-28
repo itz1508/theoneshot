@@ -16,6 +16,17 @@ jobs:
           submodules: false
           persist-credentials: false
 
+      - name: Checkout public submodules
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --local --unset-all \
+            http.https://github.com/.extraheader || true
+          git config --global --unset-all \
+            http.https://github.com/.extraheader || true
+          git submodule sync --recursive
+          git submodule update --init --force --recursive
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
