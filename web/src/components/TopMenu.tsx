@@ -5,6 +5,14 @@
 
 import { useState, useEffect } from 'react'
 import { Wifi, WifiOff, Sun, Moon } from 'lucide-react'
+import {
+  NavigationMenu,
+  NavigationMenuList,
+  NavigationMenuItem,
+  NavigationMenuTrigger,
+  NavigationMenuContent,
+  NavigationMenuLink,
+} from './ui/NavigationMenu'
 import styles from './TopMenu.module.css'
 
 interface TopMenuProps {
@@ -29,6 +37,17 @@ export function TopMenu({ runnerMode, loading }: TopMenuProps) {
         <span className={styles.brand}>Audisor</span>
         <span className={styles.sep} />
         <span className={styles.mode}>{runnerMode}</span>
+        <span className={styles.sep} />
+        <NavigationMenu>
+          <NavigationMenuList>
+            <NavigationMenuItem>
+              <NavigationMenuTrigger>Item One</NavigationMenuTrigger>
+              <NavigationMenuContent>
+                <NavigationMenuLink>Link</NavigationMenuLink>
+              </NavigationMenuContent>
+            </NavigationMenuItem>
+          </NavigationMenuList>
+        </NavigationMenu>
       </div>
       <div className={styles.right}>
         <button

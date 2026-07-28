@@ -1,0 +1,12 @@
+{
+  "description": "Synthetic fixture for the post-build validation gate. The backend URL is intentionally an RFC 2606 .invalid domain: it can never resolve, so no real request is possible and no fake response is implied.",
+  "backend_url": "https://assistant-backend.fixture.invalid",
+  "expected_endpoint": "https://assistant-backend.fixture.invalid/v1/assistant/requests",
+  "forbidden_markers_everywhere": [
+    "http://127.0.0.1:8799",
+    "VITE_ASSISTANT_API_URL=http"
+  ],
+  "forbidden_markers_html": [
+    "x-audisor-dev-user"
+  ]
+}

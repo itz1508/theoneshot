@@ -1,0 +1,19 @@
+/* MessageScroller — conversation viewport primitives */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.viewport {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-anchor: none; /* scroll position is managed by the component */
+}
+
+.item {
+  /* Row wrapper — layout is left to the content */
+}

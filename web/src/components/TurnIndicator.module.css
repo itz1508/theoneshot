@@ -1,0 +1,67 @@
+/* TurnIndicator — small persistent badge above the composer */
+
+.row {
+  max-width: 800px;
+  margin: 0 auto;
+  width: 100%;
+  padding: 0 24px;
+  display: flex;
+  justify-content: flex-start;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid #1e1e22;
+  background: #111113;
+  font-size: 11px;
+  color: #71717a;
+}
+
+.userTurn {
+  color: #a1a1aa;
+}
+
+.agentTurn {
+  color: #71717a;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #4ade80;
+}
+
+.dots {
+  display: flex;
+  gap: 3px;
+}
+
+.typingDot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #3f3f46;
+  animation: turnPulse 1.4s ease-in-out infinite;
+}
+
+.typingDot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typingDot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes turnPulse {
+  0%, 80%, 100% {
+    opacity: 0.3;
+  }
+  40% {
+    opacity: 1;
+  }
+}

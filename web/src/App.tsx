@@ -4,16 +4,24 @@
  * No component imports the mock emitter directly.
  */
 
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { TopMenu } from './components/TopMenu'
 import { ActivityRail, type RailTab } from './components/ActivityRail'
 import { Explorer } from './components/Explorer'
 import { Conversation } from './components/Conversation'
-import { MessageComposer } from './components/MessageComposer'
+import { MessageComposer, type AnchorMode } from './components/MessageComposer'
+import { TurnIndicator } from './components/TurnIndicator'
 import { TaskReviewDrawer } from './components/TaskReviewDrawer'
+import { WritingDesignAssistant } from './features/writing-design-assistant/WritingDesignAssistant'
 import { useAppStore } from './store/taskStore'
 import { DemoTaskEventSource } from './agent/DemoTaskEventSource'
 import styles from './App.module.css'
+
+// Lazy chunk on purpose: the Web Runtime feature (incl. its sample project)
+// must stay out of the entry bundle until the tab is first opened.
+const WebRuntime = lazy(() =>
+  import('./features/web-runtime/WebRuntime').then((m) => ({ default: m.WebRuntime })),
+)
 
 // Instantiate event source once (module-level singleton)
 const eventSource = new DemoTaskEventSource()
@@ -21,12 +29,17 @@ const eventSource = new DemoTaskEventSource()
 function App() {
   const [railTab, setRailTab] = useState<RailTab>('explorer')
   const [explorerOpen, setExplorerOpen] = useState(true)
+  const [anchorMode, setAnchorMode] = useState<AnchorMode>('user')
+  // Latched on first open; the feature then stays mounted (CSS-hidden when
+  // inactive) so the WebContainer session survives feature switches.
+  const [webRuntimeOpened, setWebRuntimeOpened] = useState(false)
 
   const workspaces = useAppStore((s) => s.workspaces)
   const participatingWorkspaceIds = useAppStore((s) => s.participatingWorkspaceIds)
   const task = useAppStore((s) => s.task)
   const messages = useAppStore((s) => s.messages)
   const loading = useAppStore((s) => s.loading)
+  const turn = useAppStore((s) => s.turn)
   const drawerOpen = useAppStore((s) => s.drawerOpen)
   const runnerMode = useAppStore((s) => s.runnerMode)
   const bindEventSource = useAppStore((s) => s.bindEventSource)
@@ -47,6 +60,9 @@ function App() {
     if (tab === 'explorer') {
       setExplorerOpen((prev) => !prev)
     }
+    if (tab === 'webruntime') {
+      setWebRuntimeOpened(true)
+    }
   }
 
   return (
@@ -61,8 +77,29 @@ function App() {
           onLEDClick={openDrawerForWorkspace}
         />
         <main className={styles.main}>
-          <Conversation messages={messages} loading={loading} />
-          <MessageComposer onSend={sendMessage} />
+          {railTab === 'assistant' ? (
+            <WritingDesignAssistant />
+          ) : railTab !== 'webruntime' ? (
+            <>
+              <Conversation messages={messages} loading={loading} anchorMode={anchorMode} />
+              <TurnIndicator turn={turn} />
+              <MessageComposer
+                onSend={sendMessage}
+                anchorMode={anchorMode}
+                onAnchorModeChange={setAnchorMode}
+                disabled={turn !== 'user'}
+              />
+            </>
+          ) : null}
+          {webRuntimeOpened ? (
+            <div
+              className={`${styles.webRuntimeHost} ${railTab !== 'webruntime' ? styles.webRuntimeHidden : ''}`}
+            >
+              <Suspense fallback={null}>
+                <WebRuntime />
+              </Suspense>
+            </div>
+          ) : null}
         </main>
         <TaskReviewDrawer
           open={drawerOpen}

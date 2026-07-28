@@ -3,10 +3,10 @@
  * Remains visible when the contextual panel collapses.
  */
 
-import { FolderOpen, Bug, Video } from 'lucide-react'
+import { FolderOpen, Bug, Video, PenLine, AppWindow } from 'lucide-react'
 import styles from './ActivityRail.module.css'
 
-export type RailTab = 'explorer' | 'debug' | 'video'
+export type RailTab = 'explorer' | 'debug' | 'video' | 'assistant' | 'webruntime'
 
 interface ActivityRailProps {
   active: RailTab
@@ -17,6 +17,8 @@ const tabs: { id: RailTab; icon: typeof FolderOpen; label: string }[] = [
   { id: 'explorer', icon: FolderOpen, label: 'Explorer' },
   { id: 'debug', icon: Bug, label: 'Debug' },
   { id: 'video', icon: Video, label: 'Video' },
+  { id: 'assistant', icon: PenLine, label: 'Writing & Design Assistant' },
+  { id: 'webruntime', icon: AppWindow, label: 'Web Runtime' },
 ]
 
 export function ActivityRail({ active, onSelect }: ActivityRailProps) {

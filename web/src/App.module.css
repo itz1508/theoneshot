@@ -22,3 +22,16 @@
   flex-direction: column;
   overflow: hidden;
 }
+
+/* Web Runtime stays mounted (session preservation) — hidden, not unmounted,
+   when another feature tab is active. */
+.webRuntimeHost {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.webRuntimeHidden {
+  display: none;
+}

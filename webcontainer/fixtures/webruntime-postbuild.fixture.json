@@ -1,0 +1,20 @@
+{
+  "description": "Synthetic fixture for the Web Runtime post-build gate. The feature marker is the sample project's package name — a literal we own that lands only in the feature's lazy chunk. Forbidden markers prove no dev-backend leak, no baked env VALUE (a real leak always includes the value after '='; the feature's own literal ends at '='), and no external publishing endpoints. Vendor-scoped: 'stackblitz.com' unavoidably ships inside @webcontainer/api itself (its OAuth constants — the library is a StackBlitz product), so it is allowed ONLY in the lazy chunk carrying the vendor signature; any other occurrence fails.",
+  "feature_marker": "audisor-web-runtime-sample",
+  "entry_must_not_contain": "audisor-web-runtime-sample",
+  "required_markers_bundle": [
+    "Sample project",
+    "Open project folder"
+  ],
+  "forbidden_markers_everywhere": [
+    "http://127.0.0.1:8799",
+    "VITE_ASSISTANT_API_URL=http",
+    "codesandbox.io"
+  ],
+  "vendor_scoped_markers": [
+    {
+      "marker": "stackblitz.com",
+      "vendor_signature": "__wc_api_tokens__"
+    }
+  ]
+}

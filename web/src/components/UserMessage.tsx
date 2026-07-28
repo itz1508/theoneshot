@@ -7,8 +7,11 @@ interface UserMessageProps {
 export function UserMessage({ content }: UserMessageProps) {
   return (
     <div className={styles.wrapper}>
-      <div className={styles.bubble}>
-        <p className={styles.text}>{content}</p>
+      <div className={styles.column}>
+        <span className={styles.label}>You</span>
+        <div className={styles.bubble}>
+          <p className={styles.text}>{content}</p>
+        </div>
       </div>
     </div>
   )

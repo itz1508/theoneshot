@@ -8,16 +8,20 @@
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b --noEmit",
     "test": "vitest run",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "validate:webruntime": "node ../webcontainer/scripts/webruntime-postbuild-validate.mjs"
   },
   "dependencies": {
     "@radix-ui/react-collapsible": "^1.1.20",
+    "@radix-ui/react-navigation-menu": "^1.2.22",
     "@radix-ui/react-scroll-area": "^1.2.18",
     "@radix-ui/react-tooltip": "^1.2.16",
     "@tailwindcss/vite": "^4.3.3",
+    "@webcontainer/api": "1.6.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.26.0",
+    "mermaid": "11.12.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "tailwindcss": "^4.3.3",

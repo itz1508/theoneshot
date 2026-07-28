@@ -38,6 +38,10 @@ export interface AppState {
   messages: ChatMessage[]
   loading: boolean
 
+  // Turn manager — strict alternation: user goes first, agent responds,
+  // then control returns to the user. Out-of-turn sends are ignored.
+  turn: 'user' | 'agent'
+
   // Connection
   runnerMode: string
 
@@ -147,6 +151,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   drawerOpen: false,
   messages: [],
   loading: false,
+  turn: 'user',
   runnerMode: 'Demonstration events · no backend execution',
   lastValidationFailure: null,
   _eventSource: null,
@@ -161,13 +166,16 @@ export const useAppStore = create<AppState>((set, get) => ({
   })),
 
   sendMessage: (text) => {
-    const { _eventSource, workspaces } = get()
+    const { _eventSource, workspaces, turn, loading } = get()
     if (!_eventSource || !text.trim()) return
+    // Turn manager: ignore out-of-turn submissions while the agent responds
+    if (turn !== 'user' || loading) return
 
     const userMsg: ChatMessage = {
       id: `msg-${Date.now()}`,
       role: 'user',
       content: text.trim(),
+      timestamp: new Date().toISOString(),
     }
 
     const primary = workspaces[0]?.id ?? ''
@@ -178,6 +186,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((s) => ({
       messages: [...s.messages, userMsg],
       loading: true,
+      turn: 'agent',
       drawerOpen: true,
       task: {
         ...initialTask,
@@ -324,6 +333,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           id: `msg-${Date.now()}-agent`,
           role: 'agent',
           content: event.message,
+          timestamp: event.timestamp ?? new Date().toISOString(),
           activities: [{
             id: `act-${Date.now()}`,
             label: 'Task result',
@@ -339,6 +349,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         task,
         messages,
         loading: !isTerminal,
+        // Agent turn ends once its response lands in the thread
+        turn: isTerminal ? ('user' as const) : s.turn,
       }
     })
   },
@@ -350,6 +362,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     drawerOpen: false,
     messages: [],
     loading: false,
+    turn: 'user',
     lastValidationFailure: null,
   }),
 

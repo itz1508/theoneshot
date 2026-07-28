@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Audisor Web — WebContainer host</title>
+    <style>
+      :root { color-scheme: dark; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+        background: #0d1117;
+        color: #e6edf3;
+        display: grid;
+        grid-template-rows: auto auto 1fr;
+        height: 100vh;
+      }
+      header {
+        padding: 0.75rem 1.25rem;
+        border-bottom: 1px solid #21262d;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        flex-wrap: wrap;
+      }
+      header h1 { font-size: 1rem; margin: 0; font-weight: 600; }
+      header .note { font-size: 0.78rem; color: #8b949e; }
+      #controls {
+        padding: 0.6rem 1.25rem;
+        border-bottom: 1px solid #21262d;
+        display: flex;
+        gap: 0.6rem;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      #backend-url {
+        flex: 1 1 24rem;
+        padding: 0.45rem 0.6rem;
+        border-radius: 6px;
+        border: 1px solid #30363d;
+        background: #010409;
+        color: #e6edf3;
+        font-size: 0.85rem;
+      }
+      #boot {
+        padding: 0.45rem 1.1rem;
+        border-radius: 6px;
+        border: 1px solid #238636;
+        background: #238636;
+        color: #fff;
+        font-size: 0.85rem;
+        cursor: pointer;
+      }
+      #boot:disabled { opacity: 0.5; cursor: not-allowed; }
+      #origin-line { font-size: 0.78rem; color: #8b949e; width: 100%; }
+      #origin-line code { color: #79c0ff; user-select: all; }
+      main { display: grid; grid-template-columns: minmax(20rem, 32rem) 1fr; min-height: 0; }
+      #log {
+        margin: 0;
+        padding: 0.9rem 1.1rem;
+        overflow: auto;
+        font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+        font-size: 0.72rem;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        word-break: break-all;
+        border-right: 1px solid #21262d;
+        background: #010409;
+      }
+      #log .err { color: #ff7b72; }
+      #preview { width: 100%; height: 100%; border: 0; background: #fff; }
+      #preview[hidden] { display: none; }
+      #placeholder {
+        display: grid;
+        place-content: center;
+        color: #8b949e;
+        font-size: 0.85rem;
+        padding: 2rem;
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Audisor Web — WebContainer host</h1>
+      <span class="note">
+        Runs the web app in an in-browser Node.js container. Real backend only —
+        no responses are ever faked. Not published to any external service.
+      </span>
+    </header>
+    <div id="controls">
+      <input
+        id="backend-url"
+        type="url"
+        placeholder="Assistant backend URL (optional, e.g. https://backend.example.com) — leave empty for the honest 'unavailable' state"
+        spellcheck="false"
+      />
+      <button id="boot">Boot WebContainer</button>
+      <div id="origin-line" hidden>
+        Preview origin (add this EXACT value to the backend's
+        <code>AUDISOR_CORS_ORIGINS</code>): <code id="preview-origin"></code>
+      </div>
+    </div>
+    <main>
+      <pre id="log">Waiting to boot…</pre>
+      <div id="preview-wrap" style="min-width:0;min-height:0;display:grid;">
+        <div id="placeholder">The app preview appears here after boot.</div>
+        <iframe id="preview" hidden title="Audisor web app preview"></iframe>
+      </div>
+    </main>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

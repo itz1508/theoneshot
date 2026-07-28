@@ -247,5 +247,6 @@ export interface ChatMessage {
   id: string
   role: 'user' | 'agent'
   content: string
+  timestamp?: string
   activities?: { id: string; label: string; detail: string; status: 'completed' | 'running' | 'pending' }[]
 }

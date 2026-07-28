@@ -12,6 +12,17 @@
   border-radius: 12px;
   display: flex;
   flex-direction: column;
+  transition: opacity 0.15s ease;
+}
+
+/* Turn manager: obvious disabled state while the agent responds */
+.innerDisabled {
+  opacity: 0.55;
+}
+
+.innerDisabled .textarea,
+.innerDisabled button {
+  cursor: not-allowed;
 }
 
 .textarea {
@@ -68,6 +79,34 @@
 .modeBtn:hover {
   background: #18181b;
   color: #a1a1aa;
+}
+
+.anchorGroup {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid #27272a;
+  border-radius: 6px;
+  background: #0d0d0f;
+}
+
+.anchorBtn {
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #52525b;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.anchorBtn:hover {
+  background: #18181b;
+  color: #a1a1aa;
+}
+
+.anchorActive,
+.anchorActive:hover {
+  background: #27272a;
+  color: #fafafa;
 }
 
 .sendBtn {

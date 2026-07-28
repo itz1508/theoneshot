@@ -1,0 +1,138 @@
+/* NavigationMenu — Radix navigation menu styled to the app theme */
+
+.root {
+  position: relative;
+  display: flex;
+  align-items: center;
+  z-index: 20;
+}
+
+.list {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+  transition: background 0.12s ease, color 0.12s ease;
+  user-select: none;
+}
+
+.trigger:hover,
+.trigger[data-state='open'] {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+
+.chevron {
+  transition: transform 0.15s ease;
+}
+
+.trigger[data-state='open'] .chevron {
+  transform: rotate(180deg);
+}
+
+.content {
+  position: absolute;
+  top: 0;
+  left: 0;
+  min-width: 180px;
+  padding: 6px;
+  animation: fadeIn 0.12s ease;
+}
+
+.link {
+  display: block;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--foreground);
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.link:hover,
+.link:focus-visible {
+  background: var(--accent);
+  outline: none;
+}
+
+.viewportPosition {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  display: flex;
+  justify-content: flex-start;
+  perspective: 1200px;
+}
+
+.viewport {
+  position: relative;
+  margin-top: 6px;
+  width: var(--radix-navigation-menu-viewport-width);
+  height: var(--radix-navigation-menu-viewport-height);
+  overflow: hidden;
+  background: var(--popover);
+  color: var(--popover-foreground);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  transition: width 0.15s ease, height 0.15s ease;
+}
+
+.viewport[data-state='closed'] {
+  animation: fadeOut 0.1s ease;
+}
+
+.indicator {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  height: 6px;
+  top: 100%;
+  overflow: hidden;
+  z-index: 21;
+  transition: transform 0.15s ease;
+}
+
+.arrow {
+  position: relative;
+  top: 70%;
+  width: 8px;
+  height: 8px;
+  background: var(--border);
+  transform: rotate(45deg);
+  border-radius: 2px 0 0 0;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
