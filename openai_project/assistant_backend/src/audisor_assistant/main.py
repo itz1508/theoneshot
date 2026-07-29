@@ -12,6 +12,10 @@ from .application.fix_engines import build_grammar_state
 from .application.service import AssistantService
 
 CORS_ORIGINS_VAR = "AUDISOR_CORS_ORIGINS"
+CLOUD_API_KEY_VAR = "AUDISOR_ASSISTANT_CLOUD_API_KEY"
+
+#: Provider ids whose credential must exist before the app may start.
+_CLOUD_PROVIDER_IDS = {"cloud-openai-compatible", "cloud-anthropic"}
 
 # Exactly scheme://host[:port] — no path, query, fragment, or userinfo.
 _ORIGIN_PATTERN = re.compile(
@@ -55,9 +59,29 @@ def parse_cors_origins(raw: str | None) -> list[str]:
     return origins
 
 
+def enforce_cloud_credential() -> None:
+    """Fail fast when a cloud provider is selected without a credential.
+
+    Mirrors the ``parse_cors_origins`` startup contract: a misconfigured
+    deployment must never come up half-working.  Local and fake providers
+    are unaffected.
+    """
+    selected = os.environ.get("AUDISOR_PROVIDER", "local-openai-compatible").strip()
+    if selected in _CLOUD_PROVIDER_IDS and not os.environ.get(
+        CLOUD_API_KEY_VAR, ""
+    ).strip():
+        raise RuntimeError(
+            f"AUDISOR_PROVIDER={selected!r} requires {CLOUD_API_KEY_VAR} to be set."
+        )
+
+
 def create_app(service: AssistantService | None = None) -> FastAPI:
     """Build the FastAPI app.  A pre-built service (e.g. with the
     deterministic fake provider) may be injected for tests."""
+    if service is None:
+        # Injected services bypass provider construction, so the cloud
+        # credential check only applies to environment-driven startup.
+        enforce_cloud_credential()
     app = FastAPI(title="Audisor Writing & Design Assistant", version="0.1.0")
     app.state.service = service
     # Grammar engine resolves eagerly at startup so fix_wording requests
@@ -70,7 +94,7 @@ def create_app(service: AssistantService | None = None) -> FastAPI:
         app.add_middleware(
             CORSMiddleware,
             allow_origins=cors_origins,
-            allow_methods=["POST", "OPTIONS"],
+            allow_methods=["GET", "POST", "OPTIONS"],
             allow_headers=["content-type", "x-audisor-dev-user"],
             allow_credentials=False,
         )

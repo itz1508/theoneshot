@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://audisor.local/schemas/assistant/models.schema.json",
+  "title": "Audisor assistant model listing",
+  "description": "Body of GET /v1/assistant/models. Lists models selectable within the server-configured provider only; never carries credentials or raw provider payloads.",
+  "type": "object",
+  "required": ["provider", "current_model", "available_models"],
+  "additionalProperties": false,
+  "properties": {
+    "provider": {
+      "type": "object",
+      "required": ["id", "source"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "source": { "type": "string", "enum": ["local", "cloud"] }
+      }
+    },
+    "current_model": {
+      "type": "string",
+      "description": "The provider's configured default model."
+    },
+    "available_models": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Models offered for per-request override within this provider."
+    },
+    "reachable": {
+      "type": ["boolean", "null"],
+      "description": "True/false only when the provider was probed (local); null for providers that are never probed for listing (cloud)."
+    }
+  }
+}

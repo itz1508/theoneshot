@@ -109,6 +109,7 @@ class ModelFixEngine:
                 user_prompt=build_user_prompt(request),
                 max_tokens=max_tokens,
                 timeout_seconds=timeout_seconds,
+                model_override=request.model,
             )
         )
         try:

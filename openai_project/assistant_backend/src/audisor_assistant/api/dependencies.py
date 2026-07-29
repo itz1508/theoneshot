@@ -24,9 +24,11 @@ from ..providers.base import (
     CompletionReply,
     CompletionRequest,
     DeterministicFakeProvider,
+    ModelListing,
     ProviderCapabilities,
     ProviderError,
 )
+from ..providers.anthropic import CloudAnthropicProvider
 from ..providers.cloud import CloudOpenAICompatibleProvider
 from ..providers.local_openai_compatible import LocalOpenAICompatibleProvider
 
@@ -36,6 +38,7 @@ _PROVIDER_FACTORIES = {
     "fake-deterministic": DeterministicFakeProvider,
     "local-openai-compatible": LocalOpenAICompatibleProvider,
     "cloud-openai-compatible": CloudOpenAICompatibleProvider,
+    "cloud-anthropic": CloudAnthropicProvider,
 }
 
 
@@ -96,4 +99,7 @@ class _MisconfiguredProvider:
         self._error = error
 
     def complete(self, request: CompletionRequest) -> CompletionReply:
+        raise self._error
+
+    def list_models(self) -> ModelListing:
         raise self._error

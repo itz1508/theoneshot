@@ -171,6 +171,30 @@
   cursor: default;
 }
 
+/* Model selector */
+
+.modelSelectorRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.modelSelect {
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 13px;
+  color: inherit;
+  background: var(--card, #101013);
+  border: 1px solid var(--border, #27272a);
+  border-radius: 6px;
+}
+
+.modelUnreachable {
+  font-size: 12px;
+  color: #fbbf24;
+}
+
 /* Status */
 
 .statusLoading,

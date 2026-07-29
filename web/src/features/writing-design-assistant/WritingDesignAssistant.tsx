@@ -7,16 +7,27 @@
  * assistant backend endpoint.
  */
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { History } from 'lucide-react'
 import { ModeSelector } from './components/ModeSelector'
+import { ModelSelector } from './components/ModelSelector'
 import { AssistantInput, type AssistantInputValue } from './components/AssistantInput'
 import { AssistantStatus } from './components/AssistantStatus'
 import { AssistantResult } from './components/AssistantResult'
 import { HistoryDrawer } from './components/HistoryDrawer'
-import { submitAssistantRequest, type SubmitOptions } from './services/assistantApi'
+import {
+  fetchAssistantModels,
+  submitAssistantRequest,
+  type SubmitOptions,
+} from './services/assistantApi'
 import { createHistoryStore, toPreview } from './storage/history'
-import type { AssistantMode, AssistantResponse, HistoryEntry, HistoryStore } from './types'
+import type {
+  AssistantMode,
+  AssistantModelsResponse,
+  AssistantResponse,
+  HistoryEntry,
+  HistoryStore,
+} from './types'
 import styles from './WritingDesignAssistant.module.css'
 
 const EMPTY_INPUT: AssistantInputValue = { text: '', selectedText: '', context: '', tone: '' }
@@ -36,6 +47,24 @@ export function WritingDesignAssistant({ historyStore, submitOptions }: WritingD
   const [response, setResponse] = useState<AssistantResponse | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [historyVersion, setHistoryVersion] = useState(0)
+  const [models, setModels] = useState<AssistantModelsResponse | null>(null)
+  // '' means the provider's configured default model.
+  const [model, setModel] = useState('')
+
+  // Best-effort model listing; the selector stays hidden when it fails.
+  useEffect(() => {
+    let cancelled = false
+    void fetchAssistantModels(submitOptions)
+      .then((listing) => {
+        if (!cancelled) setModels(listing)
+      })
+      .catch(() => {
+        // Listing is advisory; never surface a failure for it.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [submitOptions])
 
   const runRequest = useCallback(
     async (requestMode: AssistantMode, requestInput: AssistantInputValue) => {
@@ -48,6 +77,7 @@ export function WritingDesignAssistant({ historyStore, submitOptions }: WritingD
             selectedText: requestInput.selectedText || undefined,
             context: requestInput.context || undefined,
             tone: requestInput.tone || undefined,
+            model: model || undefined,
           },
           submitOptions,
         )
@@ -66,7 +96,7 @@ export function WritingDesignAssistant({ historyStore, submitOptions }: WritingD
         setLoading(false)
       }
     },
-    [submitOptions],
+    [model, submitOptions],
   )
 
   const handleSubmit = useCallback(() => {
@@ -121,6 +151,7 @@ export function WritingDesignAssistant({ historyStore, submitOptions }: WritingD
       </header>
 
       <ModeSelector active={mode} disabled={loading} onSelect={setMode} />
+      <ModelSelector models={models} value={model} disabled={loading} onChange={setModel} />
       <AssistantInput
         mode={mode}
         value={input}

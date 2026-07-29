@@ -19,3 +19,9 @@ MAX_TONE_CHARS = 200
 
 #: Maximum characters accepted in ``request_id`` and ``workspace_id``.
 MAX_ID_CHARS = 128
+
+#: Maximum characters accepted in the optional ``model`` override.
+MAX_MODEL_CHARS = 200
+
+#: Allowed shape of a model identifier (name, tag, or path segments only).
+MODEL_NAME_PATTERN = r"^[A-Za-z0-9._:/-]+$"

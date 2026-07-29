@@ -24,9 +24,16 @@ from ..policies.privacy import (
     sanitize_public_message,
     sanitized_request_record,
 )
-from ..providers.base import AssistantProvider, CompletionRequest, ProviderError
+from ..providers.base import (
+    AssistantProvider,
+    CompletionRequest,
+    ModelListing,
+    ProviderError,
+)
 from ..schemas.requests import AssistantRequest
 from ..schemas.responses import (
+    AssistantHealthResponse,
+    AssistantModelsResponse,
     AssistantResponse,
     AssistantStatus,
     ProviderInfo,
@@ -90,12 +97,22 @@ _MODE_INSTRUCTIONS: dict[AssistantMode, str] = {
         '"uncertainty": [string]}.'
     ),
     AssistantMode.VISUALIZE_DESIGN: (
-        "Generate a Mermaid diagram only from components the user described or "
-        "clearly implied; do not invent architecture. Keep labels plain text. "
-        "Also return a builder prompt that reflects only the user's "
-        "description. "
-        'Respond with only a JSON object: {"diagram_code": string, '
-        '"summary": string, "builder_prompt": string, "warnings": [string]}.'
+        "First classify the user's description as exactly one kind: "
+        "'layout' (a UI screen, page, or component arrangement), 'workflow' "
+        "(a process, data flow, or system architecture), or 'unclear' (not "
+        "enough concrete detail to draw anything). Use only components the "
+        "user described or clearly implied; do not invent architecture. "
+        "For 'layout': return collapsed (a short ASCII-tree overview, one "
+        "string per line) and expanded (a detailed ASCII tree, one string "
+        "per line); leave diagram_code null. For 'workflow': return Mermaid "
+        "code in diagram_code with plain-text labels; leave collapsed and "
+        "expanded null. For 'unclear': explain in summary exactly what is "
+        "missing; leave the other fields null. Also return a builder prompt "
+        "that reflects only the user's description (null when unclear). "
+        'Respond with only a JSON object: {"kind": "layout"|"workflow"|'
+        '"unclear", "summary": string, "collapsed": [string]|null, '
+        '"expanded": [string]|null, "diagram_code": string|null, '
+        '"builder_prompt": string|null, "warnings": [string]}.'
     ),
 }
 
@@ -129,6 +146,51 @@ def _extract_json(text: str) -> dict:
     return payload
 
 
+def _sanitize_visualize(result: dict) -> list[str]:
+    """Sanitize workflow diagram code in place; layout/unclear pass through."""
+    if not result.get("diagram_code"):
+        return []
+    sanitized_code, diagram_warnings = sanitize_diagram_code(result["diagram_code"])
+    result["diagram_code"] = sanitized_code
+    return list(diagram_warnings)
+
+
+def _failure(
+    request: AssistantRequest,
+    provider_info: ProviderInfo,
+    error: ProviderError,
+    *,
+    usage: dict[str, int] | None = None,
+) -> AssistantResponse:
+    message = sanitize_public_message(error.public_message)
+    return AssistantResponse(
+        request_id=request.request_id,
+        mode=request.mode,
+        status=AssistantStatus.FAILED,
+        result={"error": {"category": error.category.value, "message": message}},
+        provider=provider_info,
+        usage=usage,
+        uncertainty=[message],
+    )
+
+
+def _log(
+    request: AssistantRequest,
+    response: AssistantResponse,
+    started_at: datetime,
+) -> None:
+    # Only the sanitized metadata record is logged — never user text.
+    record = sanitized_request_record(
+        request_id=request.request_id,
+        mode=request.mode.value,
+        status=response.status.value,
+        provider_source=response.provider.source if response.provider else None,
+        started_at=started_at,
+        usage=response.usage,
+    )
+    logger.info("assistant_request %s", json.dumps(record))
+
+
 class AssistantService:
     def __init__(
         self,
@@ -142,6 +204,37 @@ class AssistantService:
         self._max_tokens = max_tokens
         self._timeout_seconds = timeout_seconds
         self._fix_selector = fix_selector
+
+    def describe_models(self) -> AssistantModelsResponse:
+        """Describe the models selectable within the fixed provider.
+
+        Listing failures degrade to an empty, unreachable listing — they
+        never surface as HTTP 5xx or raw provider errors.
+        """
+        provider_info = ProviderInfo(
+            id=self._provider.provider_id, source=self._provider.source
+        )
+        try:
+            listing = self._provider.list_models()
+        except Exception:  # noqa: BLE001 - listing is best-effort by design
+            listing = ModelListing(
+                current_model="", available_models=[], reachable=False
+            )
+        return AssistantModelsResponse(
+            provider=provider_info,
+            current_model=listing.current_model,
+            available_models=list(listing.available_models),
+            reachable=listing.reachable,
+        )
+
+    def describe_health(self) -> AssistantHealthResponse:
+        """Liveness envelope: process is up and a provider is configured."""
+        return AssistantHealthResponse(
+            status="ok",
+            provider=ProviderInfo(
+                id=self._provider.provider_id, source=self._provider.source
+            ),
+        )
 
     def handle(self, request: AssistantRequest) -> AssistantResponse:
         started_at = datetime.now(timezone.utc)
@@ -159,7 +252,7 @@ class AssistantService:
                 result=SelectionRequiredResult().model_dump(),
                 uncertainty=["No term was selected for translation."],
             )
-            self._log(request, response, started_at)
+            self._log_response(request, response, started_at)
             return response
 
         if (
@@ -176,28 +269,29 @@ class AssistantService:
                     user_prompt=build_user_prompt(request),
                     max_tokens=self._max_tokens,
                     timeout_seconds=self._timeout_seconds,
+                    model_override=request.model,
                 )
             )
         except ProviderError as error:
-            response = self._failure(request, provider_info, error)
-            self._log(request, response, started_at)
+            response = self._failure_response(request, provider_info, error)
+            self._log_response(request, response, started_at)
             return response
         except Exception:  # pragma: no cover - defensive boundary
-            response = self._failure(
+            response = self._failure_response(
                 request,
                 provider_info,
                 ProviderError(
                     PublicErrorCategory.INTERNAL, "The assistant request failed."
                 ),
             )
-            self._log(request, response, started_at)
+            self._log_response(request, response, started_at)
             return response
 
         try:
             payload = _extract_json(reply.text)
             result_model = MODE_RESULT_MODELS[request.mode].model_validate(payload)
         except (ValueError, ValidationError):
-            response = self._failure(
+            response = self._failure_response(
                 request,
                 provider_info,
                 ProviderError(
@@ -207,17 +301,13 @@ class AssistantService:
                 ),
                 usage=reply.usage,
             )
-            self._log(request, response, started_at)
+            self._log_response(request, response, started_at)
             return response
 
         result = result_model.model_dump()
         warnings: list[str] = []
         if request.mode is AssistantMode.VISUALIZE_DESIGN:
-            sanitized_code, diagram_warnings = sanitize_diagram_code(
-                result["diagram_code"]
-            )
-            result["diagram_code"] = sanitized_code
-            warnings.extend(diagram_warnings)
+            warnings.extend(_sanitize_visualize(result))
 
         uncertainty = [
             str(item) for item in result.get("uncertainty", []) if str(item).strip()
@@ -243,7 +333,7 @@ class AssistantService:
             engine=engine,
             uncertainty=uncertainty,
         )
-        self._log(request, response, started_at)
+        self._log_response(request, response, started_at)
         return response
 
     def _handle_fix_wording(
@@ -261,18 +351,18 @@ class AssistantService:
                 timeout_seconds=self._timeout_seconds,
             )
         except ProviderError as error:
-            response = self._failure(request, provider_info, error)
-            self._log(request, response, started_at)
+            response = self._failure_response(request, provider_info, error)
+            self._log_response(request, response, started_at)
             return response
         except Exception:  # pragma: no cover - defensive boundary
-            response = self._failure(
+            response = self._failure_response(
                 request,
                 provider_info,
                 ProviderError(
                     PublicErrorCategory.INTERNAL, "The assistant request failed."
                 ),
             )
-            self._log(request, response, started_at)
+            self._log_response(request, response, started_at)
             return response
 
         result = outcome.result.model_dump()
@@ -294,41 +384,9 @@ class AssistantService:
             fallback_reason=outcome.fallback_reason,
             uncertainty=uncertainty,
         )
-        self._log(request, response, started_at)
+        self._log_response(request, response, started_at)
         return response
 
-    def _failure(
-        self,
-        request: AssistantRequest,
-        provider_info: ProviderInfo,
-        error: ProviderError,
-        *,
-        usage: dict[str, int] | None = None,
-    ) -> AssistantResponse:
-        message = sanitize_public_message(error.public_message)
-        return AssistantResponse(
-            request_id=request.request_id,
-            mode=request.mode,
-            status=AssistantStatus.FAILED,
-            result={"error": {"category": error.category.value, "message": message}},
-            provider=provider_info,
-            usage=usage,
-            uncertainty=[message],
-        )
-
-    def _log(
-        self,
-        request: AssistantRequest,
-        response: AssistantResponse,
-        started_at: datetime,
-    ) -> None:
-        # Only the sanitized metadata record is logged — never user text.
-        record = sanitized_request_record(
-            request_id=request.request_id,
-            mode=request.mode.value,
-            status=response.status.value,
-            provider_source=response.provider.source if response.provider else None,
-            started_at=started_at,
-            usage=response.usage,
-        )
-        logger.info("assistant_request %s", json.dumps(record))
+    # Module-level helpers keep the class within its size baseline.
+    _failure_response = staticmethod(_failure)
+    _log_response = staticmethod(_log)

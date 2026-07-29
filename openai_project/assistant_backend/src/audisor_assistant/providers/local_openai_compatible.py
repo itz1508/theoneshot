@@ -19,11 +19,18 @@ import os
 import requests
 
 from ..schemas.responses import PublicErrorCategory
-from .base import CompletionReply, CompletionRequest, ProviderCapabilities, ProviderError
+from .base import (
+    CompletionReply,
+    CompletionRequest,
+    ModelListing,
+    ProviderCapabilities,
+    ProviderError,
+)
 
 DEFAULT_BASE_URL = "http://127.0.0.1:11434"
 DEFAULT_TIMEOUT_SECONDS = 300.0
 DEFAULT_MAX_TOKENS = 1024
+MODEL_LIST_TIMEOUT_SECONDS = 5.0
 
 
 class LocalOpenAICompatibleProvider:
@@ -61,7 +68,7 @@ class LocalOpenAICompatibleProvider:
 
     def complete(self, request: CompletionRequest) -> CompletionReply:
         body = {
-            "model": self.model_id,
+            "model": request.model_override or self.model_id,
             "messages": [
                 {"role": "system", "content": request.system_prompt},
                 {"role": "user", "content": request.user_prompt},
@@ -90,6 +97,31 @@ class LocalOpenAICompatibleProvider:
                 PublicErrorCategory.INTERNAL, "Local provider request failed."
             ) from exc
         return _parse_chat_completion(response)
+
+    def list_models(self) -> ModelListing:
+        """Probe the local engine's tag list; unreachable is a listing
+        state, not an error — the configured model stays offered."""
+        try:
+            response = requests.get(
+                f"{self.base_url}/api/tags", timeout=MODEL_LIST_TIMEOUT_SECONDS
+            )
+            response.raise_for_status()
+            names = [
+                str(item["name"])
+                for item in response.json().get("models", [])
+                if isinstance(item, dict) and "name" in item
+            ]
+        except (requests.RequestException, ValueError):
+            names = []
+        if not names:
+            return ModelListing(
+                current_model=self.model_id,
+                available_models=[self.model_id],
+                reachable=False,
+            )
+        return ModelListing(
+            current_model=self.model_id, available_models=names, reachable=True
+        )
 
 
 def _parse_chat_completion(response: requests.Response) -> CompletionReply:

@@ -53,3 +53,27 @@ class AssistantResponse(BaseModel):
     fallback_used: bool = False
     fallback_reason: str = ""
     uncertainty: list[str] = Field(default_factory=list)
+
+
+class AssistantModelsResponse(BaseModel):
+    """Envelope for GET /v1/assistant/models.
+
+    Never carries credentials or raw provider payloads.  ``reachable``
+    is null for providers that are not probed (cloud).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    provider: ProviderInfo
+    current_model: str
+    available_models: list[str] = Field(default_factory=list)
+    reachable: bool | None = None
+
+
+class AssistantHealthResponse(BaseModel):
+    """Envelope for GET /v1/assistant/health (unauthenticated liveness)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    status: str = "ok"
+    provider: ProviderInfo | None = None

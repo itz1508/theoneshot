@@ -6,10 +6,18 @@
  * provider choice is a server-side concern.
  */
 
-import type { AssistantMode, AssistantRequest, AssistantResponse } from '../types'
+import type {
+  AssistantMode,
+  AssistantModelsResponse,
+  AssistantRequest,
+  AssistantResponse,
+} from '../types'
 
 /** Relative backend endpoint; in dev, Vite proxies it to the local backend. */
 export const ASSISTANT_ENDPOINT = '/v1/assistant/requests'
+
+/** Relative model-listing endpoint (same proxy prefix as requests). */
+export const MODELS_ENDPOINT = '/v1/assistant/models'
 
 /** Development identity header consumed by the backend's dev auth adapter. */
 export const DEV_IDENTITY_HEADER = 'x-audisor-dev-user'
@@ -24,9 +32,10 @@ export const DEV_IDENTITY_HEADER = 'x-audisor-dev-user'
  */
 export function resolveAssistantEndpoint(
   raw: string | undefined = import.meta.env.VITE_ASSISTANT_API_URL,
+  path: string = ASSISTANT_ENDPOINT,
 ): { url: string } | { error: 'configuration' } {
   const value = raw?.trim()
-  if (!value) return { url: ASSISTANT_ENDPOINT }
+  if (!value) return { url: path }
   let parsed: URL
   try {
     parsed = new URL(value)
@@ -40,7 +49,7 @@ export function resolveAssistantEndpoint(
     return { error: 'configuration' }
   }
   const base = (parsed.origin + parsed.pathname).replace(/\/+$/, '')
-  return { url: base + ASSISTANT_ENDPOINT }
+  return { url: base + path }
 }
 
 export interface SubmitOptions {
@@ -60,6 +69,8 @@ export interface SubmitInput {
   context?: string
   tone?: string
   workspaceId?: string
+  /** Optional model override within the fixed provider (never a provider). */
+  model?: string
 }
 
 export function newRequestId(): string {
@@ -79,6 +90,7 @@ export function buildRequest(input: SubmitInput): AssistantRequest {
   if (input.context) request.context = input.context
   if (input.tone) request.tone = input.tone
   if (input.workspaceId) request.workspace_id = input.workspaceId
+  if (input.model) request.model = input.model
   return request
 }
 
@@ -184,5 +196,49 @@ function isAssistantResponse(value: unknown): value is AssistantResponse {
     candidate.result !== null &&
     Array.isArray(candidate.warnings) &&
     Array.isArray(candidate.uncertainty)
+  )
+}
+
+/**
+ * Fetches the model listing for the fixed provider. Best-effort: any
+ * failure (network, auth, malformed body) yields null so the UI simply
+ * hides the selector — never fake data, never a thrown error.
+ */
+export async function fetchAssistantModels(
+  options: SubmitOptions = {},
+): Promise<AssistantModelsResponse | null> {
+  const fetchImpl = options.fetchImpl ?? fetch
+  const endpoint = resolveAssistantEndpoint(options.apiBaseUrl, MODELS_ENDPOINT)
+  if ('error' in endpoint) return null
+  let httpResponse: Response
+  try {
+    httpResponse = await fetchImpl(endpoint.url, {
+      method: 'GET',
+      headers: { [DEV_IDENTITY_HEADER]: options.devIdentity ?? 'web-dev' },
+      signal: options.signal,
+    })
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') throw error
+    return null
+  }
+  if (httpResponse.status !== 200) return null
+  let body: unknown
+  try {
+    body = await httpResponse.json()
+  } catch {
+    return null
+  }
+  return isAssistantModelsResponse(body) ? body : null
+}
+
+function isAssistantModelsResponse(value: unknown): value is AssistantModelsResponse {
+  if (typeof value !== 'object' || value === null) return false
+  const candidate = value as Record<string, unknown>
+  return (
+    typeof candidate.provider === 'object' &&
+    candidate.provider !== null &&
+    typeof candidate.current_model === 'string' &&
+    Array.isArray(candidate.available_models) &&
+    candidate.available_models.every((entry) => typeof entry === 'string')
   )
 }

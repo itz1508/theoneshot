@@ -8,6 +8,7 @@ embedded, logged, or returned:
 - AUDISOR_ASSISTANT_CLOUD_BASE_URL
 - AUDISOR_ASSISTANT_CLOUD_MODEL_ID
 - AUDISOR_ASSISTANT_CLOUD_API_KEY  (read at request time; never stored)
+- AUDISOR_ASSISTANT_CLOUD_MODEL_CHOICES  (comma-separated dropdown list)
 - AUDISOR_TIMEOUT_SECONDS / AUDISOR_MAX_TOKENS (shared)
 
 The cloud vendor selection itself remains an open production decision.
@@ -19,12 +20,28 @@ import os
 import requests
 
 from ..schemas.responses import PublicErrorCategory
-from .base import CompletionReply, CompletionRequest, ProviderCapabilities, ProviderError
+from .base import (
+    CompletionReply,
+    CompletionRequest,
+    ModelListing,
+    ProviderCapabilities,
+    ProviderError,
+)
 from .local_openai_compatible import (
     DEFAULT_MAX_TOKENS,
     DEFAULT_TIMEOUT_SECONDS,
     _parse_chat_completion,
 )
+
+CLOUD_MODEL_CHOICES_VAR = "AUDISOR_ASSISTANT_CLOUD_MODEL_CHOICES"
+
+
+def cloud_model_choices(default: list[str]) -> list[str]:
+    """Fixed, server-configured dropdown choices — cloud providers are
+    never probed for listing, so no credential is ever used here."""
+    raw = os.environ.get(CLOUD_MODEL_CHOICES_VAR, "")
+    choices = [entry.strip() for entry in raw.split(",") if entry.strip()]
+    return choices or default
 
 
 class CloudOpenAICompatibleProvider:
@@ -68,7 +85,7 @@ class CloudOpenAICompatibleProvider:
                 "Cloud provider credential is not configured.",
             )
         body = {
-            "model": self.model_id,
+            "model": request.model_override or self.model_id,
             "messages": [
                 {"role": "system", "content": request.system_prompt},
                 {"role": "user", "content": request.user_prompt},
@@ -98,3 +115,10 @@ class CloudOpenAICompatibleProvider:
                 PublicErrorCategory.INTERNAL, "Cloud provider request failed."
             ) from exc
         return _parse_chat_completion(response)
+
+    def list_models(self) -> ModelListing:
+        return ModelListing(
+            current_model=self.model_id,
+            available_models=cloud_model_choices([self.model_id]),
+            reachable=None,
+        )

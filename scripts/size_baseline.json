@@ -177,14 +177,8 @@
     {
       "metric": "symbol_span",
       "path": "openai_project/assistant_backend/src/audisor_assistant/application/service.py",
-      "symbol": "AssistantService",
-      "value": 203
-    },
-    {
-      "metric": "symbol_span",
-      "path": "openai_project/assistant_backend/src/audisor_assistant/application/service.py",
       "symbol": "AssistantService.handle",
-      "value": 102
+      "value": 99
     },
     {
       "metric": "physical_lines",

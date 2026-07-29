@@ -11,9 +11,11 @@ from ..domain.modes import AssistantMode
 from ..policies.limits import (
     MAX_CONTEXT_CHARS,
     MAX_ID_CHARS,
+    MAX_MODEL_CHARS,
     MAX_SELECTED_TEXT_CHARS,
     MAX_TEXT_CHARS,
     MAX_TONE_CHARS,
+    MODEL_NAME_PATTERN,
 )
 
 
@@ -27,3 +29,11 @@ class AssistantRequest(BaseModel):
     context: str | None = Field(default=None, max_length=MAX_CONTEXT_CHARS)
     tone: str | None = Field(default=None, max_length=MAX_TONE_CHARS)
     workspace_id: str | None = Field(default=None, max_length=MAX_ID_CHARS)
+    # Optional model override *within* the server-configured provider.
+    # Provider selection itself is never client-controlled.
+    model: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=MAX_MODEL_CHARS,
+        pattern=MODEL_NAME_PATTERN,
+    )

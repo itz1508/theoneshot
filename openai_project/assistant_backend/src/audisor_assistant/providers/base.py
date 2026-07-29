@@ -34,6 +34,23 @@ class CompletionRequest:
     user_prompt: str
     max_tokens: int
     timeout_seconds: float
+    # Per-request model override: selects a model within the configured
+    # provider only; it never selects the provider itself.
+    model_override: str | None = None
+
+
+@dataclass(frozen=True)
+class ModelListing:
+    """What the model dropdown may offer for the active provider.
+
+    ``reachable`` is True/False only when the provider was actually
+    probed (local); cloud providers are never probed for listing, so
+    they report ``None``.  Never carries credentials.
+    """
+
+    current_model: str
+    available_models: list[str]
+    reachable: bool | None = None
 
 
 @dataclass(frozen=True)
@@ -62,6 +79,10 @@ class AssistantProvider(Protocol):
 
     def complete(self, request: CompletionRequest) -> CompletionReply:
         """Run one structured completion.  Raise ProviderError on failure."""
+        ...
+
+    def list_models(self) -> ModelListing:
+        """Describe the models selectable within this provider."""
         ...
 
 
@@ -117,6 +138,9 @@ _FAKE_RESULTS: dict[AssistantMode, dict] = {
         "uncertainty": [],
     },
     AssistantMode.VISUALIZE_DESIGN: {
+        "kind": "workflow",
+        "collapsed": None,
+        "expanded": None,
         "diagram_code": "flowchart TD\n  A[Client] --> B[API]\n  B --> C[Provider]",
         "summary": "Client calls API which calls one provider.",
         "builder_prompt": "Build a client, an API, and one provider adapter.",
@@ -173,4 +197,11 @@ class DeterministicFakeProvider:
         return CompletionReply(
             text=json.dumps(payload),
             usage={"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+        )
+
+    def list_models(self) -> ModelListing:
+        return ModelListing(
+            current_model="fake-deterministic",
+            available_models=["fake-deterministic"],
+            reachable=True,
         )

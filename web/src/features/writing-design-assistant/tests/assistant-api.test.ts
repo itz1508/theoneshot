@@ -9,11 +9,13 @@ import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   ASSISTANT_ENDPOINT,
+  MODELS_ENDPOINT,
   buildRequest,
+  fetchAssistantModels,
   resolveAssistantEndpoint,
   submitAssistantRequest,
 } from '../services/assistantApi'
-import type { AssistantResponse } from '../types'
+import type { AssistantModelsResponse, AssistantResponse } from '../types'
 
 function envelope(overrides: Partial<AssistantResponse> = {}): AssistantResponse {
   return {
@@ -56,6 +58,14 @@ describe('buildRequest', () => {
     expect(request.selected_text).toBe('circle back')
     expect(request.tone).toBe('casual')
     expect('context' in request).toBe(false)
+  })
+
+  it('includes the model override only when set, and never a provider', () => {
+    const withModel = buildRequest({ mode: 'fix_wording', text: 'hi', model: 'llama3.2:3b' })
+    expect(withModel.model).toBe('llama3.2:3b')
+    const withoutModel = buildRequest({ mode: 'fix_wording', text: 'hi' })
+    expect('model' in withoutModel).toBe(false)
+    expect('provider' in withModel).toBe(false)
   })
 })
 
@@ -165,6 +175,69 @@ describe('submitAssistantRequest', () => {
     const response = await submitAssistantRequest({ mode: 'fix_wording', text: 'hi' }, { fetchImpl })
     expect(response.status).toBe('failed')
     expect(response.result).toMatchObject({ error: { category: 'unavailable' } })
+  })
+
+  it('sends the selected model in the request body', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(envelope()))
+    await submitAssistantRequest(
+      { mode: 'fix_wording', text: 'hi', model: 'qwen2.5:7b' },
+      { fetchImpl },
+    )
+    const body = JSON.parse((fetchImpl.mock.calls[0][1] as RequestInit).body as string)
+    expect(body.model).toBe('qwen2.5:7b')
+  })
+})
+
+describe('fetchAssistantModels', () => {
+  function listing(overrides: Partial<AssistantModelsResponse> = {}): AssistantModelsResponse {
+    return {
+      provider: { id: 'local-openai-compatible', source: 'local' },
+      current_model: 'llama3.2:3b',
+      available_models: ['llama3.2:3b', 'qwen2.5:7b'],
+      reachable: true,
+      ...overrides,
+    }
+  }
+
+  it('GETs the models endpoint and returns a contract-valid listing', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(listing()))
+    const result = await fetchAssistantModels({ fetchImpl })
+    expect(result).toEqual(listing())
+    const [url, init] = fetchImpl.mock.calls[0]
+    expect(url).toBe(MODELS_ENDPOINT)
+    expect((init as RequestInit).method).toBe('GET')
+    expect((init as RequestInit).body).toBeUndefined()
+  })
+
+  it('targets the configured external backend when apiBaseUrl is set', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(listing()))
+    await fetchAssistantModels({ fetchImpl, apiBaseUrl: 'https://backend.example.com' })
+    expect(fetchImpl.mock.calls[0][0]).toBe('https://backend.example.com/v1/assistant/models')
+  })
+
+  it('returns null on a non-200 status', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ detail: 'no' }, 401))
+    expect(await fetchAssistantModels({ fetchImpl })).toBeNull()
+  })
+
+  it('returns null on network failure', async () => {
+    const fetchImpl = vi.fn().mockRejectedValue(new TypeError('fetch failed'))
+    expect(await fetchAssistantModels({ fetchImpl })).toBeNull()
+  })
+
+  it('returns null for a malformed or contract-violating body', async () => {
+    const malformed = vi.fn().mockResolvedValue(new Response('not json', { status: 200 }))
+    expect(await fetchAssistantModels({ fetchImpl: malformed })).toBeNull()
+    const wrongShape = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ current_model: 1, available_models: 'x' }))
+    expect(await fetchAssistantModels({ fetchImpl: wrongShape })).toBeNull()
+  })
+
+  it('returns null for a malformed base URL without a network call', async () => {
+    const fetchImpl = vi.fn()
+    expect(await fetchAssistantModels({ fetchImpl, apiBaseUrl: 'not-a-url' })).toBeNull()
+    expect(fetchImpl).not.toHaveBeenCalled()
   })
 })
 

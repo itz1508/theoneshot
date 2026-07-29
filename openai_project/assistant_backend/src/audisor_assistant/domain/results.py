@@ -92,9 +92,19 @@ class ExpandIdeaResult(_StrictModel):
 
 
 class VisualizeDesignResult(_StrictModel):
-    diagram_code: str
+    """Kind-based diagram contract.
+
+    ``layout`` carries collapsed/expanded ASCII trees, ``workflow``
+    carries Mermaid diagram code, ``unclear`` carries only the summary
+    explaining what is missing.
+    """
+
+    kind: Literal["layout", "workflow", "unclear"]
     summary: str
-    builder_prompt: str
+    collapsed: list[str] | None = None
+    expanded: list[str] | None = None
+    diagram_code: str | None = None
+    builder_prompt: str | None = None
     warnings: list[str] = Field(default_factory=list)
 
 

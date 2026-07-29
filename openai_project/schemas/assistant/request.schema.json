@@ -49,6 +49,13 @@
       "type": ["string", "null"],
       "maxLength": 128,
       "description": "Opaque workspace identifier."
+    },
+    "model": {
+      "type": ["string", "null"],
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[A-Za-z0-9._:/-]+$",
+      "description": "Optional model override within the server-configured provider only; provider selection itself is never client-controlled."
     }
   }
 }

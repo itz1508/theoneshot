@@ -1,7 +1,8 @@
 /**
  * assistant-results.test.tsx — result rendering per mode:
- * change list, three reply variants, teaching sections, diagram
- * preview, copy actions, error/uncertainty states, and history clear.
+ * change list, three reply variants, teaching sections, kind-aware
+ * diagram preview, copy actions, error/uncertainty states, and
+ * history clear.
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -40,6 +41,23 @@ function envelope(overrides: Partial<AssistantResponse>): AssistantResponse {
     uncertainty: [],
     ...overrides,
   }
+}
+
+/**
+ * Fetch stub that answers the mount-time models GET with 404 (selector
+ * hidden) and every POST with a fresh Response carrying `body`.
+ */
+function routedFetch(body: unknown) {
+  return vi.fn().mockImplementation((_url: string, init?: RequestInit) =>
+    Promise.resolve(
+      init?.method === 'POST'
+        ? new Response(JSON.stringify(body), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          })
+        : new Response('{}', { status: 404 }),
+    ),
+  )
 }
 
 describe('result rendering', () => {
@@ -114,12 +132,13 @@ describe('result rendering', () => {
     expect(screen.getByText(/check your understanding/i)).toBeInTheDocument()
   })
 
-  it('renders the diagram preview with code and builder prompt', async () => {
+  it('renders the workflow diagram preview with code and builder prompt', async () => {
     render(
       <AssistantResult
         response={envelope({
           mode: 'visualize_design',
           result: {
+            kind: 'workflow',
             diagram_code: 'flowchart TD\n  A --> B',
             summary: 'Two connected boxes.',
             builder_prompt: 'Build two boxes.',
@@ -136,6 +155,52 @@ describe('result rendering', () => {
     )
   })
 
+  it('renders the layout preview with a collapsed/expanded toggle and no diagram', () => {
+    render(
+      <AssistantResult
+        response={envelope({
+          mode: 'visualize_design',
+          result: {
+            kind: 'layout',
+            summary: 'A two-panel layout.',
+            collapsed: ['App', '├─ Sidebar', '└─ Content'],
+            expanded: ['App', '├─ Sidebar', '│  └─ Nav', '└─ Content', '   └─ Editor'],
+            warnings: [],
+          },
+        })}
+      />,
+    )
+    expect(screen.getByText(/a two-panel layout/i)).toBeInTheDocument()
+    expect(screen.queryByRole('img', { name: /design diagram preview/i })).not.toBeInTheDocument()
+    const tree = screen.getByLabelText('Layout tree')
+    expect(tree).toHaveTextContent('├─ Sidebar')
+    expect(tree).not.toHaveTextContent('Editor')
+
+    fireEvent.click(screen.getByRole('button', { name: /show details/i }))
+    expect(screen.getByLabelText('Layout tree')).toHaveTextContent('Editor')
+    fireEvent.click(screen.getByRole('button', { name: /show overview/i }))
+    expect(screen.getByLabelText('Layout tree')).not.toHaveTextContent('Editor')
+  })
+
+  it('renders an unclear result as summary and warnings only', () => {
+    render(
+      <AssistantResult
+        response={envelope({
+          mode: 'visualize_design',
+          result: {
+            kind: 'unclear',
+            summary: 'Describe the screens or the steps involved.',
+            warnings: ['The description names neither screens nor steps.'],
+          },
+        })}
+      />,
+    )
+    expect(screen.getByText(/describe the screens/i)).toBeInTheDocument()
+    expect(screen.getByLabelText('Diagram warnings')).toHaveTextContent(/names neither screens/i)
+    expect(screen.queryByRole('img', { name: /design diagram preview/i })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Layout tree')).not.toBeInTheDocument()
+  })
+
   it('copy action writes the corrected text to the clipboard', async () => {
     render(<AssistantResult response={envelope({ result: { corrected_text: 'Copy me.' } })} />)
     fireEvent.click(screen.getByRole('button', { name: /copy improved message/i }))
@@ -144,21 +209,12 @@ describe('result rendering', () => {
 })
 
 describe('status states', () => {
-  function jsonResponse(body: unknown): Response {
-    return new Response(JSON.stringify(body), {
-      status: 200,
-      headers: { 'content-type': 'application/json' },
-    })
-  }
-
   it('shows the normalized error state', async () => {
-    const fetchImpl = vi.fn().mockResolvedValue(
-      jsonResponse(
-        envelope({
-          status: 'failed',
-          result: { error: { category: 'timeout', message: 'The model took too long.' } },
-        }),
-      ),
+    const fetchImpl = routedFetch(
+      envelope({
+        status: 'failed',
+        result: { error: { category: 'timeout', message: 'The model took too long.' } },
+      }),
     )
     render(<WritingDesignAssistant submitOptions={{ fetchImpl }} />)
     fireEvent.change(screen.getByLabelText(/your text/i), { target: { value: 'hi' } })
@@ -167,20 +223,18 @@ describe('status states', () => {
   })
 
   it('shows the uncertainty state', async () => {
-    const fetchImpl = vi.fn().mockResolvedValue(
-      jsonResponse(
-        envelope({
-          mode: 'expand_idea',
-          status: 'uncertainty',
-          result: {
-            expanded_text: 'More.',
-            preserved_intent: 'Same.',
-            added_assumptions: [],
-            uncertainty: ['Audience unclear.'],
-          },
+    const fetchImpl = routedFetch(
+      envelope({
+        mode: 'expand_idea',
+        status: 'uncertainty',
+        result: {
+          expanded_text: 'More.',
+          preserved_intent: 'Same.',
+          added_assumptions: [],
           uncertainty: ['Audience unclear.'],
-        }),
-      ),
+        },
+        uncertainty: ['Audience unclear.'],
+      }),
     )
     render(<WritingDesignAssistant submitOptions={{ fetchImpl }} />)
     fireEvent.change(screen.getByLabelText(/your text/i), { target: { value: 'hi' } })
@@ -192,12 +246,7 @@ describe('status states', () => {
 describe('history', () => {
   it('records requests and clears them explicitly', async () => {
     const store = new InMemoryHistoryStore()
-    const fetchImpl = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify(envelope({})), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }),
-    )
+    const fetchImpl = routedFetch(envelope({}))
     render(<WritingDesignAssistant historyStore={store} submitOptions={{ fetchImpl }} />)
     fireEvent.change(screen.getByLabelText(/your text/i), { target: { value: 'remember me' } })
     fireEvent.click(screen.getByRole('button', { name: /^send$/i }))

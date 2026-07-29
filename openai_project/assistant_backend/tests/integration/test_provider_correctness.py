@@ -103,6 +103,7 @@ class _EchoLocalProvider:
                 "example": {"original": source, "professional": source},
             },
             AssistantMode.VISUALIZE_DESIGN: {
+                "kind": "workflow",
                 "diagram_code": "flowchart TD\n  A[Input] --> B[Output]",
                 "summary": f"Diagram for: {source}",
                 "builder_prompt": f"Build: {source}",

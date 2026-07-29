@@ -29,6 +29,41 @@ response, and remain reachable for the configured timeout. Provider errors,
 timeouts, rate limits, authentication failures, and invalid responses are
 reported through the normalized provider error boundary.
 
+## Model listing and per-request override
+
+`GET /v1/assistant/models` (authenticated) reports the active provider, its
+configured default model, and the models selectable within that provider.
+For the local provider the list comes from the engine's `/api/tags` probe;
+when the engine is unreachable the endpoint degrades to the configured model
+with `reachable: false` instead of failing. Cloud providers return a fixed,
+server-configured list (`AUDISOR_ASSISTANT_CLOUD_MODEL_CHOICES`, comma
+separated) and are never probed, so `reachable` is `null`.
+
+A request may set the optional `model` field to pick one of those models for
+that request only. The override selects a model *within* the configured
+provider; provider selection itself is never client-controlled.
+
+`GET /v1/assistant/health` is an unauthenticated liveness probe returning
+`{"status": "ok"}` plus the provider identity.
+
+## Cloud providers
+
+Two cloud provider ids exist: `cloud-openai-compatible` (OpenAI-style chat
+completions) and `cloud-anthropic` (native Anthropic Messages API,
+`x-api-key` header, default base URL `https://api.anthropic.com`). Both read:
+
+```powershell
+$env:AUDISOR_PROVIDER = "cloud-anthropic"
+$env:AUDISOR_ASSISTANT_CLOUD_BASE_URL = "https://api.anthropic.com"   # optional
+$env:AUDISOR_ASSISTANT_CLOUD_MODEL_ID = "claude-sonnet-4-6"
+$env:AUDISOR_ASSISTANT_CLOUD_API_KEY = "<secret, never committed>"
+$env:AUDISOR_ASSISTANT_CLOUD_MODEL_CHOICES = "claude-sonnet-4-6,claude-haiku-4-5-20251001"  # optional
+```
+
+Startup fails fast (`RuntimeError`) when a cloud provider is selected and
+`AUDISOR_ASSISTANT_CLOUD_API_KEY` is unset — a cloud deployment must never
+come up half-configured. `run-dev.ps1` enforces the same rule before launch.
+
 ## Reliability boundary
 
 Local models are a best-effort development and offline path. Hardware,

@@ -17,7 +17,7 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
 
-$knownProviders = @('local-openai-compatible', 'fake-deterministic', 'cloud-openai-compatible')
+$knownProviders = @('local-openai-compatible', 'fake-deterministic', 'cloud-openai-compatible', 'cloud-anthropic')
 $knownEngines   = @('model', 'languagetool', 'auto')
 $knownFallbacks = @('none', 'model')
 
@@ -51,6 +51,12 @@ if ($Provider -eq 'local-openai-compatible') {
         throw 'AUDISOR_MODEL_ID is required for local-openai-compatible (e.g. -Model qwen2.5-coder:7b). Refusing to start with an empty model id.'
     }
     if (-not $BaseUrl) { throw 'AUDISOR_BASE_URL must not be empty for local-openai-compatible.' }
+}
+if ($Provider -in @('cloud-openai-compatible', 'cloud-anthropic')) {
+    # Mirrors the app's own startup fail-fast (enforce_cloud_credential).
+    if (-not $env:AUDISOR_ASSISTANT_CLOUD_API_KEY) {
+        throw "AUDISOR_ASSISTANT_CLOUD_API_KEY is required for $Provider. Refusing to start without a credential."
+    }
 }
 if ($FixEngine -in @('languagetool', 'auto')) {
     & uv run --no-sync python -c "import importlib.util,sys;sys.exit(0 if importlib.util.find_spec('language_tool_python') else 1)" 2>$null

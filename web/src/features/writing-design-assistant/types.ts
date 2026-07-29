@@ -34,6 +34,11 @@ export interface AssistantRequest {
   context?: string | null
   tone?: string | null
   workspace_id?: string | null
+  /**
+   * Optional model override within the server-configured provider only;
+   * provider selection itself is never client-controlled.
+   */
+  model?: string | null
 }
 
 // ---- Per-mode result contracts ----
@@ -103,10 +108,19 @@ export interface ExpandIdeaResult {
   uncertainty?: string[]
 }
 
+export type VisualizeDesignKind = 'layout' | 'workflow' | 'unclear'
+
 export interface VisualizeDesignResult {
-  diagram_code: string
+  /**
+   * layout → collapsed/expanded ASCII trees; workflow → Mermaid
+   * diagram_code; unclear → summary only.
+   */
+  kind: VisualizeDesignKind
   summary: string
-  builder_prompt: string
+  collapsed?: string[] | null
+  expanded?: string[] | null
+  diagram_code?: string | null
+  builder_prompt?: string | null
   warnings?: string[]
 }
 
@@ -127,6 +141,15 @@ export type AssistantResult =
 export interface ProviderInfo {
   id: string
   source: 'local' | 'cloud'
+}
+
+/** Mirror of openai_project/schemas/assistant/models.schema.json. */
+export interface AssistantModelsResponse {
+  provider: ProviderInfo
+  current_model: string
+  available_models: string[]
+  /** true/false when the provider was probed (local); null for cloud. */
+  reachable?: boolean | null
 }
 
 export interface AssistantResponse {

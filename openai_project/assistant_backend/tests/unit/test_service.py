@@ -150,6 +150,7 @@ def test_error_messages_are_sanitized():
 
 def test_visualize_design_diagram_is_sanitized():
     payload = {
+        "kind": "workflow",
         "diagram_code": "flowchart TD\n  A --> B\n  click A \"javascript:x()\"",
         "summary": "s",
         "builder_prompt": "b",

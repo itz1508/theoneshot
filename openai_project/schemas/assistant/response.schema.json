@@ -203,12 +203,15 @@
     },
     "visualizeDesignResult": {
       "type": "object",
-      "required": ["diagram_code", "summary", "builder_prompt"],
+      "required": ["kind", "summary"],
       "additionalProperties": false,
       "properties": {
-        "diagram_code": { "type": "string" },
+        "kind": { "type": "string", "enum": ["layout", "workflow", "unclear"] },
         "summary": { "type": "string" },
-        "builder_prompt": { "type": "string" },
+        "collapsed": { "type": ["array", "null"], "items": { "type": "string" } },
+        "expanded": { "type": ["array", "null"], "items": { "type": "string" } },
+        "diagram_code": { "type": ["string", "null"] },
+        "builder_prompt": { "type": ["string", "null"] },
         "warnings": { "type": "array", "items": { "type": "string" } }
       }
     },

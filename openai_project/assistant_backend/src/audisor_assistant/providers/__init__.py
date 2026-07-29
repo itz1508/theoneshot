@@ -5,9 +5,11 @@ from .base import (
     CompletionReply,
     CompletionRequest,
     DeterministicFakeProvider,
+    ModelListing,
     ProviderCapabilities,
     ProviderError,
 )
+from .anthropic import CloudAnthropicProvider
 from .cloud import CloudOpenAICompatibleProvider
 from .local_openai_compatible import LocalOpenAICompatibleProvider
 
@@ -16,8 +18,10 @@ __all__ = [
     "CompletionReply",
     "CompletionRequest",
     "DeterministicFakeProvider",
+    "ModelListing",
     "ProviderCapabilities",
     "ProviderError",
+    "CloudAnthropicProvider",
     "CloudOpenAICompatibleProvider",
     "LocalOpenAICompatibleProvider",
 ]
