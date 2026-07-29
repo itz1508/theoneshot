@@ -7,8 +7,9 @@ import re
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .api.routes import router
+from .api.routes import chat_router, router
 from .application.fix_engines import build_grammar_state
+from .application.operator_chat_prompt import OperatorChatClock, default_clock
 from .application.service import AssistantService
 
 CORS_ORIGINS_VAR = "AUDISOR_CORS_ORIGINS"
@@ -75,15 +76,25 @@ def enforce_cloud_credential() -> None:
         )
 
 
-def create_app(service: AssistantService | None = None) -> FastAPI:
+def create_app(
+    service: AssistantService | None = None,
+    *,
+    operator_chat_clock: OperatorChatClock | None = None,
+) -> FastAPI:
     """Build the FastAPI app.  A pre-built service (e.g. with the
-    deterministic fake provider) may be injected for tests."""
+    deterministic fake provider) may be injected for tests.
+
+    ``operator_chat_clock`` overrides the wall-clock used to build the
+    operator-chat system prompt.  Tests pass a fixed clock here;
+    production leaves it ``None`` (uses the default clock).
+    """
     if service is None:
         # Injected services bypass provider construction, so the cloud
         # credential check only applies to environment-driven startup.
         enforce_cloud_credential()
     app = FastAPI(title="Audisor Writing & Design Assistant", version="0.1.0")
     app.state.service = service
+    app.state.operator_chat_clock = operator_chat_clock or default_clock
     # Grammar engine resolves eagerly at startup so fix_wording requests
     # never trigger a surprise download; failure never blocks startup.
     app.state.grammar_state = build_grammar_state()
@@ -99,6 +110,7 @@ def create_app(service: AssistantService | None = None) -> FastAPI:
             allow_credentials=False,
         )
     app.include_router(router)
+    app.include_router(chat_router)
     return app
 
 

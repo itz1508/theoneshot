@@ -25,6 +25,45 @@
   cursor: not-allowed;
 }
 
+.inputRow {
+  display: flex;
+  align-items: flex-end;
+}
+
+/* Live capacity meter: estimated request input / usable allowance */
+.meter {
+  flex-shrink: 0;
+  padding: 0 14px 10px 8px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: #52525b;
+}
+
+.meterWarn {
+  color: #eab308;
+}
+
+.meterOver {
+  color: #ef4444;
+}
+
+.meterUnavailable {
+  color: #52525b;
+  font-style: italic;
+}
+
+.capacityNote {
+  padding: 0 16px 6px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #eab308;
+}
+
+.capacityBlocked {
+  color: #ef4444;
+}
+
 .textarea {
   width: 100%;
   padding: 12px 16px 8px;

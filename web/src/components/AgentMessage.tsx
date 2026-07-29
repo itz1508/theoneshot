@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { ActivityDisclosure } from './ActivityDisclosure'
+import { TokenBadge } from './TokenBadge'
+import type { MessageTokenUsage } from '../agent/types'
 import styles from './AgentMessage.module.css'
 
 interface Activity {
@@ -12,9 +14,10 @@ interface Activity {
 interface AgentMessageProps {
   content: string
   activities?: Activity[]
+  tokens?: MessageTokenUsage
 }
 
-export function AgentMessage({ content, activities }: AgentMessageProps) {
+export function AgentMessage({ content, activities, tokens }: AgentMessageProps) {
   const [expanded, setExpanded] = useState(false)
 
   return (
@@ -23,6 +26,7 @@ export function AgentMessage({ content, activities }: AgentMessageProps) {
         <span className={styles.label}>Assistant</span>
         <div className={styles.bubble}>
           <p className={styles.text}>{content}</p>
+          {tokens && <TokenBadge tokens={tokens} />}
           {activities && activities.length > 0 && (
             <div className={styles.activitySection}>
               <button

@@ -33,9 +33,14 @@ from pydantic import ValidationError
 
 from ..domain.modes import AssistantMode
 from ..domain.results import FixWordingChange, FixWordingResult
-from ..providers.base import AssistantProvider, CompletionRequest, ProviderError
+from ..providers.base import AssistantProvider, CompletionReply, CompletionRequest, ProviderError
 from ..schemas.requests import AssistantRequest
 from ..schemas.responses import ProviderInfo, PublicErrorCategory
+from ..usage.public import UsageAccountingEvidence
+from .usage_integration import (
+    UsageAccountingIntegration,
+    not_applicable_evidence,
+)
 
 FIX_ENGINE_VAR = "AUDISOR_FIX_ENGINE"
 FIX_FALLBACK_VAR = "AUDISOR_FIX_FALLBACK"
@@ -74,6 +79,8 @@ class FixOutcome:
     engine: str
     fallback_used: bool = False
     fallback_reason: str = ""
+    accounting: UsageAccountingEvidence | None = None
+    _provider_reply: CompletionReply | None = None
 
 
 @dataclass
@@ -96,14 +103,16 @@ class ModelFixEngine:
         self._provider = provider
 
     def run(
-        self, request: AssistantRequest, *, max_tokens: int, timeout_seconds: float
+        self, request: AssistantRequest, *, max_tokens: int, timeout_seconds: float,
+        accounting: UsageAccountingIntegration | None = None,
+        _completion: CompletionRequest | None = None,
     ) -> FixOutcome:
         # Imported here to keep the dependency one-directional
         # (service never imports this module's internals).
         from .service import _extract_json, build_system_prompt, build_user_prompt
 
-        reply = self._provider.complete(
-            CompletionRequest(
+        if _completion is None:
+            _completion = CompletionRequest(
                 mode=AssistantMode.FIX_WORDING,
                 system_prompt=build_system_prompt(AssistantMode.FIX_WORDING),
                 user_prompt=build_user_prompt(request),
@@ -111,16 +120,20 @@ class ModelFixEngine:
                 timeout_seconds=timeout_seconds,
                 model_override=request.model,
             )
-        )
+        reply = self._provider.complete(_completion)
         try:
             payload = _extract_json(reply.text)
             result = FixWordingResult.model_validate(payload)
         except (ValueError, ValidationError) as error:
-            raise ProviderError(
+            # Attach the raw reply so the caller can preserve usage
+            # metadata even though the response body is invalid.
+            err = ProviderError(
                 PublicErrorCategory.INVALID_RESPONSE,
                 "Provider returned a response that does not match the "
                 "mode contract.",
-            ) from error
+            )
+            err._provider_reply = reply  # type: ignore[attr-defined]
+            raise err from error
         if result.result_kind != "model":
             # Providers cannot claim another engine's semantic shape.
             result = result.model_copy(update={"result_kind": "model"})
@@ -131,6 +144,7 @@ class ModelFixEngine:
             ),
             usage=reply.usage,
             engine=self.engine_id,
+            _provider_reply=reply,
         )
 
 
@@ -149,7 +163,8 @@ class LanguageToolFixEngine:
         self._lock = threading.Lock()
 
     def run(
-        self, request: AssistantRequest, *, max_tokens: int, timeout_seconds: float
+        self, request: AssistantRequest, *, max_tokens: int, timeout_seconds: float,
+        accounting: UsageAccountingIntegration | None = None,
     ) -> FixOutcome:
         text = request.text
         try:
@@ -173,6 +188,11 @@ class LanguageToolFixEngine:
             provider=ProviderInfo(id="languagetool", source="local"),
             usage=None,
             engine=self.engine_id,
+            accounting=not_applicable_evidence(
+                accounting,
+                operation_id=request.request_id,
+                provider="languagetool",
+            ),
         )
 
 
@@ -273,14 +293,18 @@ class FixEngineSelector:
         )
 
     def run(
-        self, request: AssistantRequest, *, max_tokens: int, timeout_seconds: float
+        self, request: AssistantRequest, *, max_tokens: int, timeout_seconds: float,
+        accounting: UsageAccountingIntegration | None = None,
+        _completion: CompletionRequest | None = None,
     ) -> FixOutcome:
         if self.config_error:
             raise ProviderError(PublicErrorCategory.CONFIGURATION, self.config_error)
 
         if self.engine_mode == "model":
             return self.model_engine.run(
-                request, max_tokens=max_tokens, timeout_seconds=timeout_seconds
+                request, max_tokens=max_tokens,
+                timeout_seconds=timeout_seconds, accounting=accounting,
+                _completion=_completion,
             )
 
         grammar = self.grammar_state.engine
@@ -292,14 +316,16 @@ class FixEngineSelector:
                     self.grammar_state.error or "The grammar checker is unavailable.",
                 )
             return grammar.run(
-                request, max_tokens=max_tokens, timeout_seconds=timeout_seconds
+                request, max_tokens=max_tokens,
+                timeout_seconds=timeout_seconds, accounting=accounting,
             )
 
         # engine_mode == "auto"
         if grammar is not None:
             try:
                 return grammar.run(
-                    request, max_tokens=max_tokens, timeout_seconds=timeout_seconds
+                    request, max_tokens=max_tokens,
+                    timeout_seconds=timeout_seconds, accounting=accounting,
                 )
             except ProviderError as error:
                 if self.fallback != "model":
@@ -316,7 +342,9 @@ class FixEngineSelector:
             )
 
         outcome = self.model_engine.run(
-            request, max_tokens=max_tokens, timeout_seconds=timeout_seconds
+            request, max_tokens=max_tokens,
+            timeout_seconds=timeout_seconds, accounting=accounting,
+            _completion=_completion,
         )
         return FixOutcome(
             result=outcome.result,
@@ -325,4 +353,6 @@ class FixEngineSelector:
             engine=outcome.engine,
             fallback_used=True,
             fallback_reason=reason,
+            accounting=outcome.accounting,
+            _provider_reply=outcome._provider_reply,
         )

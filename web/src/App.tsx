@@ -1,7 +1,7 @@
 /**
  * App — shell layout wiring all components to the central store.
- * The DeterministicEventSource is bound once at mount via the store.
- * No component imports the mock emitter directly.
+ * The BackendChatSource is bound once at mount via the store.
+ * No component imports the event source directly.
  */
 
 import { lazy, Suspense, useEffect, useState } from 'react'
@@ -14,7 +14,7 @@ import { TurnIndicator } from './components/TurnIndicator'
 import { TaskReviewDrawer } from './components/TaskReviewDrawer'
 import { WritingDesignAssistant } from './features/writing-design-assistant/WritingDesignAssistant'
 import { useAppStore } from './store/taskStore'
-import { DemoTaskEventSource } from './agent/DemoTaskEventSource'
+import { BackendChatSource } from './agent/BackendChatSource'
 import styles from './App.module.css'
 
 // Lazy chunk on purpose: the Web Runtime feature (incl. its sample project)
@@ -24,7 +24,7 @@ const WebRuntime = lazy(() =>
 )
 
 // Instantiate event source once (module-level singleton)
-const eventSource = new DemoTaskEventSource()
+const eventSource = new BackendChatSource()
 
 function App() {
   const [railTab, setRailTab] = useState<RailTab>('explorer')

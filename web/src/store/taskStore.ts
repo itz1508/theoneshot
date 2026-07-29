@@ -10,6 +10,7 @@ import { create } from 'zustand'
 import type {
   AgentEvent,
   ChatMessage,
+  MessageTokenUsage,
   ActivityUpdate,
   Stage,
   TaskActivity,
@@ -20,6 +21,12 @@ import type {
   Workspace,
 } from '../agent/types'
 import type { TaskEventSource } from '../agent/TaskEventSource'
+import {
+  capacityFromEstimate,
+  fetchChatEstimate,
+  initialCapacity,
+} from '../agent/chatCapacity'
+import type { ChatCapacity, ChatHistoryEntry } from '../agent/chatCapacity'
 import { validateRecordEntry } from '../agent/validation'
 import type { ValidationFailure } from '../agent/validation'
 
@@ -38,6 +45,12 @@ export interface AppState {
   messages: ChatMessage[]
   loading: boolean
 
+  // Composer draft + live capacity meter (single shared owner for
+  // draft text, history, selected model, and context metadata)
+  draft: string
+  selectedModel: string | null
+  capacity: ChatCapacity
+
   // Turn manager — strict alternation: user goes first, agent responds,
   // then control returns to the user. Out-of-turn sends are ignored.
   turn: 'user' | 'agent'
@@ -52,6 +65,10 @@ export interface AppState {
   setWorkspaces: (ws: Workspace[]) => void
   addWorkspace: (ws: Workspace) => void
   removeWorkspace: (id: string) => void
+  setDraft: (text: string) => void
+  setSelectedModel: (model: string | null) => void
+  requestEstimateNow: () => void
+  _scheduleEstimate: () => void
   sendMessage: (text: string) => void
   cancelTask: () => void
   toggleDrawer: () => void
@@ -142,6 +159,24 @@ export const initialTask: TaskState = {
   taskRecord: [],
 }
 
+// ─── Capacity estimation plumbing (module-scope, not reactive state) ───
+
+const ESTIMATE_DEBOUNCE_MS = 300
+
+let estimateTimer: ReturnType<typeof setTimeout> | null = null
+let estimateSeq = 0
+let estimateAbort: AbortController | null = null
+
+/** The conversation turns that will actually be sent with the next request. */
+function historyFromMessages(messages: ChatMessage[]): ChatHistoryEntry[] {
+  return messages
+    .filter((m) => m.content.trim().length > 0)
+    .map((m) => ({
+      role: m.role === 'user' ? ('user' as const) : ('assistant' as const),
+      content: m.content,
+    }))
+}
+
 // ─── Store ───
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -151,8 +186,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   drawerOpen: false,
   messages: [],
   loading: false,
+  draft: '',
+  selectedModel: null,
+  capacity: initialCapacity,
   turn: 'user',
-  runnerMode: 'Demonstration events · no backend execution',
+  runnerMode: 'Connected · assistant backend',
   lastValidationFailure: null,
   _eventSource: null,
   _unsubscribe: null,
@@ -165,11 +203,64 @@ export const useAppStore = create<AppState>((set, get) => ({
     workspaces: s.workspaces.filter((w) => w.id !== id),
   })),
 
+  setDraft: (text) => {
+    set({ draft: text })
+    get()._scheduleEstimate()
+  },
+
+  setSelectedModel: (model) => {
+    set({ selectedModel: model })
+    // Model change moves the allowance immediately — no debounce wait
+    get().requestEstimateNow()
+  },
+
+  _scheduleEstimate: () => {
+    if (estimateTimer != null) clearTimeout(estimateTimer)
+    estimateTimer = setTimeout(() => {
+      estimateTimer = null
+      get().requestEstimateNow()
+    }, ESTIMATE_DEBOUNCE_MS)
+  },
+
+  requestEstimateNow: () => {
+    // Sequence + abort guard: a stale estimate can never overwrite a
+    // newer one, and superseded in-flight requests are cancelled.
+    const seq = ++estimateSeq
+    estimateAbort?.abort()
+    const abort = new AbortController()
+    estimateAbort = abort
+
+    const { draft, selectedModel, messages } = get()
+    set((s) => ({ capacity: { ...s.capacity, status: 'estimating' as const } }))
+
+    fetchChatEstimate(
+      {
+        message: draft,
+        ...(selectedModel ? { model: selectedModel } : {}),
+        history: historyFromMessages(messages),
+      },
+      abort.signal,
+    )
+      .then((estimate) => {
+        if (seq !== estimateSeq) return // stale — a newer request owns the meter
+        set({ capacity: capacityFromEstimate(estimate) })
+      })
+      .catch(() => {
+        if (seq !== estimateSeq || abort.signal.aborted) return
+        // Backend unavailable: explicit unavailable state — never
+        // fabricated numbers, never demo data.
+        set({ capacity: { ...initialCapacity, status: 'unavailable' as const } })
+      })
+  },
+
   sendMessage: (text) => {
-    const { _eventSource, workspaces, turn, loading } = get()
+    const { _eventSource, workspaces, turn, loading, capacity, selectedModel, messages } = get()
     if (!_eventSource || !text.trim()) return
     // Turn manager: ignore out-of-turn submissions while the agent responds
     if (turn !== 'user' || loading) return
+    // Over-limit guard: the estimated request cannot fit the usable
+    // allowance — the composer explains this instead of submitting.
+    if (capacity.overLimit) return
 
     const userMsg: ChatMessage = {
       id: `msg-${Date.now()}`,
@@ -181,10 +272,14 @@ export const useAppStore = create<AppState>((set, get) => ({
     const primary = workspaces[0]?.id ?? ''
     const linked = workspaces.slice(1).map((w) => w.id)
 
-    const taskId = _eventSource.start(text, primary, linked)
+    const taskId = _eventSource.start(text, primary, linked, {
+      history: historyFromMessages(messages),
+      ...(selectedModel ? { model: selectedModel } : {}),
+    })
 
     set((s) => ({
       messages: [...s.messages, userMsg],
+      draft: '',
       loading: true,
       turn: 'agent',
       drawerOpen: true,
@@ -203,6 +298,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         isActive: false,
       })),
     }))
+    // Draft cleared and history grew — refresh the capacity meter
+    get()._scheduleEstimate()
   },
 
   cancelTask: () => {
@@ -223,6 +320,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   handleEvent: (event) => {
+    const isTerminalEvent = event.eventType === 'task.completed' ||
+      event.eventType === 'task.failed' ||
+      event.eventType === 'task.cancelled'
+
     set((s) => {
       const isTerminal = event.eventType === 'task.completed' ||
         event.eventType === 'task.failed' ||
@@ -329,6 +430,19 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       let messages = s.messages
       if (isTerminal) {
+        // Token usage only when the backend provides real data.
+        // No fake/approximated values — only real provider-reported counts.
+        const hasRealTokens = typeof event.metadata?.inputTokens === 'number'
+        const tokens: MessageTokenUsage | undefined = hasRealTokens
+          ? {
+              input_tokens: event.metadata!.inputTokens as number,
+              output_tokens: event.metadata!.outputTokens as number,
+              total_tokens: event.metadata!.totalTokens as number,
+              cost: (event.metadata!.cost as number | null) ?? null,
+              provider: (event.metadata!.tokenProvider as 'local' | 'cloud') ?? 'local',
+            }
+          : undefined
+
         const agentMsg: ChatMessage = {
           id: `msg-${Date.now()}-agent`,
           role: 'agent',
@@ -340,6 +454,7 @@ export const useAppStore = create<AppState>((set, get) => ({
             detail: `Stage: ${event.stage}. Files touched: ${task.filesTouched.join(', ') || 'none'}`,
             status: 'completed',
           }],
+          ...(tokens && { tokens }),
         }
         messages = [...messages, agentMsg]
       }
@@ -353,18 +468,35 @@ export const useAppStore = create<AppState>((set, get) => ({
         turn: isTerminal ? ('user' as const) : s.turn,
       }
     })
+
+    // Terminal events change the history sent with the next request
+    if (isTerminalEvent) {
+      get()._scheduleEstimate()
+    }
   },
 
-  reset: () => set({
-    workspaces: initialWorkspaces,
-    participatingWorkspaceIds: [],
-    task: initialTask,
-    drawerOpen: false,
-    messages: [],
-    loading: false,
-    turn: 'user',
-    lastValidationFailure: null,
-  }),
+  reset: () => {
+    if (estimateTimer != null) {
+      clearTimeout(estimateTimer)
+      estimateTimer = null
+    }
+    estimateAbort?.abort()
+    estimateAbort = null
+    estimateSeq += 1 // invalidate any in-flight estimate
+    set({
+      workspaces: initialWorkspaces,
+      participatingWorkspaceIds: [],
+      task: initialTask,
+      drawerOpen: false,
+      messages: [],
+      loading: false,
+      draft: '',
+      selectedModel: null,
+      capacity: initialCapacity,
+      turn: 'user',
+      lastValidationFailure: null,
+    })
+  },
 
   bindEventSource: (source) => {
     const prev = get()._unsubscribe

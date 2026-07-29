@@ -11,6 +11,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..domain.modes import AssistantMode
+from ..usage.public import UsageAccountingEvidence
 
 
 class AssistantStatus(str, Enum):
@@ -53,6 +54,10 @@ class AssistantResponse(BaseModel):
     fallback_used: bool = False
     fallback_reason: str = ""
     uncertainty: list[str] = Field(default_factory=list)
+    # Sanitized usage-accounting evidence: token metadata, estimates, and
+    # costs only — never prompts, outputs, or provider payloads.  ``null``
+    # whenever accounting is not wired for the deployment.
+    accounting: UsageAccountingEvidence | None = None
 
 
 class AssistantModelsResponse(BaseModel):

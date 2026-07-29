@@ -80,9 +80,169 @@
     "uncertainty": {
       "type": "array",
       "items": { "type": "string" }
+    },
+    "accounting": {
+      "description": "Sanitized usage-accounting evidence for the provider attempt. Null when accounting is disabled or unavailable; not_applicable for non-LLM engines.",
+      "oneOf": [
+        { "type": "null" },
+        { "$ref": "#/$defs/usageAccountingEvidence" }
+      ]
     }
   },
   "$defs": {
+    "usageAccountingEvidence": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "operation_id",
+        "attempt_id",
+        "provider",
+        "model",
+        "accounting_status"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": { "const": "1.0.0" },
+        "operation_id": { "type": "string", "minLength": 1 },
+        "attempt_id": { "type": "string", "minLength": 1 },
+        "provider": { "type": "string", "minLength": 1 },
+        "model": { "type": "string", "minLength": 1 },
+        "request_hash": {
+          "oneOf": [{ "type": "null" }, { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }]
+        },
+        "accounting_status": {
+          "type": "string",
+          "enum": ["complete", "incomplete", "not_applicable"]
+        },
+        "estimate": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/usageEstimate" }]
+        },
+        "actual": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/normalizedUsage" }]
+        },
+        "estimated_cost": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/usageCost" }]
+        },
+        "actual_cost": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/usageCost" }]
+        },
+        "context_decision": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/admissionDecision" }]
+        },
+        "cost_decision": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/admissionDecision" }]
+        },
+        "pricing_snapshot_sha256": {
+          "oneOf": [{ "type": "null" }, { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }]
+        },
+        "pricing_record_id": {
+          "oneOf": [{ "type": "null" }, { "type": "string", "minLength": 1 }]
+        },
+        "warnings": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "usageEstimate": {
+      "type": "object",
+      "required": [
+        "input_tokens",
+        "reserved_output_tokens",
+        "estimated_total_tokens",
+        "source",
+        "confidence",
+        "method"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "input_tokens": { "type": "integer", "minimum": 0 },
+        "reserved_output_tokens": { "type": "integer", "minimum": 0 },
+        "estimated_total_tokens": { "type": "integer", "minimum": 0 },
+        "source": { "$ref": "#/$defs/measurementSource" },
+        "confidence": {
+          "type": "string",
+          "enum": ["exact", "provider_compatible", "approximate", "unavailable"]
+        },
+        "method": { "type": "string", "minLength": 1 },
+        "fallback_reason": { "oneOf": [{ "type": "null" }, { "type": "string" }] },
+        "context_limit": {
+          "oneOf": [{ "type": "null" }, { "type": "integer", "minimum": 1 }]
+        }
+      }
+    },
+    "normalizedUsage": {
+      "type": "object",
+      "required": ["source", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "input_tokens": { "$ref": "#/$defs/nullableTokenCount" },
+        "output_tokens": { "$ref": "#/$defs/nullableTokenCount" },
+        "cached_read_tokens": { "$ref": "#/$defs/nullableTokenCount" },
+        "cache_write_tokens": { "$ref": "#/$defs/nullableTokenCount" },
+        "reasoning_tokens": { "$ref": "#/$defs/nullableTokenCount" },
+        "total_tokens": { "$ref": "#/$defs/nullableTokenCount" },
+        "source": { "$ref": "#/$defs/measurementSource" },
+        "status": {
+          "type": "string",
+          "enum": ["complete", "incomplete", "not_applicable"]
+        }
+      }
+    },
+    "usageCost": {
+      "type": "object",
+      "required": [
+        "currency",
+        "uncached_input",
+        "cached_read",
+        "cached_write",
+        "output",
+        "reasoning",
+        "total",
+        "pricing_record_id",
+        "pricing_snapshot_sha256"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "currency": { "const": "USD" },
+        "uncached_input": { "$ref": "#/$defs/decimalString" },
+        "cached_read": { "$ref": "#/$defs/decimalString" },
+        "cached_write": { "$ref": "#/$defs/decimalString" },
+        "output": { "$ref": "#/$defs/decimalString" },
+        "reasoning": { "$ref": "#/$defs/decimalString" },
+        "total": { "$ref": "#/$defs/decimalString" },
+        "pricing_record_id": { "type": "string", "minLength": 1 },
+        "pricing_snapshot_sha256": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      }
+    },
+    "admissionDecision": {
+      "type": "object",
+      "required": ["permitted"],
+      "additionalProperties": false,
+      "properties": {
+        "permitted": { "type": "boolean" },
+        "reasons": { "type": "array", "items": { "type": "string" } },
+        "warnings": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "measurementSource": {
+      "type": "string",
+      "enum": [
+        "provider_reported",
+        "local_exact",
+        "provider_compatible",
+        "approximate",
+        "unavailable"
+      ]
+    },
+    "nullableTokenCount": {
+      "oneOf": [{ "type": "null" }, { "type": "integer", "minimum": 0 }]
+    },
+    "decimalString": {
+      "description": "Money serialized as an exact decimal string, never a float.",
+      "type": "string",
+      "pattern": "^-?\\d+(\\.\\d+)?(E[+-]?\\d+)?$"
+    },
     "fixWordingResult": {
       "type": "object",
       "required": ["corrected_text"],

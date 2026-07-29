@@ -40,7 +40,7 @@ export function Conversation({ messages, loading, anchorMode }: ConversationProp
               {msg.role === 'user' ? (
                 <UserMessage content={msg.content} />
               ) : (
-                <AgentMessage content={msg.content} activities={msg.activities} />
+                <AgentMessage content={msg.content} activities={msg.activities} tokens={msg.tokens} />
               )}
             </MessageScrollerItem>
           ))}

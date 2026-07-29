@@ -30,6 +30,17 @@ from .local_openai_compatible import DEFAULT_MAX_TOKENS, DEFAULT_TIMEOUT_SECONDS
 DEFAULT_ANTHROPIC_BASE_URL = "https://api.anthropic.com"
 ANTHROPIC_VERSION = "2023-06-01"
 
+#: Sanitized native usage whitelist — usage metadata only, nothing else
+#: from the provider response ever crosses this boundary.
+_NATIVE_USAGE_FIELDS = (
+    "input_tokens",
+    "output_tokens",
+    "cache_read_input_tokens",
+    "cache_creation_input_tokens",
+)
+#: Fields that must be present and well-formed for native usage to count.
+_NATIVE_REQUIRED_FIELDS = ("input_tokens", "output_tokens")
+
 #: Fixed, safe dropdown defaults; overridable via the choices env var.
 DEFAULT_ANTHROPIC_MODEL_CHOICES = [
     "claude-sonnet-4-6",
@@ -86,10 +97,16 @@ class CloudAnthropicProvider:
                 "Cloud provider credential is not configured.",
             )
         body = {
-            "model": request.model_override or self.model_id,
+            "model": self.effective_model(request.model_override),
             "max_tokens": request.max_tokens or self.max_tokens,
             "system": request.system_prompt,
-            "messages": [{"role": "user", "content": request.user_prompt}],
+            "messages": [
+                *(
+                    {"role": turn.role, "content": turn.content}
+                    for turn in request.history
+                ),
+                {"role": "user", "content": request.user_prompt},
+            ],
         }
         timeout = request.timeout_seconds or self.timeout_seconds
         try:
@@ -115,7 +132,17 @@ class CloudAnthropicProvider:
             raise ProviderError(
                 PublicErrorCategory.INTERNAL, "Cloud provider request failed."
             ) from exc
-        return _parse_messages_response(response)
+        return _parse_messages_response(
+            response, model=self.effective_model(request.model_override)
+        )
+
+    def effective_model(self, model_override: str | None) -> str:
+        return model_override or self.model_id
+
+    def context_window(self, model_override: str | None) -> int | None:
+        # No authoritative metadata endpoint is queried for cloud models;
+        # unknown is reported explicitly rather than guessed.
+        return None
 
     def list_models(self) -> ModelListing:
         return ModelListing(
@@ -127,7 +154,9 @@ class CloudAnthropicProvider:
         )
 
 
-def _parse_messages_response(response: requests.Response) -> CompletionReply:
+def _parse_messages_response(
+    response: requests.Response, *, model: str | None = None
+) -> CompletionReply:
     """Translate an Anthropic Messages response into a CompletionReply."""
     if response.status_code in (401, 403):
         raise ProviderError(
@@ -175,4 +204,39 @@ def _parse_messages_response(response: requests.Response) -> CompletionReply:
                 "completion_tokens": int(completion),
                 "total_tokens": int(prompt) + int(completion),
             }
-    return CompletionReply(text=text, usage=usage)
+    native_usage, native_invalid = _sanitize_native_usage(raw_usage)
+    return CompletionReply(
+        text=text,
+        usage=usage,
+        native_usage=native_usage,
+        native_usage_invalid=native_invalid,
+        model=model,
+    )
+
+
+def _sanitize_native_usage(
+    raw_usage: object,
+) -> tuple[dict[str, object] | None, bool]:
+    """Whitelist the native Anthropic usage counters.
+
+    Absent usage → ``(None, False)``.  Present but malformed (not an
+    object, or a required counter is not a non-negative int) →
+    ``(None, True)`` so accounting can report ``native_usage_invalid``
+    instead of silently falling back.  Unknown cache categories are
+    simply omitted — never coerced to zero.
+    """
+    if raw_usage is None:
+        return None, False
+    if not isinstance(raw_usage, dict):
+        return None, True
+    native: dict[str, object] = {}
+    for field in _NATIVE_USAGE_FIELDS:
+        value = raw_usage.get(field)
+        if value is None:
+            continue
+        if type(value) is not int or value < 0:
+            return None, True
+        native[field] = value
+    if any(field not in native for field in _NATIVE_REQUIRED_FIELDS):
+        return None, True
+    return native, False

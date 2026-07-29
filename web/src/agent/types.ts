@@ -241,6 +241,17 @@ export interface TaskState {
   taskRecord: TaskRecordEntry[]
 }
 
+// ─── Token usage (per-message) ───
+
+export interface MessageTokenUsage {
+  input_tokens: number
+  output_tokens: number
+  total_tokens: number
+  /** null = pricing not applicable (local model); number = cloud cost in USD */
+  cost: number | null
+  provider: 'local' | 'cloud'
+}
+
 // ─── Message ───
 
 export interface ChatMessage {
@@ -249,4 +260,6 @@ export interface ChatMessage {
   content: string
   timestamp?: string
   activities?: { id: string; label: string; detail: string; status: 'completed' | 'running' | 'pending' }[]
+  /** Token usage for this agent turn. Only present on agent messages. */
+  tokens?: MessageTokenUsage
 }

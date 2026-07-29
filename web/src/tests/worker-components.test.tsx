@@ -2,7 +2,7 @@
  * Component-level tests for the participant ownership UI contract.
  *
  * 13. Reduced-motion mode does not use the 3D flip
- * 14. Visual components do not instantiate DemoTaskEventSource directly
+ * 14. Visual components do not instantiate BackendChatSource directly
  */
 
 import { describe, it, expect } from 'vitest'
@@ -52,9 +52,9 @@ describe('ParticipantHeader accessibility', () => {
   })
 })
 
-// ─── 14. Visual components do not instantiate DemoTaskEventSource directly ───
+// ─── 14. Visual components do not instantiate BackendChatSource directly ───
 
-describe('Component isolation from DemoTaskEventSource', () => {
+describe('Component isolation from BackendChatSource', () => {
   const componentFiles = [
     '../components/ParticipantHeader.tsx',
     '../components/LiveActivity.tsx',
@@ -62,10 +62,10 @@ describe('Component isolation from DemoTaskEventSource', () => {
     '../components/TaskReviewDrawer.tsx',
   ]
 
-  it.each(componentFiles)('%s does not import DemoTaskEventSource', (relPath) => {
+  it.each(componentFiles)('%s does not import BackendChatSource', (relPath) => {
     const filePath = resolve(__dirname, relPath)
     const content = readFileSync(filePath, 'utf-8')
-    expect(content).not.toContain('DemoTaskEventSource')
+    expect(content).not.toContain('BackendChatSource')
   })
 })
 

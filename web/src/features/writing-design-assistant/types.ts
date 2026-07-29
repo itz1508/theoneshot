@@ -6,6 +6,8 @@
  * backend. It never talks to a model provider directly.
  */
 
+import type { UsageAccountingEvidence } from './usageAccounting'
+
 export type AssistantMode =
   | 'fix_wording'
   | 'draft_three_replies'
@@ -168,6 +170,12 @@ export interface AssistantResponse {
   fallback_used?: boolean
   fallback_reason?: string
   uncertainty: string[]
+  /**
+   * Sanitized usage-accounting evidence for the provider attempt. Null
+   * when accounting is disabled or unavailable; not_applicable for
+   * non-LLM engines such as LanguageTool.
+   */
+  accounting?: UsageAccountingEvidence | null
 }
 
 // ---- Result narrowing helpers ----

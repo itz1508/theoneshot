@@ -85,9 +85,13 @@ class CloudOpenAICompatibleProvider:
                 "Cloud provider credential is not configured.",
             )
         body = {
-            "model": request.model_override or self.model_id,
+            "model": self.effective_model(request.model_override),
             "messages": [
                 {"role": "system", "content": request.system_prompt},
+                *(
+                    {"role": turn.role, "content": turn.content}
+                    for turn in request.history
+                ),
                 {"role": "user", "content": request.user_prompt},
             ],
             "max_tokens": request.max_tokens or self.max_tokens,
@@ -114,7 +118,17 @@ class CloudOpenAICompatibleProvider:
             raise ProviderError(
                 PublicErrorCategory.INTERNAL, "Cloud provider request failed."
             ) from exc
-        return _parse_chat_completion(response)
+        return _parse_chat_completion(
+            response, model=self.effective_model(request.model_override)
+        )
+
+    def effective_model(self, model_override: str | None) -> str:
+        return model_override or self.model_id
+
+    def context_window(self, model_override: str | None) -> int | None:
+        # No authoritative metadata endpoint is queried for cloud models;
+        # unknown is reported explicitly rather than guessed.
+        return None
 
     def list_models(self) -> ModelListing:
         return ModelListing(

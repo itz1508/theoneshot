@@ -17,6 +17,7 @@ from ..application.fix_engines import (
     ModelFixEngine,
 )
 from ..application.service import AssistantService
+from ..application.usage_integration import UsageAccountingIntegration
 from ..auth.development import DevelopmentAuthProvider
 from ..auth.ports import AuthContext, AuthenticationError, AuthProvider
 from ..providers.base import (
@@ -84,7 +85,11 @@ def get_service(request: Request) -> AssistantService:
     selector = FixEngineSelector.from_env(
         ModelFixEngine(provider), grammar_state or GrammarEngineState()
     )
-    return AssistantService(provider, fix_selector=selector)
+    return AssistantService(
+        provider,
+        fix_selector=selector,
+        accounting=UsageAccountingIntegration.from_environment(),
+    )
 
 
 class _MisconfiguredProvider:
@@ -100,6 +105,12 @@ class _MisconfiguredProvider:
 
     def complete(self, request: CompletionRequest) -> CompletionReply:
         raise self._error
+
+    def effective_model(self, model_override: str | None) -> str:
+        return model_override or "unconfigured"
+
+    def context_window(self, model_override: str | None) -> int | None:
+        return None
 
     def list_models(self) -> ModelListing:
         raise self._error

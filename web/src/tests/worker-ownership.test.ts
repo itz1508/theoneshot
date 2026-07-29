@@ -15,7 +15,7 @@
  * 11. Blocked and failed entries do not imply successful continuation
  * 12. Cancellation clears active ownership
  * 13. Reduced-motion mode does not use the 3D flip (component test)
- * 14. Visual components do not instantiate DemoTaskEventSource directly
+ * 14. Visual components do not instantiate BackendChatSource directly
  */
 
 import { describe, it, expect, beforeEach } from 'vitest'

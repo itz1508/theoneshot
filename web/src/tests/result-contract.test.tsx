@@ -336,42 +336,64 @@ describe('TaskRecord render order', () => {
   })
 })
 
-// ─── 11: Demo correction_required entry satisfies the complete contract ───
+// ─── 11: BackendChatSource contract: real backend data only ───
 
-describe('Demonstration event contract satisfaction', () => {
-  it('DemoTaskEventSource correction_required entry passes runtime validation', async () => {
-    // Import and run the demo to capture the A-Flow entry
-    const { DemoTaskEventSource } = await import('../agent/DemoTaskEventSource')
-    const source = new DemoTaskEventSource()
+describe('BackendChatSource contract', () => {
+  it('emits task.completed with real token metadata on successful fetch', async () => {
+    // Mock fetch to simulate a real backend response
+    const mockResponse = {
+      reply: 'Hello from the model',
+      provider: { id: 'local-openai-compatible', source: 'local' },
+      model: 'qwen2.5-coder:7b',
+      usage: {
+        input_tokens: 12,
+        output_tokens: 8,
+        total_tokens: 20,
+        cost: null,
+        provider_type: 'local',
+      },
+    }
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify(mockResponse), { status: 200, headers: { 'content-type': 'application/json' } }),
+    )
 
+    const { BackendChatSource } = await import('../agent/BackendChatSource')
+    const source = new BackendChatSource()
     const events: Array<{ eventType: string; metadata?: Record<string, unknown> }> = []
     source.subscribe((event) => { events.push(event) })
 
-    source.start('test', 'ws-theoneshot', [])
+    source.start('hello', 'ws-test', [])
+    await new Promise((r) => setTimeout(r, 100))
 
-    // Wait for all demo events to fire (max ~10s, demo is ~8.3s total)
-    await new Promise((resolve) => setTimeout(resolve, 10000))
-
-    // Find the A-Flow outcome_recorded event
-    const entryEvent = events.find(
-      e => e.eventType === 'participant.outcome_recorded' && (e.metadata?.entry as Record<string, unknown>)?.participantId === 'aflow'
-    )
-    expect(entryEvent).toBeDefined()
-
-    const payload = entryEvent!.metadata!.entry
-    const validation = validateRecordEntry(payload)
-
-    expect(validation.valid).toBe(true)
-    if (validation.valid) {
-      expect(validation.entry.status).toBe('correction_required')
-      // Discriminated access: for correction_required, rootCause and resolution are mandatory
-      if (validation.entry.status === 'correction_required') {
-        expect(validation.entry.rootCause.summary).toBeTruthy()
-        expect(validation.entry.resolution.summary).toBeTruthy()
-        expect(validation.entry.resolution.action).toBeTruthy()
-      }
-    }
+    const terminal = events.find(e => e.eventType === 'task.completed')
+    expect(terminal).toBeDefined()
+    expect(terminal!.metadata!.inputTokens).toBe(12)
+    expect(terminal!.metadata!.outputTokens).toBe(8)
+    expect(terminal!.metadata!.totalTokens).toBe(20)
+    expect(terminal!.metadata!.tokenProvider).toBe('local')
 
     source.dispose()
-  }, 15000)
+    fetchSpy.mockRestore()
+  })
+
+  it('emits task.failed when backend is unavailable', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Connection refused'))
+
+    const { BackendChatSource } = await import('../agent/BackendChatSource')
+    const source = new BackendChatSource()
+    const events: Array<{ eventType: string; message: string; metadata?: Record<string, unknown> }> = []
+    source.subscribe((event) => { events.push(event) })
+
+    source.start('hello', 'ws-test', [])
+    await new Promise((r) => setTimeout(r, 100))
+
+    const terminal = events.find(e => e.eventType === 'task.failed')
+    expect(terminal).toBeDefined()
+    expect(terminal!.message).toContain('Backend unavailable')
+    // No token metadata on failed responses
+    expect(terminal!.metadata).toBeUndefined()
+
+    source.dispose()
+    fetchSpy.mockRestore()
+  })
 })

@@ -11,9 +11,10 @@ export default defineConfig({
       'Cross-Origin-Embedder-Policy': 'require-corp',
     },
     // Dev-only proxy to the local assistant backend; the client itself
-    // only ever targets the relative /v1/assistant path.
+    // only ever targets the relative /v1/ paths.
     proxy: {
       '/v1/assistant': 'http://127.0.0.1:8799',
+      '/v1/chat': 'http://127.0.0.1:8799',
     },
   },
   preview: {
