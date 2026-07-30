@@ -35,6 +35,8 @@ class ResponseLike(Protocol):
 RequestFunction = Callable[..., ResponseLike]
 SleepFunction = Callable[[float], None]
 
+DEFAULT_FIREWORKS_BASE_URL = "https://api.fireworks.ai/inference/v1"
+
 
 @dataclass
 class FireworksWorker:
@@ -53,6 +55,10 @@ class FireworksWorker:
     provider_id = "fireworks"
     transient_status_codes = frozenset({500, 502, 503, 504})
 
+    def __post_init__(self) -> None:
+        if not self.base_url.strip():
+            self.base_url = DEFAULT_FIREWORKS_BASE_URL
+
     @classmethod
     def from_environment(cls) -> "FireworksWorker":
         return cls(
@@ -62,7 +68,7 @@ class FireworksWorker:
         )
 
     def configuration_status(self) -> bool:
-        return all(value.strip() for value in (self.api_key, self.base_url, self.model))
+        return all(value.strip() for value in (self.api_key, self.model))
 
     def capabilities(self) -> ProviderCapabilities:
         return ProviderCapabilities(text=True)
@@ -81,7 +87,6 @@ class FireworksWorker:
             name
             for name, value in (
                 ("FIREWORKS_API_KEY", self.api_key),
-                ("FIREWORKS_BASE_URL", self.base_url),
                 ("FIREWORKS_MODEL", self.model),
             )
             if not value.strip()

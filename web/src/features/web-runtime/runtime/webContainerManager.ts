@@ -110,8 +110,11 @@ class WebContainerManager {
       this.log('system', 'Loading @webcontainer/api…')
       const { WebContainer } = await loader()
 
-      this.log('system', 'Booting WebContainer…')
+      this.log('system', 'Booting WebContainer\u2026')
       this.container = await WebContainer.boot()
+      
+      // Expose container for tool execution binding (acceptance proof)
+      ;(window as any).__webContainer = this.container
 
       this.container.on('server-ready', (port: number, url: string) => {
         if (this.previewSet) {

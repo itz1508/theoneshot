@@ -121,6 +121,10 @@ class ChatRequest(BaseModel):
     history: list[ChatHistoryMessage] = Field(
         default_factory=list, max_length=MAX_HISTORY_MESSAGES
     )
+    workspace_available: bool = Field(
+        default=False,
+        description="True when the frontend WebContainer is booted and ready.",
+    )
 
     @model_validator(mode="after")
     def _validate_history(self) -> "ChatRequest":
@@ -146,6 +150,10 @@ class ChatResponse(BaseModel):
     provider: ProviderInfo
     model: str
     usage: ChatUsage
+    tool_trace: list["ToolCallEventResponse"] | None = Field(
+        default=None,
+        description="Tools called during this turn (for activity timeline).",
+    )
 
 
 class ChatErrorResponse(BaseModel):
@@ -201,3 +209,67 @@ class ChatEstimateResponse(BaseModel):
     model: str
     method: str
     confidence: str
+
+
+# ─── Tool-calling response schemas ───────────────────────────────────────────────
+
+
+class ToolCallEventResponse(BaseModel):
+    """A single tool call event in the API response."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    call_id: str
+    tool_name: str
+    arguments: dict
+    executor: Literal["frontend", "backend"]
+    status: Literal["pending", "completed", "failed"]
+    turn_id: str
+    operation_id: str | None = None
+    output: str | None = None
+    error: str | None = None
+    duration_ms: int | None = None
+
+
+class ChatToolCallsPending(BaseModel):
+    """Returned with HTTP 202 when frontend tool execution is needed."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    turn_id: str
+    pending_calls: list[ToolCallEventResponse]
+    completed_calls: list[ToolCallEventResponse]
+    loop_iteration: int
+    max_loops: int
+
+
+class ChatApprovalRequired(BaseModel):
+    """Returned with HTTP 202 when a write/exec tool needs operator confirmation."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    turn_id: str
+    tool_call: ToolCallEventResponse
+    reason: str
+    risk_level: Literal["low", "medium", "high"]
+
+
+class ToolResultSubmission(BaseModel):
+    """One tool result submitted by the frontend."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    call_id: str
+    tool_name: str
+    output: str | None = Field(default=None, max_length=200_000)
+    error: str | None = Field(default=None, max_length=10_000)
+    status: Literal["success", "error", "timeout", "cancelled", "approved", "denied"]
+
+
+class ChatContinueRequest(BaseModel):
+    """Body for POST /v1/chat/continue — resume after frontend tool execution."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    turn_id: str = Field(min_length=1, max_length=100)
+    tool_results: list[ToolResultSubmission] = Field(max_length=50)

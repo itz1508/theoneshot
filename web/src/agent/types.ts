@@ -171,6 +171,21 @@ export type EventType =
   | 'participant.activated'
   | 'participant.activity_update'
   | 'participant.outcome_recorded'
+  // Tool-calling events
+  | 'tool.call_requested'
+  | 'tool.executing'
+  | 'tool.output_stream'
+  | 'tool.completed'
+  | 'tool.failed'
+  | 'tool.approval_requested'
+  | 'tool.approval_resolved'
+  // Operation lifecycle events
+  | 'operation.created'
+  | 'operation.state_transition'
+  | 'operation.tool_execution_requested'
+  | 'operation.tool_approval_requested'
+  | 'operation.suspended'
+  | 'operation.resumed'
 
 // ─── Agent Event ───
 
@@ -239,6 +254,117 @@ export interface TaskState {
   activeActivityId: string | null
   activeActivity: TaskActivity | null
   taskRecord: TaskRecordEntry[]
+}
+
+// ─── Operation event types (polling response) ───
+
+/** Raw backend event as returned by GET /v1/operations/{id}/events */
+export interface OperationEvent {
+  sequence: number
+  operation_id: string
+  timestamp: string
+  state: string
+  event_type: string
+  payload: Record<string, unknown>
+  correlation_id: string | null
+}
+
+/** Polling response envelope from GET /v1/operations/{id}/events */
+export interface OperationEventsResponse {
+  operation_id: string
+  events: OperationEvent[]
+  cursor: number
+  terminal: boolean
+  status: string
+}
+
+/** Resume request sent to POST /v1/operations/{id}/resume */
+export interface OperationResumeRequest {
+  resume_type: 'tool_result' | 'approval_decision' | 'plan_revision' | 'evidence_submission'
+  suspension_id: string
+  operation_version: number
+  payload: ToolResultPayload | ApprovalDecisionPayload | PlanRevisionPayload | EvidencePayload
+}
+
+export interface ApprovalDecisionPayload {
+  call_id: string
+  approved: boolean
+}
+
+export interface PlanRevisionPayload {
+  revised_plan: Record<string, unknown>
+}
+
+export interface EvidencePayload {
+  evidence_type: string
+  content: string | Record<string, unknown>
+}
+
+/** Trust hierarchy for tool results */
+export type ToolResultTrust = 'provider_generated' | 'backend_verified' | 'frontend_reported'
+
+// ─── Tool-calling types ───
+
+export interface ToolCallEvent {
+  call_id: string
+  tool_name: string
+  arguments: Record<string, unknown>
+  executor: 'frontend' | 'backend'
+  status: 'pending' | 'completed' | 'failed'
+  turn_id: string
+  operation_id: string | null
+  output: string | null
+  error: string | null
+  duration_ms: number | null
+}
+
+export interface ToolResultPayload {
+  call_id: string
+  tool_name: string
+  output: string | null
+  error: string | null
+  status: 'success' | 'error' | 'timeout' | 'cancelled' | 'approved' | 'denied'
+  /** Trust tagging: source of this result */
+  source?: ToolResultTrust
+}
+
+export interface ChatToolCallsPending {
+  turn_id: string
+  pending_calls: ToolCallEvent[]
+  completed_calls: ToolCallEvent[]
+  loop_iteration: number
+  max_loops: number
+}
+
+export interface ChatApprovalRequired {
+  turn_id: string
+  tool_call: ToolCallEvent
+  reason: string
+  risk_level: 'low' | 'medium' | 'high'
+}
+
+// ─── Execution claim (refresh-safe) ───
+
+/** Request body for POST /v1/operations/{id}/claim */
+export interface ClaimRequest {
+  claimant_id: string
+  suspension_id: string
+  call_id: string
+  argument_digest: string
+}
+
+/** Response from POST /v1/operations/{id}/claim */
+export interface ClaimResponse {
+  operation_id: string
+  state: string
+  claimed: boolean
+  claimant_id: string
+  call_id: string
+  tool_name: string
+  arguments: Record<string, unknown>
+  argument_digest: string
+  suspension_id: string
+  idempotent: boolean
 }
 
 // ─── Token usage (per-message) ───

@@ -52,6 +52,8 @@ class OperationState(str, Enum):
     SUSPENDED_EVIDENCE = "suspended_evidence"
     SUSPENDED_PACKAGE_REPAIR = "suspended_package_repair"
     SUSPENDED_DECISION = "suspended_decision"
+    SUSPENDED_FOR_APPROVAL = "suspended_for_approval"
+    SUSPENDED_FOR_TOOL_RESULT = "suspended_for_tool_result"
 
 
 # States that are terminal (no transitions out)
@@ -68,28 +70,32 @@ SUSPENDED_STATES = frozenset({
     OperationState.SUSPENDED_EVIDENCE,
     OperationState.SUSPENDED_PACKAGE_REPAIR,
     OperationState.SUSPENDED_DECISION,
+    OperationState.SUSPENDED_FOR_APPROVAL,
+    OperationState.SUSPENDED_FOR_TOOL_RESULT,
 })
 
 
 # Valid state transitions
 TRANSITIONS: dict[OperationState, frozenset[OperationState]] = {
     OperationState.RECEIVED: frozenset({OperationState.PLANNING, OperationState.REVIEWING}),
-    OperationState.PLANNING: frozenset({OperationState.PLAN_READY, OperationState.SUSPENDED_PLAN_REVISION, OperationState.CANCELLED_BY_USER}),
+    OperationState.PLANNING: frozenset({OperationState.PLAN_READY, OperationState.SUSPENDED_PLAN_REVISION, OperationState.SUSPENDED_FOR_TOOL_RESULT, OperationState.SUSPENDED_FOR_APPROVAL, OperationState.CANCELLED_BY_USER}),
     OperationState.PLAN_READY: frozenset({OperationState.REVIEWING, OperationState.CANCELLED_BY_USER}),
-    OperationState.REVIEWING: frozenset({OperationState.FULFILLING, OperationState.SANDBOX_READY, OperationState.SUSPENDED_EVIDENCE, OperationState.SUSPENDED_PLAN_REVISION, OperationState.CANCELLED_BY_USER}),
+    OperationState.REVIEWING: frozenset({OperationState.FULFILLING, OperationState.SANDBOX_READY, OperationState.SUSPENDED_EVIDENCE, OperationState.SUSPENDED_PLAN_REVISION, OperationState.SUSPENDED_PROVIDER_RECOVERY, OperationState.CANCELLED_BY_USER}),
     OperationState.FULFILLING: frozenset({OperationState.COLLECTING_EVIDENCE, OperationState.AWAITING_DECISION, OperationState.REVIEWING, OperationState.CANCELLED_BY_USER}),
     OperationState.COLLECTING_EVIDENCE: frozenset({OperationState.REVIEWING, OperationState.SUSPENDED_EVIDENCE, OperationState.CANCELLED_BY_USER}),
     OperationState.AWAITING_DECISION: frozenset({OperationState.REVIEWING, OperationState.SUSPENDED_DECISION, OperationState.CANCELLED_BY_USER}),
     OperationState.SANDBOX_READY: frozenset({OperationState.SANDBOX_RUNNING, OperationState.SUSPENDED_PROVIDER_RECOVERY, OperationState.CANCELLED_BY_USER}),
-    OperationState.SANDBOX_RUNNING: frozenset({OperationState.VERIFYING, OperationState.SUSPENDED_PROVIDER_RECOVERY, OperationState.SUSPENDED_PACKAGE_REPAIR, OperationState.CANCELLED_BY_USER}),
+    OperationState.SANDBOX_RUNNING: frozenset({OperationState.VERIFYING, OperationState.COMPLETED, OperationState.SUSPENDED_PROVIDER_RECOVERY, OperationState.SUSPENDED_PACKAGE_REPAIR, OperationState.SUSPENDED_FOR_APPROVAL, OperationState.SUSPENDED_FOR_TOOL_RESULT, OperationState.CANCELLED_BY_USER}),
     OperationState.VERIFYING: frozenset({OperationState.READY_TO_APPLY, OperationState.SANDBOX_READY, OperationState.CANCELLED_BY_USER}),
     OperationState.READY_TO_APPLY: frozenset({OperationState.COMPLETED, OperationState.CANCELLED_BY_USER}),
     # Suspended states can resume
     OperationState.SUSPENDED_PLAN_REVISION: frozenset({OperationState.PLANNING, OperationState.REVIEWING, OperationState.CANCELLED_BY_USER, OperationState.SUPERSEDED}),
-    OperationState.SUSPENDED_PROVIDER_RECOVERY: frozenset({OperationState.SANDBOX_READY, OperationState.SANDBOX_RUNNING, OperationState.CANCELLED_BY_USER, OperationState.SUPERSEDED}),
+    OperationState.SUSPENDED_PROVIDER_RECOVERY: frozenset({OperationState.REVIEWING, OperationState.SANDBOX_READY, OperationState.SANDBOX_RUNNING, OperationState.CANCELLED_BY_USER, OperationState.SUPERSEDED}),
     OperationState.SUSPENDED_EVIDENCE: frozenset({OperationState.COLLECTING_EVIDENCE, OperationState.REVIEWING, OperationState.CANCELLED_BY_USER, OperationState.SUPERSEDED}),
     OperationState.SUSPENDED_PACKAGE_REPAIR: frozenset({OperationState.SANDBOX_READY, OperationState.CANCELLED_BY_USER, OperationState.SUPERSEDED}),
     OperationState.SUSPENDED_DECISION: frozenset({OperationState.AWAITING_DECISION, OperationState.REVIEWING, OperationState.CANCELLED_BY_USER, OperationState.SUPERSEDED}),
+    OperationState.SUSPENDED_FOR_APPROVAL: frozenset({OperationState.SANDBOX_RUNNING, OperationState.PLANNING, OperationState.SUSPENDED_FOR_TOOL_RESULT, OperationState.CANCELLED_BY_USER, OperationState.SUPERSEDED}),
+    OperationState.SUSPENDED_FOR_TOOL_RESULT: frozenset({OperationState.SANDBOX_RUNNING, OperationState.PLANNING, OperationState.CANCELLED_BY_USER, OperationState.SUPERSEDED}),
 }
 
 

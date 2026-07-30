@@ -8,12 +8,18 @@ version = "0.1.0"
 description = "Audisor Writing & Design Assistant — provider-neutral assistant backend."
 requires-python = ">=3.11"
 dependencies = [
+    "audisor>=0.10.0",
     "fastapi>=0.116,<1",
+    "operation-controller>=0.1.0",
     "pydantic>=2.11,<3",
     "requests>=2.32,<3",
     "tzdata>=2024.1; sys_platform == 'win32'",
     "uvicorn>=0.35,<1",
 ]
+
+[tool.uv.sources]
+audisor = { path = "../runtime", editable = true }
+operation-controller = { path = "../operation_controller", editable = true }
 
 [project.scripts]
 audisor-assistant = "audisor_assistant.main:main"

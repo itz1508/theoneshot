@@ -1,0 +1,1045 @@
+openapi: 3.1.0
+info:
+  title: Audisor Assistant API
+  version: 0.1.0
+  description: >
+    Authenticated backend API for the Audisor Writing & Design Assistant.
+    Covers operation lifecycle management, operator chat with tool-calling,
+    A-Flow issue management, and token usage estimation.
+
+servers:
+  - url: http://localhost:8000
+    description: Local development
+
+tags:
+  - name: operations
+    description: OperationController lifecycle — create, status, cancel, resume, claim, events.
+  - name: assistant
+    description: One-shot assistant completions, model listing, and health probe.
+  - name: chat
+    description: Operator chat with multi-turn tool-calling orchestration.
+  - name: aflow-management
+    description: A-Flow issue tracking, provider status, and retry management.
+  - name: usage
+    description: Token and capacity estimation without provider calls.
+
+security:
+  - bearerAuth: []
+
+paths:
+  # ─── Operations ──────────────────────────────────────────────────────────────
+
+  /v1/operations:
+    post:
+      tags: [operations]
+      summary: Create a new operation
+      operationId: create_operation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOperationRequest"
+      responses:
+        "200":
+          description: Operation created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OperationStatusResponse"
+        "422":
+          description: Validation error
+
+  /v1/operations/{operation_id}/status:
+    get:
+      tags: [operations]
+      summary: Get operation status
+      operationId: operation_status
+      parameters:
+        - $ref: "#/components/parameters/OperationId"
+      responses:
+        "200":
+          description: Current operation state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OperationStatusResponse"
+        "404":
+          description: Operation not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HTTPError"
+
+  /v1/operations/{operation_id}/cancel:
+    post:
+      tags: [operations]
+      summary: Cancel an operation
+      operationId: cancel_operation
+      parameters:
+        - $ref: "#/components/parameters/OperationId"
+      responses:
+        "200":
+          description: Operation cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OperationStatusResponse"
+        "404":
+          description: Operation not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HTTPError"
+
+  /v1/operations/{operation_id}/resume:
+    post:
+      tags: [operations]
+      summary: Resume a suspended operation
+      operationId: resume_operation
+      parameters:
+        - $ref: "#/components/parameters/OperationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResumeOperationRequest"
+      responses:
+        "200":
+          description: Operation resumed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OperationStatusResponse"
+        "404":
+          description: Operation not found
+        "409":
+          description: Conflict (e.g. version mismatch or invalid resume state)
+
+  /v1/operations/{operation_id}/claim:
+    post:
+      tags: [operations]
+      summary: Atomically claim a pending tool execution
+      description: >
+        Binds a suspended operation's tool call to a specific claimant (tab).
+        First valid claim wins; subsequent claims from the same claimant are
+        idempotent; claims from different claimants are rejected with 409.
+      operationId: claim_tool_execution
+      parameters:
+        - $ref: "#/components/parameters/OperationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClaimToolExecutionRequest"
+      responses:
+        "200":
+          description: Claim accepted or idempotent replay
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClaimToolExecutionResponse"
+        "404":
+          description: Operation not found
+        "409":
+          description: Competing claim or conflict
+
+  /v1/operations/{operation_id}/events:
+    get:
+      tags: [operations]
+      summary: Read operation events after a cursor
+      operationId: operation_events
+      parameters:
+        - $ref: "#/components/parameters/OperationId"
+        - name: after
+          in: query
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+          description: Sequence number to read after
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 100
+          description: Maximum events to return
+      responses:
+        "200":
+          description: Paginated event list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OperationEventsResponse"
+        "404":
+          description: Operation not found
+
+  # ─── Assistant ───────────────────────────────────────────────────────────────
+
+  /v1/assistant/requests:
+    post:
+      tags: [assistant]
+      summary: Submit a one-shot assistant request
+      operationId: create_assistant_request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssistantRequest"
+      responses:
+        "200":
+          description: Assistant completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssistantResponse"
+        "422":
+          description: Validation error
+
+  /v1/assistant/models:
+    get:
+      tags: [assistant]
+      summary: List selectable models
+      operationId: list_assistant_models
+      responses:
+        "200":
+          description: Available models for the configured provider
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssistantModelsResponse"
+
+  /v1/assistant/health:
+    get:
+      tags: [assistant]
+      summary: Liveness probe (unauthenticated)
+      operationId: assistant_health
+      security: []
+      responses:
+        "200":
+          description: Service health
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssistantHealthResponse"
+
+  # ─── Chat ────────────────────────────────────────────────────────────────────
+
+  /v1/chat:
+    post:
+      tags: [chat]
+      summary: Send a chat message (operator chat)
+      description: >
+        Returns 200 with a final reply, 202 with pending tool calls or an
+        approval request, or 503 if the provider is unavailable.
+      operationId: operator_chat
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatRequest"
+      responses:
+        "200":
+          description: Final reply
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatResponse"
+        "202":
+          description: Tool calls pending or approval required
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ChatToolCallsPending"
+                  - $ref: "#/components/schemas/ChatApprovalRequired"
+        "422":
+          description: Validation error (history ordering, size limits)
+        "503":
+          description: Provider unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatErrorResponse"
+
+  /v1/chat/continue:
+    post:
+      tags: [chat]
+      summary: Resume a chat turn after frontend tool execution or approval
+      description: >
+        Submit tool results to continue an in-progress turn. Returns the same
+        response shape as POST /v1/chat.
+      operationId: operator_chat_continue
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatContinueRequest"
+      responses:
+        "200":
+          description: Final reply
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatResponse"
+        "202":
+          description: More tool calls pending or approval required
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ChatToolCallsPending"
+                  - $ref: "#/components/schemas/ChatApprovalRequired"
+        "503":
+          description: Provider unavailable
+
+  /v1/chat/estimate:
+    post:
+      tags: [chat]
+      summary: Estimate token cost for the next chat request
+      description: >
+        Preview composer capacity — approximate estimation plus cached model
+        metadata only. Never calls the completion provider.
+      operationId: operator_chat_estimate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatEstimateRequest"
+      responses:
+        "200":
+          description: Token estimate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatEstimateResponse"
+        "503":
+          description: Provider unavailable
+
+  # ─── A-Flow ──────────────────────────────────────────────────────────────────
+
+  /v1/aflow/status:
+    get:
+      tags: [aflow-management]
+      summary: A-Flow provider status (no probe)
+      operationId: aflow_status
+      responses:
+        "200":
+          description: Provider status object
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /v1/aflow/provider-probe:
+    post:
+      tags: [aflow-management]
+      summary: Probe the A-Flow provider connectivity
+      operationId: aflow_provider_probe
+      responses:
+        "200":
+          description: Provider probe result
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /v1/aflow/issues:
+    get:
+      tags: [aflow-management]
+      summary: List A-Flow issues
+      operationId: aflow_issues
+      parameters:
+        - name: cursor
+          in: query
+          schema:
+            type: string
+          description: Pagination cursor
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 100
+          description: Maximum issues to return
+      responses:
+        "200":
+          description: Paginated issue list
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /v1/aflow/issues/{issue_id}:
+    get:
+      tags: [aflow-management]
+      summary: Get a single A-Flow issue
+      operationId: aflow_issue
+      parameters:
+        - name: issue_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Issue detail
+          content:
+            application/json:
+              schema:
+                type: object
+        "404":
+          description: Issue not found
+
+  /v1/aflow/issues/{issue_id}/retry-local:
+    post:
+      tags: [aflow-management]
+      summary: Retry an issue against the local provider
+      operationId: retry_local
+      parameters:
+        - name: issue_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RetryRequest"
+      responses:
+        "200":
+          description: Retry initiated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OperationStatusResponse"
+        "404":
+          description: Issue not found
+        "409":
+          description: Retry not supported or conflict
+
+  /v1/aflow/issues/{issue_id}/continue-with-fallback:
+    post:
+      tags: [aflow-management]
+      summary: Retry an issue against the fallback provider (Fireworks)
+      operationId: continue_with_fallback
+      parameters:
+        - name: issue_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RetryRequest"
+      responses:
+        "200":
+          description: Fallback retry initiated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OperationStatusResponse"
+        "404":
+          description: Issue not found
+        "409":
+          description: Fallback not ready or conflict
+
+  # ─── Usage ───────────────────────────────────────────────────────────────────
+
+  /v1/usage/estimate:
+    post:
+      tags: [usage]
+      summary: Estimate token cost (canonical endpoint)
+      description: >
+        Approximate estimation plus cached model metadata only. Never calls the
+        completion provider. This is the canonical estimate endpoint; the legacy
+        /v1/chat/estimate is a compatibility alias.
+      operationId: usage_estimate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UsageEstimateRequest"
+      responses:
+        "200":
+          description: Token estimate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UsageEstimateResponse"
+        "503":
+          description: Provider unavailable
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: >
+        Authentication is enforced through the AuthProvider boundary.
+        Production vendor selection is pending.
+
+  parameters:
+    OperationId:
+      name: operation_id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Unique operation identifier
+
+  schemas:
+    # ─── Operations ──────────────────────────────────────────────────────────
+
+    CreateOperationRequest:
+      type: object
+      additionalProperties: false
+      required: [prompt]
+      properties:
+        prompt:
+          type: string
+          minLength: 1
+        source_kind:
+          type: string
+          enum: [task, prepared_plan, fix]
+          default: task
+        plan:
+          type: object
+          nullable: true
+          description: Pre-computed plan (for prepared_plan source_kind)
+
+    ResumeOperationRequest:
+      type: object
+      additionalProperties: false
+      required: [resume_type, suspension_id, operation_version, payload]
+      properties:
+        resume_type:
+          type: string
+        suspension_id:
+          type: string
+        operation_version:
+          type: integer
+        payload:
+          type: object
+
+    ClaimToolExecutionRequest:
+      type: object
+      additionalProperties: false
+      required: [claimant_id, suspension_id, call_id, argument_digest]
+      properties:
+        claimant_id:
+          type: string
+          description: Unique tab/claimant identifier
+        suspension_id:
+          type: string
+          description: Suspension to claim
+        call_id:
+          type: string
+          description: Tool call identifier
+        argument_digest:
+          type: string
+          description: SHA-256 digest of call_id + tool_name + canonical JSON arguments
+
+    ClaimToolExecutionResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - operation_id
+        - state
+        - claimed
+        - claimant_id
+        - call_id
+        - tool_name
+        - arguments
+        - argument_digest
+        - suspension_id
+      properties:
+        operation_id:
+          type: string
+        state:
+          type: string
+        claimed:
+          type: boolean
+        claimant_id:
+          type: string
+        call_id:
+          type: string
+        tool_name:
+          type: string
+        arguments:
+          type: object
+        argument_digest:
+          type: string
+        suspension_id:
+          type: string
+        idempotent:
+          type: boolean
+          default: false
+
+    OperationStatusResponse:
+      type: object
+      properties:
+        operation_id:
+          type: string
+        state:
+          type: string
+        detail:
+          type: object
+
+    OperationEventsResponse:
+      type: object
+      properties:
+        operation_id:
+          type: string
+        events:
+          type: array
+          items:
+            type: object
+        cursor:
+          type: integer
+        terminal:
+          type: boolean
+
+    RetryRequest:
+      type: object
+      additionalProperties: false
+      required: [operation_version, idempotency_key]
+      properties:
+        operation_version:
+          type: integer
+          minimum: 0
+        idempotency_key:
+          type: string
+          minLength: 8
+          maxLength: 128
+
+    # ─── Assistant ───────────────────────────────────────────────────────────
+
+    AssistantRequest:
+      type: object
+      additionalProperties: false
+      required: [request_id, mode, text]
+      properties:
+        request_id:
+          type: string
+          minLength: 1
+        mode:
+          type: string
+          enum: [fix_wording, expand, summarize, custom]
+        text:
+          type: string
+          minLength: 1
+          maxLength: 20000
+        selected_text:
+          type: string
+          nullable: true
+          maxLength: 20000
+        context:
+          type: string
+          nullable: true
+          maxLength: 5000
+        tone:
+          type: string
+          nullable: true
+          maxLength: 200
+        workspace_id:
+          type: string
+          nullable: true
+        model:
+          type: string
+          nullable: true
+          minLength: 1
+          maxLength: 100
+          pattern: "^[a-zA-Z0-9._/-]+$"
+
+    AssistantResponse:
+      type: object
+      additionalProperties: false
+      required: [request_id, mode, status]
+      properties:
+        request_id:
+          type: string
+        mode:
+          type: string
+          enum: [fix_wording, expand, summarize, custom]
+        status:
+          type: string
+          enum: [completed, uncertainty, failed]
+        result:
+          type: object
+          default: {}
+        warnings:
+          type: array
+          items:
+            type: string
+          default: []
+        provider:
+          $ref: "#/components/schemas/ProviderInfo"
+        usage:
+          type: object
+          nullable: true
+        engine:
+          type: string
+          nullable: true
+          description: '"model" or "languagetool"'
+        fallback_used:
+          type: boolean
+          default: false
+        fallback_reason:
+          type: string
+          default: ""
+        uncertainty:
+          type: array
+          items:
+            type: string
+          default: []
+        accounting:
+          type: object
+          nullable: true
+          description: Sanitized usage-accounting evidence (null when not wired)
+
+    AssistantModelsResponse:
+      type: object
+      additionalProperties: false
+      required: [provider, current_model]
+      properties:
+        provider:
+          $ref: "#/components/schemas/ProviderInfo"
+        current_model:
+          type: string
+        available_models:
+          type: array
+          items:
+            type: string
+          default: []
+        reachable:
+          type: boolean
+          nullable: true
+
+    AssistantHealthResponse:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          type: string
+          default: ok
+        provider:
+          $ref: "#/components/schemas/ProviderInfo"
+
+    ProviderInfo:
+      type: object
+      additionalProperties: false
+      required: [id, source]
+      properties:
+        id:
+          type: string
+        source:
+          type: string
+          description: '"local" or "cloud"'
+
+    # ─── Chat ────────────────────────────────────────────────────────────────
+
+    ChatRequest:
+      type: object
+      additionalProperties: false
+      required: [message]
+      properties:
+        message:
+          type: string
+          minLength: 1
+          maxLength: 20000
+        model:
+          type: string
+          nullable: true
+          minLength: 1
+          maxLength: 100
+          pattern: "^[a-zA-Z0-9._/-]+$"
+        history:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChatHistoryMessage"
+          default: []
+          maxItems: 200
+        workspace_available:
+          type: boolean
+          default: false
+          description: True when the frontend WebContainer is booted and ready.
+
+    ChatHistoryMessage:
+      type: object
+      additionalProperties: false
+      required: [role, content]
+      properties:
+        role:
+          type: string
+          enum: [user, assistant]
+        content:
+          type: string
+          minLength: 1
+          maxLength: 20000
+
+    ChatResponse:
+      type: object
+      additionalProperties: false
+      required: [reply, provider, model, usage]
+      properties:
+        reply:
+          type: string
+        provider:
+          $ref: "#/components/schemas/ProviderInfo"
+        model:
+          type: string
+        usage:
+          $ref: "#/components/schemas/ChatUsage"
+        tool_trace:
+          type: array
+          items:
+            $ref: "#/components/schemas/ToolCallEventResponse"
+          nullable: true
+          description: Tools called during this turn
+
+    ChatUsage:
+      type: object
+      additionalProperties: false
+      required: [input_tokens, output_tokens, total_tokens, provider_type]
+      properties:
+        input_tokens:
+          type: integer
+          minimum: 0
+        output_tokens:
+          type: integer
+          minimum: 0
+        total_tokens:
+          type: integer
+          minimum: 0
+        cost:
+          type: number
+          nullable: true
+        provider_type:
+          type: string
+          enum: [local, cloud]
+
+    ChatContinueRequest:
+      type: object
+      additionalProperties: false
+      required: [turn_id, tool_results]
+      properties:
+        turn_id:
+          type: string
+          minLength: 1
+          maxLength: 100
+        tool_results:
+          type: array
+          items:
+            $ref: "#/components/schemas/ToolResultSubmission"
+          maxItems: 50
+
+    ToolResultSubmission:
+      type: object
+      additionalProperties: false
+      required: [call_id, tool_name, status]
+      properties:
+        call_id:
+          type: string
+        tool_name:
+          type: string
+        output:
+          type: string
+          nullable: true
+          maxLength: 200000
+        error:
+          type: string
+          nullable: true
+          maxLength: 10000
+        status:
+          type: string
+          enum: [success, error, timeout, cancelled, approved, denied]
+
+    ToolCallEventResponse:
+      type: object
+      additionalProperties: false
+      required: [call_id, tool_name, arguments, executor, status, turn_id]
+      properties:
+        call_id:
+          type: string
+        tool_name:
+          type: string
+        arguments:
+          type: object
+        executor:
+          type: string
+          enum: [frontend, backend]
+        status:
+          type: string
+          enum: [pending, completed, failed]
+        turn_id:
+          type: string
+        operation_id:
+          type: string
+          nullable: true
+        output:
+          type: string
+          nullable: true
+        error:
+          type: string
+          nullable: true
+        duration_ms:
+          type: integer
+          nullable: true
+
+    ChatToolCallsPending:
+      type: object
+      additionalProperties: false
+      required: [turn_id, pending_calls, completed_calls, loop_iteration, max_loops]
+      properties:
+        turn_id:
+          type: string
+        pending_calls:
+          type: array
+          items:
+            $ref: "#/components/schemas/ToolCallEventResponse"
+        completed_calls:
+          type: array
+          items:
+            $ref: "#/components/schemas/ToolCallEventResponse"
+        loop_iteration:
+          type: integer
+        max_loops:
+          type: integer
+
+    ChatApprovalRequired:
+      type: object
+      additionalProperties: false
+      required: [turn_id, tool_call, reason, risk_level]
+      properties:
+        turn_id:
+          type: string
+        tool_call:
+          $ref: "#/components/schemas/ToolCallEventResponse"
+        reason:
+          type: string
+        risk_level:
+          type: string
+          enum: [low, medium, high]
+
+    ChatErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [error, category]
+      properties:
+        error:
+          type: string
+        category:
+          type: string
+
+    ChatEstimateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        message:
+          type: string
+          default: ""
+          maxLength: 20000
+        model:
+          type: string
+          nullable: true
+          minLength: 1
+          maxLength: 100
+          pattern: "^[a-zA-Z0-9._/-]+$"
+        history:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChatHistoryMessage"
+          default: []
+          maxItems: 200
+
+    ChatEstimateResponse:
+      type: object
+      additionalProperties: false
+      required: [estimated_input_tokens, reserved_output_tokens, model, method, confidence]
+      properties:
+        estimated_input_tokens:
+          type: integer
+          minimum: 0
+        reserved_output_tokens:
+          type: integer
+          minimum: 0
+        context_limit:
+          type: integer
+          nullable: true
+          minimum: 1
+        usable_input_tokens:
+          type: integer
+          nullable: true
+          minimum: 0
+        model:
+          type: string
+        method:
+          type: string
+        confidence:
+          type: string
+
+    # ─── Usage ───────────────────────────────────────────────────────────────
+
+    UsageEstimateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        message:
+          type: string
+          default: ""
+        model:
+          type: string
+          nullable: true
+        history:
+          type: array
+          items:
+            type: object
+          default: []
+
+    UsageEstimateResponse:
+      type: object
+      required: [estimated_input_tokens, reserved_output_tokens, model, method, confidence]
+      properties:
+        estimated_input_tokens:
+          type: integer
+        reserved_output_tokens:
+          type: integer
+        context_limit:
+          type: integer
+          nullable: true
+        usable_input_tokens:
+          type: integer
+          nullable: true
+        model:
+          type: string
+        method:
+          type: string
+        confidence:
+          type: string
+
+    # ─── Shared ──────────────────────────────────────────────────────────────
+
+    HTTPError:
+      type: object
+      properties:
+        detail:
+          oneOf:
+            - type: string
+            - type: object

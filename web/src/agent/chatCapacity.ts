@@ -1,10 +1,10 @@
 /**
  * Chat capacity — live composer token meter support.
  *
- * Talks to POST /v1/chat/estimate (never the completion provider).
- * The meter is a pre-send estimate of the complete next request input
- * and is entirely separate from the provider-reported IN/OUT usage
- * shown as evidence on completed turns.
+ * Talks to POST /v1/usage/estimate (canonical endpoint, independent of
+ * the legacy /v1/chat lifecycle). The meter is a pre-send estimate of
+ * the complete next request input and is entirely separate from the
+ * provider-reported IN/OUT usage shown as evidence on completed turns.
  */
 
 export interface ChatHistoryEntry {
@@ -12,7 +12,7 @@ export interface ChatHistoryEntry {
   content: string
 }
 
-/** Wire shape of POST /v1/chat/estimate. */
+/** Wire shape of POST /v1/usage/estimate. */
 export interface ChatEstimateResponse {
   estimated_input_tokens: number
   reserved_output_tokens: number
@@ -75,7 +75,7 @@ export async function fetchChatEstimate(
   payload: ChatEstimatePayload,
   signal: AbortSignal,
 ): Promise<ChatEstimateResponse> {
-  const response = await fetch('/v1/chat/estimate', {
+  const response = await fetch('/v1/usage/estimate', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

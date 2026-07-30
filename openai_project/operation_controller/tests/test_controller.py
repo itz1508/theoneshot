@@ -132,7 +132,10 @@ class FakePlanningAdapter:
 
     def create_plan(self, prompt: str, context: dict[str, Any]) -> dict[str, Any]:
         self.calls.append((prompt, context))
-        return self._plan
+        return {"status": "completed", "plan": self._plan}
+
+    def resume_plan(self, record: Any, resume_input: dict[str, Any]) -> dict[str, Any]:
+        return {"status": "completed", "plan": self._plan}
 
 
 class FakeReviewAdapter:

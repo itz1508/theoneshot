@@ -1,8 +1,4 @@
-/**
- * App — shell layout wiring all components to the central store.
- * The BackendChatSource is bound once at mount via the store.
- * No component imports the event source directly.
- */
+/** App shell wiring Operator Chat, feature tabs, and A-Flow notifications. */
 
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { TopMenu } from './components/TopMenu'
@@ -13,63 +9,56 @@ import { MessageComposer, type AnchorMode } from './components/MessageComposer'
 import { TurnIndicator } from './components/TurnIndicator'
 import { TaskReviewDrawer } from './components/TaskReviewDrawer'
 import { WritingDesignAssistant } from './features/writing-design-assistant/WritingDesignAssistant'
+import { useAflowManagement } from './features/aflow-management/useAflowManagement'
 import { useAppStore } from './store/taskStore'
 import { BackendChatSource } from './agent/BackendChatSource'
 import styles from './App.module.css'
 
-// Lazy chunk on purpose: the Web Runtime feature (incl. its sample project)
-// must stay out of the entry bundle until the tab is first opened.
 const WebRuntime = lazy(() =>
-  import('./features/web-runtime/WebRuntime').then((m) => ({ default: m.WebRuntime })),
+  import('./features/web-runtime/WebRuntime').then((module) => ({ default: module.WebRuntime })),
 )
+const AflowManagement = lazy(() => import('./features/aflow-management/AflowManagement'))
 
-// Instantiate event source once (module-level singleton)
 const eventSource = new BackendChatSource()
 
 function App() {
   const [railTab, setRailTab] = useState<RailTab>('explorer')
   const [explorerOpen, setExplorerOpen] = useState(true)
   const [anchorMode, setAnchorMode] = useState<AnchorMode>('user')
-  // Latched on first open; the feature then stays mounted (CSS-hidden when
-  // inactive) so the WebContainer session survives feature switches.
   const [webRuntimeOpened, setWebRuntimeOpened] = useState(false)
+  const aflow = useAflowManagement()
 
-  const workspaces = useAppStore((s) => s.workspaces)
-  const participatingWorkspaceIds = useAppStore((s) => s.participatingWorkspaceIds)
-  const task = useAppStore((s) => s.task)
-  const messages = useAppStore((s) => s.messages)
-  const loading = useAppStore((s) => s.loading)
-  const turn = useAppStore((s) => s.turn)
-  const drawerOpen = useAppStore((s) => s.drawerOpen)
-  const runnerMode = useAppStore((s) => s.runnerMode)
-  const bindEventSource = useAppStore((s) => s.bindEventSource)
-  const sendMessage = useAppStore((s) => s.sendMessage)
-  const cancelTask = useAppStore((s) => s.cancelTask)
-  const toggleDrawer = useAppStore((s) => s.toggleDrawer)
-  const openDrawerForWorkspace = useAppStore((s) => s.openDrawerForWorkspace)
+  const workspaces = useAppStore((state) => state.workspaces)
+  const participatingWorkspaceIds = useAppStore((state) => state.participatingWorkspaceIds)
+  const task = useAppStore((state) => state.task)
+  const messages = useAppStore((state) => state.messages)
+  const loading = useAppStore((state) => state.loading)
+  const turn = useAppStore((state) => state.turn)
+  const drawerOpen = useAppStore((state) => state.drawerOpen)
+  const runnerMode = useAppStore((state) => state.runnerMode)
+  const bindEventSource = useAppStore((state) => state.bindEventSource)
+  const sendMessage = useAppStore((state) => state.sendMessage)
+  const cancelTask = useAppStore((state) => state.cancelTask)
+  const toggleDrawer = useAppStore((state) => state.toggleDrawer)
+  const openDrawerForWorkspace = useAppStore((state) => state.openDrawerForWorkspace)
 
-  // Bind the event source once
   useEffect(() => {
     bindEventSource(eventSource)
-    return () => { eventSource.dispose() }
+    return () => eventSource.dispose()
   }, [bindEventSource])
 
-  // Activity rail toggles the explorer panel
   const handleRailSelect = (tab: RailTab) => {
     setRailTab(tab)
-    if (tab === 'explorer') {
-      setExplorerOpen((prev) => !prev)
-    }
-    if (tab === 'webruntime') {
-      setWebRuntimeOpened(true)
-    }
+    if (tab === 'explorer') setExplorerOpen((open) => !open)
+    if (tab === 'webruntime') setWebRuntimeOpened(true)
+    if (tab === 'aflow') aflow.markSeen()
   }
 
   return (
     <div className={styles.shell}>
       <TopMenu runnerMode={runnerMode} loading={loading} />
       <div className={styles.body}>
-        <ActivityRail active={railTab} onSelect={handleRailSelect} />
+        <ActivityRail active={railTab} onSelect={handleRailSelect} aflowUnread={aflow.unreadCount} />
         <Explorer
           workspaces={workspaces}
           participatingWorkspaceIds={participatingWorkspaceIds}
@@ -77,8 +66,25 @@ function App() {
           onLEDClick={openDrawerForWorkspace}
         />
         <main className={styles.main}>
+          {aflow.latest && aflow.unreadCount > 0 && railTab !== 'aflow' ? (
+            <div className={styles.aflowBanner} role="alert">
+              <span>
+                A-Flow issue: {aflow.latest.issue_code.split('_').join(' ')} during {aflow.latest.stage}.
+              </span>
+              <button onClick={() => handleRailSelect('aflow')}>Open A-Flow</button>
+            </div>
+          ) : null}
           {railTab === 'assistant' ? (
             <WritingDesignAssistant />
+          ) : railTab === 'aflow' ? (
+            <Suspense fallback={null}>
+              <AflowManagement
+                status={aflow.status}
+                issues={aflow.issues}
+                error={aflow.error}
+                onRefresh={aflow.refresh}
+              />
+            </Suspense>
           ) : railTab !== 'webruntime' ? (
             <>
               <Conversation messages={messages} loading={loading} anchorMode={anchorMode} />
@@ -92,12 +98,8 @@ function App() {
             </>
           ) : null}
           {webRuntimeOpened ? (
-            <div
-              className={`${styles.webRuntimeHost} ${railTab !== 'webruntime' ? styles.webRuntimeHidden : ''}`}
-            >
-              <Suspense fallback={null}>
-                <WebRuntime />
-              </Suspense>
+            <div className={`${styles.webRuntimeHost} ${railTab !== 'webruntime' ? styles.webRuntimeHidden : ''}`}>
+              <Suspense fallback={null}><WebRuntime /></Suspense>
             </div>
           ) : null}
         </main>

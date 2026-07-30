@@ -25,6 +25,7 @@ from .base import (
     ModelListing,
     ProviderCapabilities,
     ProviderError,
+    ToolCallRequest,
 )
 
 DEFAULT_BASE_URL = "http://127.0.0.1:11434"
@@ -70,7 +71,7 @@ class LocalOpenAICompatibleProvider:
         self._context_windows: dict[str, int] = {}
 
     def complete(self, request: CompletionRequest) -> CompletionReply:
-        body = {
+        body: dict = {
             "model": self.effective_model(request.model_override),
             "messages": [
                 {"role": "system", "content": request.system_prompt},
@@ -84,6 +85,21 @@ class LocalOpenAICompatibleProvider:
             "temperature": 0,
             "stream": False,
         }
+        # Include tools when available (OpenAI-compatible format)
+        if request.tools:
+            body["tools"] = [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": t.name,
+                        "description": t.description,
+                        "parameters": t.parameters,
+                    },
+                }
+                for t in request.tools
+            ]
+            if request.tool_choice:
+                body["tool_choice"] = request.tool_choice
         timeout = request.timeout_seconds or self.timeout_seconds
         try:
             response = requests.post(
@@ -164,7 +180,11 @@ class LocalOpenAICompatibleProvider:
 def _parse_chat_completion(
     response: requests.Response, *, model: str | None = None
 ) -> CompletionReply:
-    """Translate an OpenAI-compatible chat response into a CompletionReply."""
+    """Translate an OpenAI-compatible chat response into a CompletionReply.
+
+    Handles both text responses and tool-call responses.  When the model
+    returns tool_calls (finish_reason="tool_calls"), content may be null.
+    """
     if response.status_code in (401, 403):
         raise ProviderError(
             PublicErrorCategory.AUTHENTICATION, "Provider rejected authentication."
@@ -184,34 +204,74 @@ def _parse_chat_completion(
         )
     try:
         payload = response.json()
-        content = payload["choices"][0]["message"]["content"]
+        choice = payload["choices"][0]
+        message = choice["message"]
     except (ValueError, KeyError, IndexError, TypeError) as exc:
         raise ProviderError(
             PublicErrorCategory.INVALID_RESPONSE,
             "Provider returned a malformed response.",
         ) from exc
+
+    # Determine finish reason
+    finish_reason = choice.get("finish_reason", "stop") or "stop"
+
+    # Parse tool calls if present
+    raw_tool_calls = message.get("tool_calls")
+    if raw_tool_calls and isinstance(raw_tool_calls, list):
+        tool_calls = tuple(
+            ToolCallRequest(
+                id=tc.get("id", f"call_{i}"),
+                name=tc.get("function", {}).get("name", ""),
+                arguments=tc.get("function", {}).get("arguments", "{}"),
+            )
+            for i, tc in enumerate(raw_tool_calls)
+            if isinstance(tc, dict)
+        )
+        # Tool-call response: content may be null/empty
+        content = message.get("content") or ""
+        usage = _extract_usage(payload)
+        native_usage, native_invalid = _sanitize_native_usage(payload.get("usage"))
+        return CompletionReply(
+            text=content,
+            usage=usage,
+            native_usage=native_usage,
+            native_usage_invalid=native_invalid,
+            model=model,
+            tool_calls=tool_calls,
+            finish_reason="tool_calls",
+        )
+
+    # Standard text response
+    content = message.get("content")
     if not isinstance(content, str) or not content.strip():
         raise ProviderError(
             PublicErrorCategory.INVALID_RESPONSE,
             "Provider returned an empty response.",
         )
-    usage: dict[str, int] | None = None
-    raw_usage = payload.get("usage")
-    if isinstance(raw_usage, dict):
-        usage = {
-            key: int(value)
-            for key, value in raw_usage.items()
-            if key in ("prompt_tokens", "completion_tokens", "total_tokens")
-            and isinstance(value, (int, float))
-        }
-    native_usage, native_invalid = _sanitize_native_usage(raw_usage)
+    usage = _extract_usage(payload)
+    native_usage, native_invalid = _sanitize_native_usage(payload.get("usage"))
     return CompletionReply(
         text=content,
-        usage=usage or None,
+        usage=usage,
         native_usage=native_usage,
         native_usage_invalid=native_invalid,
         model=model,
+        finish_reason=finish_reason,
     )
+
+
+def _extract_usage(payload: dict) -> dict[str, int] | None:
+    """Extract OpenAI-compatible usage counters from the response."""
+    raw_usage = payload.get("usage")
+    if not isinstance(raw_usage, dict):
+        return None
+    usage = {
+        key: int(value)
+        for key, value in raw_usage.items()
+        if key in ("prompt_tokens", "completion_tokens", "total_tokens")
+        and isinstance(value, (int, float))
+    }
+    return usage or None
 
 
 #: Sanitized OpenAI-native usage whitelist — usage metadata only.

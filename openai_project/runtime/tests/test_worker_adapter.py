@@ -24,7 +24,7 @@ from audisor.workers.base import (
     ProviderPermanentRequestError,
     ProviderUnavailableError,
 )
-from audisor.workers.fireworks import FireworksWorker
+from audisor.workers.fireworks import DEFAULT_FIREWORKS_BASE_URL, FireworksWorker
 from audisor.workers.local import LocalWorker
 from provider_testkit import provider_router
 
@@ -362,6 +362,21 @@ def test_local_worker_has_no_fireworks_dependency_or_environment_reads() -> None
     assert "fireworks_" not in text
 
 
+def test_fireworks_blank_base_uses_default_and_custom_override(monkeypatch) -> None:
+    monkeypatch.setenv("FIREWORKS_API_KEY", "credential")
+    monkeypatch.setenv("FIREWORKS_MODEL", "accounts/example/models/model")
+    monkeypatch.setenv("FIREWORKS_BASE_URL", "")
+
+    default_worker = FireworksWorker.from_environment()
+    assert default_worker.configuration_status() is True
+    assert default_worker.base_url == DEFAULT_FIREWORKS_BASE_URL
+
+    monkeypatch.setenv("FIREWORKS_BASE_URL", "https://compatible.example/v1")
+    custom_worker = FireworksWorker.from_environment()
+    assert custom_worker.configuration_status() is True
+    assert custom_worker.base_url == "https://compatible.example/v1"
+
+
 def _safe_provider_shape(response: requests.Response) -> str:
     try:
         payload = response.json()
@@ -373,7 +388,7 @@ def _safe_provider_shape(response: requests.Response) -> str:
 
 @pytest.mark.live_fireworks
 def test_optional_live_fireworks_api_smoke() -> None:
-    required = ("FIREWORKS_API_KEY", "FIREWORKS_BASE_URL", "FIREWORKS_MODEL")
+    required = ("FIREWORKS_API_KEY", "FIREWORKS_MODEL")
     missing = [name for name in required if not os.environ.get(name)]
     if missing:
         pytest.skip(f"live Fireworks preflight is missing: {', '.join(missing)}")

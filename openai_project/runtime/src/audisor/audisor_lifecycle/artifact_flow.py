@@ -22,9 +22,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
-from audisor.schemas.task_input import TaskInput
-from audisor.workers.local import LocalWorker
-
 from .operation import FrozenAudisorPolicy, read_frozen_audisor_policy
 
 # Compatibility surface: every name previously defined in this module stays
@@ -56,6 +53,13 @@ from .persistence import (
     read_last_result,
 )
 from .result_builder import _LifecycleRunState
+from .management import (
+    STAGE_BUDGET_SECONDS,
+    create_root_cause_issue,
+    persist_submission_snapshot,
+    resolve_stage_providers,
+    update_active_progress,
+)
 from .stage_contracts import (
     REPAIR_POLICY,
     RESULT_STATUSES,
@@ -72,7 +76,7 @@ from .stage_contracts import (
 )
 from .stage_execution import _call_with_timeout, _execute_stage
 from .stage_prompts import _STAGE_INSTRUCTIONS, _STAGE_OUTPUT_EXAMPLES
-from .stage_worker import LocalStageWorker
+from .stage_worker import LocalStageWorker, ManagedStageWorker
 
 
 def _resolve_prior_state(
@@ -133,12 +137,15 @@ def _resolve_prior_state(
 def _resolve_worker(
     worker: StageWorker | None,
     stage_timeout_seconds: float | None,
+    *,
+    state_root: Path | None = None,
+    progress=None,
 ) -> tuple[StageWorker | None, float | None, dict[str, Any] | None]:
     """Fill worker and timeout from the frozen policy when not supplied."""
     if stage_timeout_seconds is None or worker is None:
         policy = read_frozen_audisor_policy()
         if stage_timeout_seconds is None:
-            stage_timeout_seconds = policy.timeout_seconds
+            stage_timeout_seconds = STAGE_BUDGET_SECONDS
         if worker is None:
             if not policy.enabled:
                 return (
@@ -147,10 +154,31 @@ def _resolve_worker(
                     {
                         "status": "error",
                         "stage": "configuration",
+                        "issue_code": "provider_configuration_error",
                         "detail": "A-Flow is disabled by configuration",
                     },
                 )
-            worker = LocalStageWorker.from_policy(policy)
+            try:
+                primary, fallback, fallback_ready = resolve_stage_providers(
+                    state_root=state_root
+                )
+            except Exception as exc:
+                return (
+                    None,
+                    stage_timeout_seconds,
+                    {
+                        "status": "error",
+                        "stage": "configuration",
+                        "issue_code": getattr(exc, "code", "provider_configuration_error"),
+                        "detail": str(exc),
+                    },
+                )
+            worker = ManagedStageWorker(
+                primary=primary,
+                fallback=fallback,
+                fallback_ready=fallback_ready,
+                progress=progress,
+            )
     return worker, stage_timeout_seconds, None
 
 
@@ -279,7 +307,12 @@ def run_artifact_lifecycle(
     artifact_id = trigger.get("artifact_id")
     valid_id = isinstance(artifact_id, str) and bool(artifact_id.strip())
     root = state_root or default_state_root()
-    state = _LifecycleRunState(root=root, artifact_id=artifact_id, valid_id=valid_id)
+    state = _LifecycleRunState(
+        root=root,
+        artifact_id=artifact_id,
+        valid_id=valid_id,
+        trigger=trigger,
+    )
 
     status = trigger.get("status")
     if status != "draft_complete":
@@ -303,18 +336,56 @@ def run_artifact_lifecycle(
         artifact_id, state.digest, state.content_digest, state_root
     )
     if early is not None:
+        if early.get("status") == "error":
+            create_root_cause_issue(root, early, trigger, [])
         return early
     state.revision = revision
+
+    try:
+        persist_submission_snapshot(
+            root,
+            trigger,
+            digest=state.digest,
+            run_id=state.run_id,
+            revision=state.revision,
+        )
+    except OSError as exc:
+        return state.finish(
+            {
+                "status": "error",
+                "stage": "configuration",
+                "issue_code": "persisted_state_corrupt",
+                "detail": f"immutable submission snapshot could not be persisted: {exc}",
+            }
+        )
 
     early, state.marker_path = _guard_active_run(
         root, artifact_id, state.digest, state.run_id, state.started_at
     )
     if early is not None:
+        create_root_cause_issue(root, early, trigger, [])
         return early
 
-    worker, stage_timeout_seconds, config_error = _resolve_worker(worker, stage_timeout_seconds)
+    def progress(stage: str, provider: str, attempt: int, elapsed: float, remaining: float) -> None:
+        update_active_progress(
+            state.marker_path,
+            stage=stage,
+            provider=provider,
+            attempt=attempt,
+            elapsed_seconds=elapsed,
+            remaining_seconds=remaining,
+        )
+
+    worker, stage_timeout_seconds, config_error = _resolve_worker(
+        worker,
+        stage_timeout_seconds,
+        state_root=root,
+        progress=progress,
+    )
     if config_error is not None:
         return state.finish(config_error)
+    if isinstance(worker, ManagedStageWorker):
+        state.provider_attempts = worker.attempts
 
     common = {
         "artifact_id": artifact_id,

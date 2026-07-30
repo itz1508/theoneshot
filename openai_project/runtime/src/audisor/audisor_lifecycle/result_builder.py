@@ -5,8 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
+from .management import create_root_cause_issue, persist_run_evidence
 from .persistence import _persist_result
 from .stage_contracts import REPAIR_POLICY
 
@@ -32,8 +33,15 @@ class _LifecycleRunState:
     run_id: str | None = None
     started_at: str | None = None
     marker_path: Path | None = None
+    trigger: Mapping[str, Any] | None = None
+    provider_attempts: list[dict[str, Any]] = field(default_factory=list)
 
-    def finish(self, result: dict[str, Any]) -> dict[str, Any]:
+    def finish(
+        self,
+        result: dict[str, Any],
+        *,
+        persist_result: bool = True,
+    ) -> dict[str, Any]:
         if self.repairs:
             # Repair is explicit, never silent: the result names every field
             # that normalization removed, with its original value — always
@@ -58,6 +66,16 @@ class _LifecycleRunState:
                 result["evaluation_repair"] = self.evaluation_repair
         if self.valid_id:
             result["artifact_id"] = self.artifact_id
+        persist_run_evidence(self.root, result, self.provider_attempts)
+        if result.get("status") == "error" and self.trigger is not None:
+            create_root_cause_issue(
+                self.root, result, self.trigger, self.provider_attempts
+            )
+        # Provider internal detail is evidence for issue construction only;
+        # it is never returned through the artifact result contract.
+        result.pop("provider_error_detail", None)
+        result.pop("issue_code", None)
+        if self.valid_id and persist_result:
             _persist_result(self.root, self.artifact_id, result)
         if self.marker_path is not None:
             try:

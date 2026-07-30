@@ -128,7 +128,10 @@ class RequestBundlePlanner:
 
     def create_plan(self, prompt: str, context: dict[str, Any]) -> dict[str, Any]:
         self.calls.append(prompt)
-        return deepcopy(self._request)
+        return {"status": "completed", "plan": deepcopy(self._request)}
+
+    def resume_plan(self, record: Any, resume_input: dict[str, Any]) -> dict[str, Any]:
+        return {"status": "completed", "plan": deepcopy(self._request)}
 
 
 def build_controller(tmp_path: Path, planner: RequestBundlePlanner | None = None):

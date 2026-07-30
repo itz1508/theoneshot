@@ -8,6 +8,7 @@
  */
 
 import type { TaskRecordEntry } from '../agent/types'
+import { RootCauseResolutionDetails } from './RootCauseResolutionDetails'
 import styles from './TaskRecord.module.css'
 
 interface TaskRecordProps {
@@ -72,24 +73,20 @@ export function TaskRecord({ entries }: TaskRecordProps) {
 
               {/* Root cause — expanded, for correction_required and failed */}
               {(entry.status === 'correction_required' || entry.status === 'failed') && (
-                <div className={styles.detail}>
-                  <span className={styles.detailLabel}>Root cause:</span>
-                  <span className={styles.detailValue}>{entry.rootCause.summary}</span>
-                </div>
+                <RootCauseResolutionDetails
+                  kind="cause"
+                  directCause={entry.rootCause.summary}
+                  directLabel="Root cause"
+                />
               )}
 
               {/* Resolution — expanded, for correction_required and failed */}
               {(entry.status === 'correction_required' || entry.status === 'failed') && (
-                <>
-                  <div className={styles.detail}>
-                    <span className={styles.detailLabel}>Resolution:</span>
-                    <span className={styles.detailValue}>{entry.resolution.summary}</span>
-                  </div>
-                  <div className={styles.detail}>
-                    <span className={styles.detailLabel}>Resolution state:</span>
-                    <span className={styles.detailValue}>{entry.resolution.status}</span>
-                  </div>
-                </>
+                <RootCauseResolutionDetails
+                  kind="resolution"
+                  resolution={entry.resolution.summary}
+                  resolutionState={entry.resolution.status}
+                />
               )}
 
               {/* Blocking reason — for blocked */}

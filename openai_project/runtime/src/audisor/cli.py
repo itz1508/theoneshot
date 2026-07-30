@@ -204,12 +204,42 @@ def main(
 
     aflow = commands.add_parser("aflow")
     aflow.add_argument("action", choices=("on", "off", "status"))
+    aflow.add_argument(
+        "--probe",
+        action="store_true",
+        help="with status, perform a bounded structured-output provider probe",
+    )
 
     args = parser.parse_args(argv)
 
     if args.command == "aflow":
         if args.action == "status":
-            print(f"A-Flow: {'ON' if is_aflow_enabled() else 'OFF'}")
+            from .audisor_lifecycle.management import provider_status
+
+            status = provider_status(probe=args.probe)
+            primary = status["primary"]
+            fallback = status["fallback"]
+            print(f"A-Flow: {'ON' if status['enabled'] else 'OFF'}")
+            print(f"Workspace: {status['workspace_id']}")
+            print(f"Primary: {primary['provider']} / {primary['model']}")
+            print(f"Configuration: {primary['configuration_source']}")
+            print(f"Configured: {str(primary['configured']).lower()}")
+            print(f"Reachable: {str(primary['endpoint_reachable']).lower()}")
+            print(f"Structured probe: {primary['structured_output_probe']}")
+            print(f"Fallback: {fallback['provider'] or 'not configured'}")
+            print(f"Fallback ready: {str(fallback['ready']).lower()}")
+            if fallback["missing_non_secret_fields"]:
+                print("Fallback missing: " + ", ".join(fallback["missing_non_secret_fields"]))
+            if status["current_run"]:
+                current = status["current_run"]
+                print(
+                    "Current run: "
+                    f"{current.get('lifecycle_run_id', 'unknown')} "
+                    f"stage={current.get('stage', 'starting')} "
+                    f"provider={current.get('provider', 'unselected')}"
+                )
+            else:
+                print("Current run: none")
             return 0
         set_aflow_enabled(args.action == "on")
         return 0

@@ -6,6 +6,8 @@ from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeoutError
 from typing import Any, Mapping
 
+from audisor.workers.base import ProviderError
+
 from .output_processing import _prune_to_schema
 from .stage_contracts import (
     STAGE_OUTPUT_SCHEMAS,
@@ -46,12 +48,31 @@ def _execute_stage(
         return {
             "status": "error",
             "stage": stage,
+            "issue_code": "provider_timeout",
             "detail": f"stage timed out after {stage_timeout_seconds}s",
         }
+    except ProviderError as exc:
+        return {
+            "status": "error",
+            "stage": stage,
+            "issue_code": exc.code,
+            "detail": str(exc),
+            "provider_error_detail": exc.internal_detail,
+        }
     except Exception as exc:  # transport/provider/worker failure -> bounded error
-        return {"status": "error", "stage": stage, "detail": f"{type(exc).__name__}: {exc}"}
+        return {
+            "status": "error",
+            "stage": stage,
+            "issue_code": "unknown",
+            "detail": f"{type(exc).__name__}: {exc}",
+        }
     if not isinstance(output, Mapping):
-        return {"status": "error", "stage": stage, "detail": "worker output is not an object"}
+        return {
+            "status": "error",
+            "stage": stage,
+            "issue_code": "stage_schema_error",
+            "detail": "worker output is not an object",
+        }
     if stage in _REPAIRABLE_STAGES:
         # Limited recorded repair: unknown fields are removed before
         # validation, every removal is preserved in the result, and
@@ -61,6 +82,7 @@ def _execute_stage(
             return {
                 "status": "error",
                 "stage": stage,
+                "issue_code": "stage_schema_error",
                 "detail": (
                     f"worker output required removing {len(removed)} unknown fields "
                     f"(ceiling {_MAX_REPAIRED_FIELDS}); treating as malformed"
@@ -77,6 +99,7 @@ def _execute_stage(
         return {
             "status": "error",
             "stage": stage,
+            "issue_code": "stage_schema_error",
             "detail": f"worker output failed stage schema at {first.json_path}: {first.message}",
         }
     return repaired

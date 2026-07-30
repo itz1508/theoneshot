@@ -16,10 +16,13 @@ def test_audisor_commands_persist_and_report_state(tmp_path, monkeypatch, capsys
     monkeypatch.setenv("AUDISOR_CONFIG_PATH", str(tmp_path / "config.json"))
     assert cli.main(["aflow", "off"]) == 0
     assert cli.main(["aflow", "status"]) == 0
-    assert capsys.readouterr().out.strip() == "A-Flow: OFF"
+    status_output = capsys.readouterr().out
+    assert "A-Flow: OFF" in status_output
+    assert "Primary: local-openai-compatible / qwen2.5-coder:7b" in status_output
+    assert "Fallback ready: false" in status_output
     assert cli.main(["aflow", "on"]) == 0
     assert cli.main(["aflow", "status"]) == 0
-    assert capsys.readouterr().out.strip() == "A-Flow: ON"
+    assert "A-Flow: ON" in capsys.readouterr().out
 
 
 @pytest.mark.skip(reason="Legacy CLI commands are tombstoned in 0.10.0 — see test_public_surface_sentinels.py")

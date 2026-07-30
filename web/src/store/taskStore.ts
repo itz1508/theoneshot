@@ -21,6 +21,7 @@ import type {
   Workspace,
 } from '../agent/types'
 import type { TaskEventSource } from '../agent/TaskEventSource'
+import type { OperationEventSource } from '../agent/OperationEventSource'
 import {
   capacityFromEstimate,
   fetchChatEstimate,
@@ -58,6 +59,9 @@ export interface AppState {
   // Connection
   runnerMode: string
 
+  // Operation reattachment
+  currentOperationId: string | null
+
   // Validation
   lastValidationFailure: ValidationFailure | null
 
@@ -75,6 +79,7 @@ export interface AppState {
   openDrawerForWorkspace: (workspaceId: string) => void
   handleEvent: (event: AgentEvent) => void
   reset: () => void
+  reattachOperation: (operationId: string) => void
 
   // Event source binding (set once at app boot)
   _eventSource: TaskEventSource | null
@@ -191,6 +196,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   capacity: initialCapacity,
   turn: 'user',
   runnerMode: 'Connected · assistant backend',
+  currentOperationId: null,
   lastValidationFailure: null,
   _eventSource: null,
   _unsubscribe: null,
@@ -323,6 +329,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     const isTerminalEvent = event.eventType === 'task.completed' ||
       event.eventType === 'task.failed' ||
       event.eventType === 'task.cancelled'
+
+    // Track operation ID from participant activation metadata
+    if (event.eventType === 'participant.activated' && event.metadata?.operationId) {
+      set({ currentOperationId: event.metadata.operationId as string })
+    }
 
     set((s) => {
       const isTerminal = event.eventType === 'task.completed' ||
@@ -494,8 +505,29 @@ export const useAppStore = create<AppState>((set, get) => ({
       selectedModel: null,
       capacity: initialCapacity,
       turn: 'user',
+      currentOperationId: null,
       lastValidationFailure: null,
     })
+  },
+
+  reattachOperation: (operationId) => {
+    const { _eventSource } = get()
+    if (!_eventSource) return
+    // Duck-type check: only OperationEventSource has reattach()
+    if ('reattach' in _eventSource && typeof (_eventSource as OperationEventSource).reattach === 'function') {
+      ;(_eventSource as OperationEventSource).reattach(operationId)
+      set({
+        currentOperationId: operationId,
+        loading: true,
+        turn: 'agent',
+        task: {
+          ...initialTask,
+          taskId: `task-${operationId}`,
+          status: 'running',
+          objective: 'Reattaching to operation...',
+        },
+      })
+    }
   },
 
   bindEventSource: (source) => {

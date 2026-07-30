@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from typing import Literal, Mapping, Protocol, runtime_checkable, get_args
+from typing import Any, Literal, Mapping, Protocol, runtime_checkable, get_args
 
 from ..domain.modes import AssistantMode
 from ..schemas.responses import PublicErrorCategory
@@ -36,6 +36,24 @@ class HistoryMessage:
                 f"Unsupported history role: {self.role!r}; "
                 f"allowed: {sorted(_ALLOWED_HISTORY_ROLES)}"
             )
+
+
+@dataclass(frozen=True)
+class ToolSchema:
+    """Tool definition sent to the model in an OpenAI-compatible request."""
+
+    name: str
+    description: str
+    parameters: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class ToolCallRequest:
+    """A tool call parsed from the model's response."""
+
+    id: str
+    name: str
+    arguments: str  # raw JSON string from the model
 
 
 class ProviderError(Exception):
@@ -71,6 +89,10 @@ class CompletionRequest:
     # Prior conversation turns sent before the current user prompt.
     # Empty for single-turn operations (all writing-assistant modes).
     history: tuple[HistoryMessage, ...] = ()
+    # Tool schemas available for this request.  Empty disables tool calling.
+    tools: tuple[ToolSchema, ...] = ()
+    # Tool choice: "auto" (model decides), "none" (force text), or a name.
+    tool_choice: str | None = None
 
     def __post_init__(self) -> None:
         if (self.mode is None) == (self.purpose is None):
@@ -112,6 +134,9 @@ class CompletionReply:
     malformed; accounting must then not silently fall back.  ``model`` is
     the effective model resolved and frozen at the provider boundary
     (after model_override handling).
+
+    When ``finish_reason`` is ``"tool_calls"``, ``text`` may be empty and
+    ``tool_calls`` contains the model's requested tool invocations.
     """
 
     text: str
@@ -119,6 +144,9 @@ class CompletionReply:
     native_usage: dict[str, object] | None = None
     native_usage_invalid: bool = False
     model: str | None = None
+    # Tool calling: populated when the model requests tool invocations.
+    tool_calls: tuple[ToolCallRequest, ...] = ()
+    finish_reason: str = "stop"  # "stop" | "tool_calls" | "length"
 
 
 @dataclass(frozen=True)
@@ -238,6 +266,11 @@ class DeterministicFakeProvider:
 
     Returns a fixed, contract-valid JSON payload per mode.  Never touches
     the network.
+
+    For tool-calling tests, pass ``tool_responses`` — a list of
+    ``CompletionReply`` objects that will be returned in order when tools
+    are present in the request.  After the sequence is exhausted, falls
+    back to a deterministic text response.
     """
 
     provider_id = "fake-deterministic"
@@ -253,9 +286,13 @@ class DeterministicFakeProvider:
         overrides: Mapping[AssistantMode, dict] | None = None,
         *,
         context_window: int | None = DEFAULT_CONTEXT_WINDOW,
+        tool_responses: list["CompletionReply"] | None = None,
     ) -> None:
         self._overrides = dict(overrides or {})
         self._context_window = context_window
+        # Scriptable tool-call sequence for testing the orchestrator.
+        self._tool_responses = list(tool_responses or [])
+        self._tool_call_index = 0
 
     def _estimate_usage(self, request: CompletionRequest, reply_text: str) -> dict:
         """Deterministic token estimate from content length (~4 chars/token).
@@ -275,6 +312,12 @@ class DeterministicFakeProvider:
         }
 
     def complete(self, request: CompletionRequest) -> CompletionReply:
+        # If tools are present and scripted responses remain, return them.
+        if request.tools and self._tool_call_index < len(self._tool_responses):
+            reply = self._tool_responses[self._tool_call_index]
+            self._tool_call_index += 1
+            return reply
+
         if request.purpose is not None:
             # Non-writing purpose: deterministic echo.
             reply_text = f"This is a deterministic response to: {request.user_prompt[:50]}"

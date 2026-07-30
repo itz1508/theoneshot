@@ -59,7 +59,7 @@ def _assert_rejected(result: object, *, detail_fragment: str) -> None:
 class TestMcpTransport:
     """Real MCP stdio transport integration tests."""
 
-    def test_tools_list_returns_exactly_two_tools(self) -> None:
+    def test_tools_list_returns_lifecycle_and_management_tools(self) -> None:
         asyncio.run(self._tools_list())
 
     async def _tools_list(self) -> None:
@@ -70,7 +70,13 @@ class TestMcpTransport:
                     await session.initialize()
                     tools = (await session.list_tools()).tools
                     names = {t.name for t in tools}
-                    assert names == {"aflow_submit_artifact", "aflow_last_result"}
+                    assert names == {
+                        "aflow_submit_artifact",
+                        "aflow_last_result",
+                        "aflow_provider_status",
+                        "aflow_list_issues",
+                        "aflow_get_issue",
+                    }
                     for tool in tools:
                         assert tool.inputSchema.get("additionalProperties") is False, (
                             f"{tool.name} inputSchema must emit additionalProperties=false"
@@ -120,6 +126,14 @@ class TestMcpTransport:
                         {"artifact_id": "artifact.x", "bogus_field": True},
                     )
                     _assert_rejected(last, detail_fragment="bogus_field")
+
+                    for tool_name, arguments in (
+                        ("aflow_provider_status", {"bogus_field": True}),
+                        ("aflow_list_issues", {"bogus_field": True}),
+                        ("aflow_get_issue", {"issue_id": "aflow-00000000000000000000", "bogus_field": True}),
+                    ):
+                        result = await session.call_tool(tool_name, arguments)
+                        _assert_rejected(result, detail_fragment="bogus_field")
 
     def test_missing_property_rejected_through_transport(self) -> None:
         asyncio.run(self._missing_property_rejected())

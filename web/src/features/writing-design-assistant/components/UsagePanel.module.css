@@ -1,0 +1,37 @@
+.panel {
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 0.75rem;
+  padding: 0.875rem;
+}
+
+.heading {
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin: 0 0 0.75rem;
+}
+
+.grid {
+  display: grid;
+  gap: 0.5rem 1rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  margin: 0;
+}
+
+.grid dt,
+.grid dd {
+  margin: 0;
+}
+
+.grid dt {
+  opacity: 0.72;
+}
+
+.value {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.warning {
+  color: #a16207;
+  margin: 0.75rem 0 0;
+}

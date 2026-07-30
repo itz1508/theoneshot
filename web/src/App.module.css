@@ -23,6 +23,26 @@
   overflow: hidden;
 }
 
+.aflowBanner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 9px 14px;
+  border-bottom: 1px solid #7f1d1d;
+  color: #fecaca;
+  background: #450a0a;
+  font-size: 12px;
+}
+
+.aflowBanner button {
+  flex-shrink: 0;
+  padding: 4px 8px;
+  border: 1px solid #ef4444;
+  border-radius: 4px;
+  color: #fff;
+}
+
 /* Web Runtime stays mounted (session preservation) — hidden, not unmounted,
    when another feature tab is active. */
 .webRuntimeHost {

@@ -1,0 +1,145 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(2px);
+}
+
+.dialog {
+  background: var(--color-surface, #1e1e2e);
+  border-radius: 12px;
+  padding: 20px 24px;
+  max-width: 480px;
+  width: 90%;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--color-border, #313244);
+}
+
+.dialog.low {
+  border-color: var(--color-info, #89b4fa);
+}
+
+.dialog.medium {
+  border-color: var(--color-warning, #f9e2af);
+}
+
+.dialog.high {
+  border-color: var(--color-danger, #f38ba8);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.icon {
+  font-size: 18px;
+}
+
+.title {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--color-text, #cdd6f4);
+  flex: 1;
+}
+
+.risk {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--color-surface-alt, #313244);
+  color: var(--color-text-secondary, #a6adc8);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-text-secondary, #a6adc8);
+}
+
+.value {
+  font-size: 13px;
+  color: var(--color-text, #cdd6f4);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.args {
+  font-size: 12px;
+  font-family: 'JetBrains Mono', monospace;
+  background: var(--color-surface-alt, #181825);
+  border-radius: 6px;
+  padding: 8px 12px;
+  color: var(--color-text, #cdd6f4);
+  margin: 0;
+  overflow-x: auto;
+  max-height: 120px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.denyBtn,
+.approveBtn {
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 0.15s, opacity 0.15s;
+}
+
+.denyBtn:disabled,
+.approveBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.denyBtn {
+  background: var(--color-surface-alt, #313244);
+  color: var(--color-text, #cdd6f4);
+  border-color: var(--color-border, #45475a);
+}
+
+.denyBtn:hover:not(:disabled) {
+  background: var(--color-danger, #f38ba8);
+  color: var(--color-surface, #1e1e2e);
+}
+
+.approveBtn {
+  background: var(--color-accent, #a6e3a1);
+  color: var(--color-surface, #1e1e2e);
+}
+
+.approveBtn:hover:not(:disabled) {
+  background: var(--color-accent-hover, #94e2d5);
+}

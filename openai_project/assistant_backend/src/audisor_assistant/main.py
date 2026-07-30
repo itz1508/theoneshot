@@ -8,9 +8,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .api.routes import chat_router, router
+from .api.operations_routes import operations_router
+from .api.aflow_routes import aflow_router
+from .api.usage_routes import usage_router
 from .application.fix_engines import build_grammar_state
 from .application.operator_chat_prompt import OperatorChatClock, default_clock
 from .application.service import AssistantService
+from audisor.audisor_lifecycle.management import initialize_management_state
 
 CORS_ORIGINS_VAR = "AUDISOR_CORS_ORIGINS"
 CLOUD_API_KEY_VAR = "AUDISOR_ASSISTANT_CLOUD_API_KEY"
@@ -98,6 +102,9 @@ def create_app(
     # Grammar engine resolves eagerly at startup so fix_wording requests
     # never trigger a surprise download; failure never blocks startup.
     app.state.grammar_state = build_grammar_state()
+    # Additive management initialization imports legacy error results without
+    # modifying the lifecycle artifacts themselves.
+    initialize_management_state()
     # Opt-in strict CORS: default (unset/empty) adds no middleware at all,
     # preserving same-origin and Vite-proxy behaviour exactly.
     cors_origins = parse_cors_origins(os.environ.get(CORS_ORIGINS_VAR))
@@ -111,6 +118,9 @@ def create_app(
         )
     app.include_router(router)
     app.include_router(chat_router)
+    app.include_router(operations_router)
+    app.include_router(aflow_router)
+    app.include_router(usage_router)
     return app
 
 

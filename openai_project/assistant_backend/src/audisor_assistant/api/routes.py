@@ -19,16 +19,27 @@ from ..application.operator_chat_prompt import (
     build_operator_chat_system_prompt,
     default_clock,
 )
+from ..application.chat_orchestrator import (
+    ChatOrchestrator,
+    ChatTurnApprovalRequired,
+    ChatTurnFinal,
+    ChatTurnPending,
+    ToolCallEvent as OrchestratorToolCallEvent,
+)
 from ..application.service import AssistantService
 from ..auth.ports import AuthContext
-from ..providers.base import CompletionRequest, HistoryMessage, ProviderError
+from ..providers.base import HistoryMessage, ProviderError
 from ..schemas.chat import (
+    ChatApprovalRequired,
+    ChatContinueRequest,
     ChatErrorResponse,
     ChatEstimateRequest,
     ChatEstimateResponse,
     ChatRequest,
     ChatResponse,
+    ChatToolCallsPending,
     ChatUsage,
+    ToolCallEventResponse,
 )
 from ..schemas.requests import AssistantRequest
 from ..schemas.responses import (
@@ -37,6 +48,8 @@ from ..schemas.responses import (
     AssistantResponse,
     ProviderInfo,
 )
+from ..tools import default_registry
+from ..tools.schemas import ToolResult
 from ..usage.estimator import ApproximateTokenEstimator
 from ..usage.models import PreparedCompletionRequest, PreparedMessage
 from .dependencies import build_provider, get_auth_context, get_service
@@ -87,6 +100,9 @@ _CHAT_TIMEOUT_SECONDS = 120.0
 #: Shared approximate estimator — same infrastructure usage accounting uses.
 _CHAT_ESTIMATOR = ApproximateTokenEstimator()
 
+#: Chat orchestrator singleton
+_CHAT_ORCHESTRATOR = ChatOrchestrator(registry=default_registry)
+
 
 def _get_chat_clock(request: Request) -> OperatorChatClock:
     """Resolve the operator-chat clock from app.state.
@@ -97,16 +113,7 @@ def _get_chat_clock(request: Request) -> OperatorChatClock:
     return getattr(request.app.state, "operator_chat_clock", None) or default_clock
 
 
-def _get_system_prompt(request: Request) -> str:
-    """Build the operator-chat system prompt from the app’s clock.
-
-    Called at request time — never at module load — so the date is
-    always fresh.
-    """
-    return build_operator_chat_system_prompt(_get_chat_clock(request))
-
-
-@chat_router.post("", response_model=ChatResponse)
+@chat_router.post("", response_model=None)
 def operator_chat(
     request: Request,
     payload: ChatRequest,
@@ -122,22 +129,38 @@ def operator_chat(
             ).model_dump(),
         )
 
-    system_prompt = _get_system_prompt(request)
-    completion = CompletionRequest(
+    system_prompt = _get_system_prompt(request, tools_available=payload.workspace_available)
+
+    # Use orchestrator for tool-calling flow
+    result = _CHAT_ORCHESTRATOR.execute_turn(
+        provider=provider,
         system_prompt=system_prompt,
         user_prompt=payload.message,
-        max_tokens=_CHAT_MAX_TOKENS,
-        timeout_seconds=_CHAT_TIMEOUT_SECONDS,
-        purpose="operator_chat",
-        model_override=payload.model,
         history=tuple(
             HistoryMessage(role=turn.role, content=turn.content)
             for turn in payload.history
         ),
+        workspace_available=payload.workspace_available,
+        model_override=payload.model,
+        max_tokens=_CHAT_MAX_TOKENS,
+        timeout_seconds=_CHAT_TIMEOUT_SECONDS,
     )
 
+    return _turn_result_to_response(result, provider, payload.model)
+
+
+@chat_router.post("/continue")
+def operator_chat_continue(
+    request: Request,
+    payload: ChatContinueRequest,
+    auth: AuthContext = Depends(get_auth_context),
+) -> JSONResponse:
+    """Resume a turn after frontend tool execution or approval.
+
+    Returns 200 ChatResponse, or 202 ChatToolCallsPending/ChatApprovalRequired.
+    """
     try:
-        reply = provider.complete(completion)
+        provider = _get_chat_provider(request)
     except ProviderError as exc:
         return JSONResponse(
             status_code=503,
@@ -146,21 +169,106 @@ def operator_chat(
             ).model_dump(),
         )
 
-    raw_usage = reply.usage or {}
-    input_tokens = raw_usage.get("prompt_tokens", 0)
-    output_tokens = raw_usage.get("completion_tokens", 0)
+    # Convert submitted results to internal ToolResult objects
+    tool_results = [
+        ToolResult(
+            call_id=r.call_id,
+            name=r.tool_name,
+            output=r.output,
+            error=r.error,
+            status=r.status,
+        )
+        for r in payload.tool_results
+    ]
 
-    return ChatResponse(
-        reply=reply.text,
-        provider=ProviderInfo(id=provider.provider_id, source=provider.source),
-        model=reply.model or provider.effective_model(payload.model),
-        usage=ChatUsage(
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
-            total_tokens=input_tokens + output_tokens,
-            cost=None,  # local providers have no cost
-            provider_type="cloud" if provider.source == "cloud" else "local",
-        ),
+    result = _CHAT_ORCHESTRATOR.continue_turn(
+        turn_id=payload.turn_id,
+        tool_results=tool_results,
+    )
+
+    return _turn_result_to_response(result, provider, None)
+
+
+def _get_system_prompt(request: Request, *, tools_available: bool = False) -> str:
+    """Build the operator-chat system prompt from the app's clock.
+
+    Called at request time — never at module load — so the date is
+    always fresh.
+    """
+    return build_operator_chat_system_prompt(
+        _get_chat_clock(request), tools_available=tools_available
+    )
+
+
+def _orchestrator_event_to_response(event: OrchestratorToolCallEvent) -> ToolCallEventResponse:
+    """Convert internal orchestrator event to API response model."""
+    return ToolCallEventResponse(
+        call_id=event.call_id,
+        tool_name=event.tool_name,
+        arguments=event.arguments,
+        executor=event.executor,
+        status=event.status,
+        turn_id=event.turn_id,
+        operation_id=event.operation_id,
+        output=event.output,
+        error=event.error,
+        duration_ms=event.duration_ms,
+    )
+
+
+def _turn_result_to_response(
+    result, provider, model_override: str | None
+) -> ChatResponse | JSONResponse:
+    """Convert a ChatTurnResult to the appropriate HTTP response."""
+    if isinstance(result, ChatTurnFinal):
+        input_tokens = result.usage.get("prompt_tokens", 0)
+        output_tokens = result.usage.get("completion_tokens", 0)
+        trace = (
+            [_orchestrator_event_to_response(e) for e in result.tool_trace]
+            if result.tool_trace
+            else None
+        )
+        return ChatResponse(
+            reply=result.reply,
+            provider=ProviderInfo(id=provider.provider_id, source=provider.source),
+            model=provider.effective_model(model_override),
+            usage=ChatUsage(
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                total_tokens=input_tokens + output_tokens,
+                cost=None,
+                provider_type="cloud" if provider.source == "cloud" else "local",
+            ),
+            tool_trace=trace,
+        )
+
+    elif isinstance(result, ChatTurnPending):
+        return JSONResponse(
+            status_code=202,
+            content=ChatToolCallsPending(
+                turn_id=result.turn_id,
+                pending_calls=[_orchestrator_event_to_response(e) for e in result.pending_calls],
+                completed_calls=[_orchestrator_event_to_response(e) for e in result.completed_calls],
+                loop_iteration=result.loop_iteration,
+                max_loops=result.max_loops,
+            ).model_dump(),
+        )
+
+    elif isinstance(result, ChatTurnApprovalRequired):
+        return JSONResponse(
+            status_code=202,
+            content=ChatApprovalRequired(
+                turn_id=result.turn_id,
+                tool_call=_orchestrator_event_to_response(result.tool_call),
+                reason=result.reason,
+                risk_level=result.risk_level,
+            ).model_dump(),
+        )
+
+    # Fallback (should not happen)
+    return JSONResponse(
+        status_code=500,
+        content={"error": "Unexpected orchestrator result type"},
     )
 
 

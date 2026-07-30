@@ -1,6 +1,6 @@
 """A-Flow MCP server — canonical artifact lifecycle surface.
 
-Exposes exactly two tools:
+Exposes the canonical lifecycle plus redacted management tools:
 
 * ``aflow_submit_artifact`` — accepts the six-field artifact trigger and runs
   one deterministic lifecycle cycle (gap_finding -> gap_fixing ->
@@ -30,13 +30,20 @@ from audisor.audisor_lifecycle.artifact_flow import (
     read_last_result,
     run_artifact_lifecycle,
 )
+from audisor.audisor_lifecycle.management import (
+    get_issue,
+    initialize_management_state,
+    list_issues,
+    provider_status,
+)
 
 _INSTRUCTIONS = (
     "Canonical A-Flow artifact lifecycle tools. Submit a completed artifact "
     "draft with aflow_submit_artifact; the runtime runs gap finding, gap "
     "fixing, the unresolved-gap barrier, evaluation, success criteria, and "
     "fixture design in fixed order and returns the result. Use "
-    "aflow_last_result to reattach to the most recent persisted result."
+    "aflow_last_result to reattach to the most recent persisted result. "
+    "Management tools expose workspace-scoped redacted provider and issue state."
 )
 
 
@@ -114,6 +121,37 @@ _TOOLS: list[types.Tool] = [
                 },
             },
             ["artifact_id"],
+        ),
+    ),
+    types.Tool(
+        name="aflow_provider_status",
+        description=(
+            "Return redacted A-Flow provider configuration, readiness, "
+            "fallback, and active-run state. probe=true performs an explicit "
+            "bounded structured-output provider call."
+        ),
+        inputSchema=_schema(
+            {"probe": {"type": "boolean", "description": "Run an explicit bounded provider probe."}},
+            [],
+        ),
+    ),
+    types.Tool(
+        name="aflow_list_issues",
+        description="List redacted workspace-scoped A-Flow issue metadata.",
+        inputSchema=_schema(
+            {
+                "cursor": {"type": "string"},
+                "limit": {"type": "integer", "minimum": 1, "maximum": 100},
+            },
+            [],
+        ),
+    ),
+    types.Tool(
+        name="aflow_get_issue",
+        description="Return one redacted workspace-scoped Root Cause Issue.",
+        inputSchema=_schema(
+            {"issue_id": {"type": "string", "minLength": 1}},
+            ["issue_id"],
         ),
     ),
 ]
@@ -203,6 +241,45 @@ def _dispatch_last_result(arguments: dict[str, Any]) -> dict[str, Any]:
     return dict(result)
 
 
+def _dispatch_provider_status(arguments: dict[str, Any]) -> dict[str, Any]:
+    rejection = _reject_unknown(arguments, {"probe"})
+    if rejection:
+        return rejection
+    probe = arguments.get("probe", False)
+    if not isinstance(probe, bool):
+        return {"status": "error", "stage": "input_validation", "detail": "probe must be a boolean"}
+    try:
+        return provider_status(probe=probe)
+    except Exception as exc:
+        return {"status": "error", "stage": "management", "detail": f"{type(exc).__name__}: {exc}"}
+
+
+def _dispatch_list_issues(arguments: dict[str, Any]) -> dict[str, Any]:
+    rejection = _reject_unknown(arguments, {"cursor", "limit"})
+    if rejection:
+        return rejection
+    cursor = arguments.get("cursor")
+    limit = arguments.get("limit", 50)
+    if cursor is not None and not isinstance(cursor, str):
+        return {"status": "error", "stage": "input_validation", "detail": "cursor must be a string"}
+    if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= 100:
+        return {"status": "error", "stage": "input_validation", "detail": "limit must be an integer from 1 to 100"}
+    return list_issues(cursor=cursor, limit=limit)
+
+
+def _dispatch_get_issue(arguments: dict[str, Any]) -> dict[str, Any]:
+    rejection = _reject_unknown(arguments, {"issue_id"})
+    if rejection:
+        return rejection
+    issue_id = arguments.get("issue_id")
+    if not isinstance(issue_id, str) or not issue_id.strip():
+        return {"status": "error", "stage": "input_validation", "detail": "issue_id must be a non-empty string"}
+    issue = get_issue(issue_id)
+    if issue is None:
+        return {"status": "error", "stage": "issue_lookup", "detail": f"no issue found for issue_id {issue_id!r}"}
+    return issue
+
+
 def _dispatch(name: str, arguments: dict[str, Any] | None) -> dict[str, Any]:
     """Route a tool call to the appropriate handler."""
     if name == "aflow_submit_artifact":
@@ -221,6 +298,14 @@ def _dispatch(name: str, arguments: dict[str, Any] | None) -> dict[str, Any]:
                 "detail": "arguments required",
             }
         return _dispatch_last_result(arguments)
+    if name == "aflow_provider_status":
+        return _dispatch_provider_status(arguments or {})
+    if name == "aflow_list_issues":
+        return _dispatch_list_issues(arguments or {})
+    if name == "aflow_get_issue":
+        if not arguments:
+            return {"status": "error", "stage": "input_validation", "detail": "arguments required"}
+        return _dispatch_get_issue(arguments)
     return {
         "status": "error",
         "stage": "dispatch",
@@ -230,6 +315,7 @@ def _dispatch(name: str, arguments: dict[str, Any] | None) -> dict[str, Any]:
 
 def create_server() -> Server:
     """Create and configure the A-Flow MCP server."""
+    initialize_management_state()
     server: Server = Server("audisor-aflow", version="0.10.0", instructions=_INSTRUCTIONS)
 
     @server.list_tools()
