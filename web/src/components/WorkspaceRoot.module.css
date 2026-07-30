@@ -23,6 +23,10 @@
   height: 16px;
   color: #52525b;
   flex-shrink: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 0;
 }
 
 .rootChevron {
@@ -59,40 +63,39 @@
 }
 
 .tree {
-  padding: 2px 0 4px 4px;
+  padding: 2px 0 8px 4px;
 }
 
-/* Native <details> collapsible — no default marker */
-.details {
-  /* reset browser default */
+/* ── Folder node (shadcn Collapsible) ── */
+
+.folderNode {
+  /* container for trigger + collapsible content */
 }
 
-.details > summary {
-  list-style: none;
-  cursor: pointer;
-}
+/* ── Tree rows (folder trigger & file rows) ── */
 
-.details > summary::-webkit-details-marker {
-  display: none;
-}
-
-/* Tree rows (shared for folders and files) */
-.row {
+.row,
+.fileRow {
   display: flex;
   align-items: center;
   gap: 4px;
   width: 100%;
   padding: 3px 8px;
-  border-radius: 4px;
+  border-radius: 3px;
   font-size: 12px;
   color: #a1a1aa;
   text-align: left;
-  transition: background 0.1s ease;
+  transition: background 0.08s ease;
+  cursor: pointer;
+  text-decoration: none;
 }
 
-.row:hover {
+.row:hover,
+.fileRow:hover {
   background: #18181b;
 }
+
+/* ── Chevron rotation via data-state from Radix Collapsible ── */
 
 .chevron {
   flex-shrink: 0;
@@ -100,24 +103,24 @@
   transition: transform 0.12s ease;
 }
 
-/* Rotate chevron when the parent <details> is open */
-.details[open] > summary .chevron {
+.folderNode[data-state='open'] > .row .chevron {
   transform: rotate(90deg);
 }
+
+/* ── Folder & file icons ── */
 
 .folderIcon {
   flex-shrink: 0;
   color: #71717a;
 }
 
+.folderNode[data-state='open'] > .row .folderIcon {
+  color: #eab308;
+}
+
 .folderName {
   color: #d4d4d8;
   font-size: 12px;
-}
-
-.fileIndent {
-  width: 10px;
-  flex-shrink: 0;
 }
 
 .fileIcon {
@@ -128,4 +131,7 @@
 .fileName {
   color: #a1a1aa;
   font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
