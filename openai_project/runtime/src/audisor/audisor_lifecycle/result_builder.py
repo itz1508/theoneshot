@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
-from .management import create_root_cause_issue, persist_run_evidence
+from .management import create_root_cause_issue, link_issue_retry, persist_run_evidence
 from .persistence import _persist_result
 from .stage_contracts import REPAIR_POLICY
 
@@ -71,6 +71,11 @@ class _LifecycleRunState:
             create_root_cause_issue(
                 self.root, result, self.trigger, self.provider_attempts
             )
+        # Preserve retry lifecycle identity: when a new run completes for an
+        # artifact that already has an issue, link this run as a retry so the
+        # chain of attempts is traceable.
+        if self.valid_id and self.run_id:
+            self._link_retry_to_existing_issues()
         # Provider internal detail is evidence for issue construction only;
         # it is never returned through the artifact result contract.
         result.pop("provider_error_detail", None)
@@ -83,3 +88,37 @@ class _LifecycleRunState:
             except OSError:
                 pass
         return result
+
+    def _link_retry_to_existing_issues(self) -> None:
+        """Link this run to any existing issues for the same artifact."""
+        issues_dir = self.root / "issues"
+        if not issues_dir.is_dir():
+            return
+        provider = ""
+        if self.trigger:
+            # Derive the provider from the first provider attempt if available.
+            for attempt in self.provider_attempts:
+                provider = str(attempt.get("provider", ""))
+                if provider:
+                    break
+        for path in issues_dir.glob("*.json"):
+            from .management import _read_json, workspace_identity
+            issue = _read_json(path)
+            if not issue:
+                continue
+            if issue.get("workspace_id") != workspace_identity(self.root):
+                continue
+            if issue.get("artifact_id") != self.artifact_id:
+                continue
+            # Don't link to the issue created by this very run.
+            if issue.get("lifecycle_run_id") == self.run_id:
+                continue
+            issue_id = str(issue.get("issue_id", ""))
+            if not issue_id:
+                continue
+            link_issue_retry(
+                issue_id,
+                lifecycle_run_id=self.run_id,
+                provider=provider,
+                state_root=self.root,
+            )

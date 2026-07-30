@@ -225,7 +225,8 @@ def main(
             print(f"Configuration: {primary['configuration_source']}")
             print(f"Configured: {str(primary['configured']).lower()}")
             print(f"Reachable: {str(primary['endpoint_reachable']).lower()}")
-            print(f"Structured probe: {primary['structured_output_probe']}")
+            print(f"Model ready: {str(primary['model_ready']).lower()}")
+            print(f"Structured output: {str(primary['structured_output_ready']).lower()}")
             print(f"Fallback: {fallback['provider'] or 'not configured'}")
             print(f"Fallback ready: {str(fallback['ready']).lower()}")
             if fallback["missing_non_secret_fields"]:

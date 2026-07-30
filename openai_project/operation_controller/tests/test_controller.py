@@ -161,35 +161,62 @@ class FakeFulfilmentAdapter:
         return {"all_resolved": False, "unresolved": [{"id": "f-1", "needs_decision": True}]}
 
 
+class FakeExecutionAdapter:
+    def __init__(self, *, suspend: bool = False):
+        self.calls: list = []
+        self._suspend = suspend
+
+    def execute(self, operation_id: str, plan: dict, authority: dict) -> dict[str, Any]:
+        self.calls.append((operation_id, plan, authority))
+        if self._suspend:
+            return {
+                "status": "suspended",
+                "suspend_state": "suspended_for_approval",
+                "suspension_id": "susp-fake-01",
+                "tool_call": {
+                    "call_id": "tc-1",
+                    "tool_name": "shell_exec",
+                    "arguments": {"command": "echo ok"},
+                },
+            }
+        return {"status": "completed", "output": {}}
+
+
 class TestOperationController:
-    def test_accept_task_without_adapters_stays_in_planning(self, tmp_path: Path):
+    def test_accept_task_without_adapters_is_rejected(self, tmp_path: Path):
         store = FileOperationStore(tmp_path / "ops")
         ctrl = OperationController(store=store)
         result = ctrl.accept(source_kind="task", prompt="fix the auth bug")
-        assert result.state == OperationState.PLANNING
-        assert result.detail.get("awaiting") == "planning_adapter"
+        assert result.detail.get("error") == "required_adapters_unavailable"
+        assert "planning" in result.detail["missing_adapters"]
+        assert "review" in result.detail["missing_adapters"]
+        assert "execution" in result.detail["missing_adapters"]
 
-    def test_accept_task_with_planning_and_review_reaches_sandbox(self, tmp_path: Path):
+    def test_accept_task_with_all_adapters_reaches_sandbox(self, tmp_path: Path):
         store = FileOperationStore(tmp_path / "ops")
         planning = FakePlanningAdapter()
         review = FakeReviewAdapter(decision="no_material_gap")
+        execution = FakeExecutionAdapter(suspend=True)
         ctrl = OperationController(
-            store=store, planning_adapter=planning, review_adapter=review
+            store=store, planning_adapter=planning, review_adapter=review,
+            execution_adapter=execution,
         )
         result = ctrl.accept(source_kind="task", prompt="fix the auth bug")
-        assert result.state == OperationState.SANDBOX_READY
+        assert result.state == OperationState.SUSPENDED_FOR_APPROVAL
         assert len(planning.calls) == 1
         assert len(review.calls) == 1
+        assert len(execution.calls) == 1
 
     def test_accept_prepared_plan_skips_planning(self, tmp_path: Path):
         store = FileOperationStore(tmp_path / "ops")
         review = FakeReviewAdapter(decision="no_material_gap")
-        ctrl = OperationController(store=store, review_adapter=review)
+        execution = FakeExecutionAdapter(suspend=True)
+        ctrl = OperationController(store=store, review_adapter=review, execution_adapter=execution)
         result = ctrl.accept(
             source_kind="prepared_plan",
             plan={"plan_text": "already built", "plan_id": "p-2"},
         )
-        assert result.state == OperationState.SANDBOX_READY
+        assert result.state == OperationState.SUSPENDED_FOR_APPROVAL
         assert len(review.calls) == 1
 
     def test_material_gap_triggers_fulfilment(self, tmp_path: Path):
@@ -199,8 +226,10 @@ class TestOperationController:
             findings=[{"id": "f-1", "class": "evidence_gap"}],
         )
         fulfilment = FakeFulfilmentAdapter(resolved=False)
+        execution = FakeExecutionAdapter()
         ctrl = OperationController(
-            store=store, review_adapter=review, fulfilment_adapter=fulfilment
+            store=store, review_adapter=review, fulfilment_adapter=fulfilment,
+            execution_adapter=execution,
         )
         result = ctrl.accept(
             source_kind="prepared_plan",

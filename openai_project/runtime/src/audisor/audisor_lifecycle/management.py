@@ -25,8 +25,7 @@ from audisor.config import (
 from audisor.routing.configuration import build_provider_registry
 from audisor.routing.router import ProviderRouter
 from audisor.schemas.task_input import TaskInput
-from audisor.workers.base import ProviderError, WorkerProvider
-from audisor.workers.fireworks import DEFAULT_FIREWORKS_BASE_URL
+from audisor.workers.base import ProviderError, ProviderTimeoutError, ProviderUnavailableError, WorkerProvider
 
 from .output_processing import _parse_json_object
 from .active_runs import _ACTIVE_RUN_TTL_SECONDS
@@ -99,6 +98,11 @@ def _provider_model(provider: WorkerProvider) -> str:
     return str(value or "")
 
 
+def _provider_endpoint(provider: WorkerProvider) -> str:
+    value = getattr(provider, "endpoint_url", None) or getattr(provider, "base_url", None)
+    return str(value or "")
+
+
 def _configuration_fingerprint(provider_id: str, model: str, endpoint: str) -> str:
     body = json.dumps(
         {"provider": provider_id, "model": model, "endpoint": endpoint.rstrip("/")},
@@ -159,7 +163,7 @@ def _save_probe(root: Path, record: Mapping[str, Any]) -> None:
 def _run_probe(provider: WorkerProvider, *, root: Path, selection_reason: str) -> dict[str, Any]:
     provider_id = provider.provider_id
     model = _provider_model(provider)
-    endpoint = str(getattr(provider, "base_url", ""))
+    endpoint = _provider_endpoint(provider)
     started = time.monotonic()
     record: dict[str, Any] = {
         "provider": provider_id,
@@ -169,6 +173,9 @@ def _run_probe(provider: WorkerProvider, *, root: Path, selection_reason: str) -
         "checked_at": _utc_now(),
         "diagnostic_state": "uncertainty",
         "outcome": "unknown",
+        "endpoint_reachable": "uncertainty",
+        "model_ready": "uncertainty",
+        "structured_output_ready": "uncertainty",
     }
     try:
         output = provider.execute(
@@ -183,18 +190,32 @@ def _run_probe(provider: WorkerProvider, *, root: Path, selection_reason: str) -
         parsed = _parse_json_object(output.answer)
         if parsed != {"aflow_provider_probe": "ready"}:
             raise ValueError("structured probe response did not match the required object")
-        record.update(diagnostic_state="valid", outcome="ready")
+        record.update(
+            diagnostic_state="valid",
+            outcome="ready",
+            endpoint_reachable="valid",
+            model_ready="valid",
+            structured_output_ready="valid",
+        )
     except ProviderError as exc:
+        # Distinguish which dimension failed based on error type
+        unreachable = isinstance(exc, (ProviderTimeoutError, ProviderUnavailableError))
         record.update(
             diagnostic_state="not_valid",
             outcome=exc.code,
             detail=_redact(exc),
+            endpoint_reachable="not_valid" if unreachable else "valid",
+            model_ready="uncertainty" if unreachable else "not_valid",
+            structured_output_ready="uncertainty" if unreachable else "not_valid",
         )
     except Exception as exc:
         record.update(
             diagnostic_state="not_valid",
             outcome="provider_invalid_response",
             detail=_redact(f"{type(exc).__name__}: {exc}"),
+            endpoint_reachable="valid",
+            model_ready="not_valid",
+            structured_output_ready="not_valid",
         )
     record["elapsed_ms"] = round((time.monotonic() - started) * 1000)
     _save_probe(root, record)
@@ -207,7 +228,7 @@ def _probe_is_current(record: Mapping[str, Any] | None, provider: WorkerProvider
     expected = _configuration_fingerprint(
         provider.provider_id,
         _provider_model(provider),
-        str(getattr(provider, "base_url", "")),
+        _provider_endpoint(provider),
     )
     return record.get("configuration_fingerprint") == expected
 
@@ -246,12 +267,10 @@ def provider_status(
     fallback_explicit = fallback_selected == "fireworks"
     fallback_fields = {
         "FIREWORKS_API_KEY": os.environ.get("FIREWORKS_API_KEY", ""),
+        "FIREWORKS_BASE_URL": os.environ.get("FIREWORKS_BASE_URL", ""),
         "FIREWORKS_MODEL": os.environ.get("FIREWORKS_MODEL", ""),
     }
-    fallback_endpoint = (
-        os.environ.get("FIREWORKS_BASE_URL", "").strip()
-        or DEFAULT_FIREWORKS_BASE_URL
-    )
+    fallback_endpoint = os.environ.get("FIREWORKS_BASE_URL", "").strip()
     missing_fallback = [name for name, value in fallback_fields.items() if not value.strip()]
     missing_non_secret = [
         name for name in missing_fallback if name != "FIREWORKS_API_KEY"
@@ -338,17 +357,17 @@ def provider_status(
                 if not value.strip()
             ],
             "endpoint_reachable": (
-                primary_probe.get("diagnostic_state", "uncertainty")
+                primary_probe.get("endpoint_reachable", "uncertainty")
                 if primary_probe
                 else "uncertainty"
             ),
             "model_ready": (
-                primary_probe.get("diagnostic_state", "uncertainty")
+                primary_probe.get("model_ready", "uncertainty")
                 if primary_probe
                 else "uncertainty"
             ),
-            "structured_output_probe": (
-                primary_probe.get("diagnostic_state", "uncertainty")
+            "structured_output_ready": (
+                primary_probe.get("structured_output_ready", "uncertainty")
                 if primary_probe
                 else "uncertainty"
             ),
@@ -360,8 +379,8 @@ def provider_status(
             "configured": fallback_explicit and not missing_fallback,
             "credential_configured": bool(fallback_fields["FIREWORKS_API_KEY"].strip()),
             "missing_non_secret_fields": missing_non_secret,
-            "structured_output_probe": (
-                fallback_probe.get("diagnostic_state", "uncertainty")
+            "structured_output_ready": (
+                fallback_probe.get("structured_output_ready", "uncertainty")
                 if fallback_probe
                 else "uncertainty"
             ),
@@ -517,6 +536,62 @@ def _operation_id(trigger: Mapping[str, Any]) -> str | None:
     return value if isinstance(value, str) and value.strip() else None
 
 
+def _issue_events_path(root: Path) -> Path:
+    return root / "issues" / "events.jsonl"
+
+
+def _emit_issue_event(root: Path, event_type: str, issue: Mapping[str, Any]) -> None:
+    """Append an issue lifecycle event to the events log."""
+    events_path = _issue_events_path(root)
+    events_path.parent.mkdir(parents=True, exist_ok=True)
+    event = {
+        "event_type": event_type,
+        "issue_id": issue.get("issue_id"),
+        "workspace_id": issue.get("workspace_id"),
+        "artifact_id": issue.get("artifact_id"),
+        "issue_code": issue.get("issue_code"),
+        "stage": issue.get("stage"),
+        "lifecycle_run_id": issue.get("lifecycle_run_id"),
+        "operation_id": issue.get("operation_id"),
+        "created_at": _utc_now(),
+    }
+    try:
+        with events_path.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(event, ensure_ascii=False, sort_keys=True) + "\n")
+    except OSError:
+        pass
+
+
+def list_issue_events(
+    *, state_root: Path | None = None, after: int = 0, limit: int = 50
+) -> dict[str, Any]:
+    """Return issue lifecycle events since a given cursor offset."""
+    root = state_root or default_state_root()
+    bounded_limit = max(1, min(int(limit), 200))
+    events_path = _issue_events_path(root)
+    all_events: list[dict[str, Any]] = []
+    if events_path.is_file():
+        try:
+            for line in events_path.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if line:
+                    record = json.loads(line)
+                    if isinstance(record, dict):
+                        all_events.append(record)
+        except (OSError, json.JSONDecodeError):
+            pass
+    ws_id = workspace_identity(root)
+    scoped = [e for e in all_events if e.get("workspace_id") == ws_id]
+    page = scoped[after : after + bounded_limit]
+    next_offset = after + len(page)
+    return {
+        "workspace_id": ws_id,
+        "events": page,
+        "total": len(scoped),
+        "next_cursor": str(next_offset) if next_offset < len(scoped) else None,
+    }
+
+
 def create_root_cause_issue(
     root: Path,
     result: Mapping[str, Any],
@@ -537,12 +612,12 @@ def create_root_cause_issue(
                 "configured": False,
                 "endpoint_reachable": "uncertainty",
                 "model_ready": "uncertainty",
-                "structured_output_probe": "uncertainty",
+                "structured_output_ready": "uncertainty",
             },
             "fallback": {
                 "ready": False,
                 "missing_non_secret_fields": [],
-                "structured_output_probe": "uncertainty",
+                "structured_output_ready": "uncertainty",
             },
             "management_error": _redact(f"{type(exc).__name__}: {exc}"),
         }
@@ -585,7 +660,7 @@ def create_root_cause_issue(
                         "configured",
                         "endpoint_reachable",
                         "model_ready",
-                        "structured_output_probe",
+                        "structured_output_ready",
                     )
                 },
                 "fallback": {
@@ -593,7 +668,7 @@ def create_root_cause_issue(
                     for key in (
                         "ready",
                         "missing_non_secret_fields",
-                        "structured_output_probe",
+                        "structured_output_ready",
                     )
                 },
                 "management_error": readiness.get("management_error"),
@@ -623,12 +698,14 @@ def create_root_cause_issue(
     if path.exists():
         return _read_json(path) or issue
     _atomic_json(path, issue)
+    _emit_issue_event(root, "issue_created", issue)
     return issue
 
 
 def list_issues(
     *, state_root: Path | None = None, cursor: str | None = None, limit: int = 50
 ) -> dict[str, Any]:
+    """Return a paginated list of issues for the workspace."""
     root = state_root or default_state_root()
     bounded_limit = max(1, min(int(limit), 100))
     try:
@@ -756,6 +833,15 @@ def link_issue_retry(
         "created_at": _utc_now(),
     }
     _atomic_json(root / "issue-retries" / f"{issue_id}-{stamp}.json", record)
+    _emit_issue_event(root, "retry_linked", {
+        "issue_id": issue_id,
+        "workspace_id": issue.get("workspace_id"),
+        "artifact_id": issue.get("artifact_id"),
+        "issue_code": issue.get("issue_code"),
+        "stage": issue.get("stage"),
+        "lifecycle_run_id": lifecycle_run_id,
+        "operation_id": issue.get("operation_id"),
+    })
     return get_issue(issue_id, state_root=root)
 
 
@@ -769,6 +855,10 @@ def update_active_progress(
     remaining_seconds: float,
 ) -> None:
     if marker_path is None:
+        return
+    # Do not recreate a missing marker — it was deleted by result completion,
+    # meaning the run is terminal. Writing a new marker would resurrect it.
+    if not marker_path.is_file():
         return
     current = _read_json(marker_path) or {}
     current.update(

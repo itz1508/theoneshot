@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeoutError
 from typing import Any, Mapping
@@ -21,9 +22,24 @@ from .stage_contracts import (
 def _call_with_timeout(worker: StageWorker, stage: str, payload: Mapping[str, Any], timeout: float | None) -> Mapping[str, Any]:
     if timeout is None or timeout <= 0:
         return worker.run_stage(stage, payload)
+    # Compute a monotonic deadline so the worker can clamp provider budgets
+    # across primary + fallback attempts to the remaining stage budget.
+    deadline = time.monotonic() + timeout
+
+    def _run() -> Mapping[str, Any]:
+        if hasattr(worker, "run_stage"):
+            try:
+                import inspect
+                sig = inspect.signature(worker.run_stage)
+                if "stage_deadline" in sig.parameters:
+                    return worker.run_stage(stage, payload, stage_deadline=deadline)
+            except (ValueError, TypeError):
+                pass
+        return worker.run_stage(stage, payload)
+
     executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix=f"aflow-{stage}")
     try:
-        future = executor.submit(worker.run_stage, stage, payload)
+        future = executor.submit(_run)
         return future.result(timeout=timeout)
     finally:
         executor.shutdown(wait=False)

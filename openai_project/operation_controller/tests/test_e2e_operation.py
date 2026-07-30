@@ -258,10 +258,18 @@ def test_operation_cancelled_mid_suspension(tmp_path: Path) -> None:
         ),
     ])
     planning_adapter = LLMPlanningAdapter(provider)
+    review_adapter = StubReviewAdapter()
+
+    class _NoopExecution:
+        def execute(self, operation_id, plan, authority):
+            return {"status": "completed", "output": {}}
+
     controller = OperationController(
         store=store,
         event_store=event_store,
         planning_adapter=planning_adapter,
+        review_adapter=review_adapter,
+        execution_adapter=_NoopExecution(),
     )
 
     result = controller.accept(source_kind="task", prompt="read and plan")

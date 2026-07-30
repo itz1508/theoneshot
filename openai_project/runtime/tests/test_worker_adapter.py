@@ -24,7 +24,7 @@ from audisor.workers.base import (
     ProviderPermanentRequestError,
     ProviderUnavailableError,
 )
-from audisor.workers.fireworks import DEFAULT_FIREWORKS_BASE_URL, FireworksWorker
+from audisor.workers.fireworks import FireworksWorker
 from audisor.workers.local import LocalWorker
 from provider_testkit import provider_router
 
@@ -157,7 +157,7 @@ def test_fireworks_adapter_receives_complete_prompt_and_expected_transport_shape
     prompt = "Complete executable task instruction\nwith every line preserved."
     worker = FireworksWorker(
         "not-a-real-credential",
-        "https://example.test/inference",
+        "https://example.test/inference/v1/completions",
         "accounts/example/models/test",
         max_attempts=1,
         request=request,
@@ -362,19 +362,18 @@ def test_local_worker_has_no_fireworks_dependency_or_environment_reads() -> None
     assert "fireworks_" not in text
 
 
-def test_fireworks_blank_base_uses_default_and_custom_override(monkeypatch) -> None:
+def test_fireworks_blank_base_means_unconfigured(monkeypatch) -> None:
     monkeypatch.setenv("FIREWORKS_API_KEY", "credential")
     monkeypatch.setenv("FIREWORKS_MODEL", "accounts/example/models/model")
     monkeypatch.setenv("FIREWORKS_BASE_URL", "")
 
-    default_worker = FireworksWorker.from_environment()
-    assert default_worker.configuration_status() is True
-    assert default_worker.base_url == DEFAULT_FIREWORKS_BASE_URL
+    worker = FireworksWorker.from_environment()
+    assert worker.configuration_status() is False
 
-    monkeypatch.setenv("FIREWORKS_BASE_URL", "https://compatible.example/v1")
+    monkeypatch.setenv("FIREWORKS_BASE_URL", "https://compatible.example/v1/completions")
     custom_worker = FireworksWorker.from_environment()
     assert custom_worker.configuration_status() is True
-    assert custom_worker.base_url == "https://compatible.example/v1"
+    assert custom_worker.endpoint_url == "https://compatible.example/v1/completions"
 
 
 def _safe_provider_shape(response: requests.Response) -> str:

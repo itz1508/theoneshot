@@ -21,7 +21,7 @@ from audisor.workers.base import (
     ProviderCapabilities,
     ProviderTimeoutError,
 )
-from audisor.workers.fireworks import DEFAULT_FIREWORKS_BASE_URL
+from audisor.workers.fireworks import FireworksWorker
 
 
 class FakeProvider:
@@ -46,7 +46,7 @@ class FakeProvider:
         return TaskOutput(task_id=task.task_id, answer=self.answer)
 
 
-def test_blank_fallback_base_uses_default_without_skipping_probe_gate(
+def test_blank_fallback_endpoint_means_unconfigured_and_blocks_probe_gate(
     tmp_path: Path, monkeypatch
 ) -> None:
     monkeypatch.setenv("AUDISOR_AFLOW_FALLBACK_PROVIDER", "fireworks")
@@ -55,14 +55,9 @@ def test_blank_fallback_base_uses_default_without_skipping_probe_gate(
     monkeypatch.setenv("FIREWORKS_BASE_URL", "")
 
     status = provider_status(state_root=tmp_path, probe=False)
-    assert status["fallback"]["configured"] is True
-    assert status["fallback"]["missing_non_secret_fields"] == []
+    assert status["fallback"]["configured"] is False
+    assert "FIREWORKS_BASE_URL" in status["fallback"]["missing_non_secret_fields"]
     assert status["fallback"]["ready"] is False
-
-    _primary, fallback, ready = resolve_stage_providers(state_root=tmp_path)
-    assert fallback is not None
-    assert fallback.base_url == DEFAULT_FIREWORKS_BASE_URL
-    assert ready is False
 
 
 def test_transient_primary_error_uses_exactly_one_nonoverlapping_fallback() -> None:

@@ -72,6 +72,14 @@ class ExecutionAdapter(Protocol):
         ...
 
 
+class ChatAdapter(Protocol):
+    """Process a synchronous operator chat turn."""
+
+    def chat_turn(self, message: str, history: list[dict[str, str]], context: dict[str, Any]) -> dict[str, Any]:
+        """Return the chat response with usage metadata."""
+        ...
+
+
 class OperationStore(Protocol):
     """Persists operation records."""
 
@@ -155,6 +163,7 @@ class OperationController:
         review_adapter: ReviewAdapter | None = None,
         fulfilment_adapter: FulfilmentAdapter | None = None,
         execution_adapter: ExecutionAdapter | None = None,
+        chat_adapter: ChatAdapter | None = None,
         event_store: Any | None = None,
         *,
         store_root: Path | None = None,
@@ -168,6 +177,7 @@ class OperationController:
         self._review = review_adapter
         self._fulfilment = fulfilment_adapter
         self._execution = execution_adapter
+        self._chat = chat_adapter
         self._events = event_store
 
     def _emit(
@@ -194,6 +204,19 @@ class OperationController:
                 payload={"to_state": record.state.value},
             )
 
+    def _missing_adapters(self, source_kind: str, plan: dict[str, Any] | None) -> set[str]:
+        """Return the set of adapter names required but unavailable."""
+        missing: set[str] = set()
+        if source_kind == "task" and self._planning is None:
+            missing.add("planning")
+        if source_kind in ("task", "prepared_plan", "fix") and self._review is None:
+            missing.add("review")
+        if source_kind in ("task", "prepared_plan") and self._execution is None:
+            missing.add("execution")
+        if source_kind == "chat" and self._chat is None:
+            missing.add("chat")
+        return missing
+
     def accept(
         self,
         source_kind: str,
@@ -203,21 +226,43 @@ class OperationController:
         operation_id: str | None = None,
         context: dict[str, Any] | None = None,
     ) -> OperationControllerResult:
-        """Accept a new operation from any source.
+        """Accept a new operation: register then immediately start execution.
 
-        Args:
-            source_kind: "task" | "prepared_plan" | "fix" | "resume"
-            prompt: Raw task description (for source_kind="task")
-            plan: Pre-built plan (for source_kind="prepared_plan")
-            operation_id: Optional caller-supplied ID
-            context: Additional context for adapters
-
-        Returns:
-            OperationControllerResult with the operation's current state
+        This is a convenience wrapper that combines ``register`` and ``start``.
+        For two-phase workflows (register now, execute later), call them
+        separately.
         """
-        op_id = operation_id or f"op-{uuid.uuid4().hex[:12]}"
-        ctx = context or {}
+        registered = self.register(source_kind, prompt=prompt, operation_id=operation_id, plan=plan)
+        if registered.detail.get("error"):
+            return registered
+        return self.start(registered.operation_id, plan=plan, context=context)
 
+    def register(
+        self,
+        source_kind: str,
+        prompt: str = "",
+        *,
+        operation_id: str | None = None,
+        plan: dict[str, Any] | None = None,
+    ) -> OperationControllerResult:
+        """Register a new operation without starting execution.
+
+        Performs the readiness gate check and persists the record in RECEIVED
+        state. Call ``start`` to begin execution.
+        """
+        missing = self._missing_adapters(source_kind, plan)
+        if missing:
+            return OperationControllerResult(
+                operation_id or "",
+                OperationState.RECEIVED,
+                {
+                    "error": "required_adapters_unavailable",
+                    "missing_adapters": sorted(missing),
+                    "source_kind": source_kind,
+                },
+            )
+
+        op_id = operation_id or f"op-{uuid.uuid4().hex[:12]}"
         record = OperationRecord(
             operation_id=op_id,
             state=OperationState.RECEIVED,
@@ -226,32 +271,61 @@ class OperationController:
         )
         self._store.save(record)
         self._emit(record, "operation_created", {"source_kind": source_kind})
+        return OperationControllerResult(op_id, OperationState.RECEIVED, {"registered": True})
+
+    def start(
+        self,
+        operation_id: str,
+        *,
+        plan: dict[str, Any] | None = None,
+        context: dict[str, Any] | None = None,
+    ) -> OperationControllerResult:
+        """Begin execution of a registered operation.
+
+        The operation must be in RECEIVED state. Routes to the appropriate
+        phase based on source_kind.
+        """
+        record = self._store.load(operation_id)
+        if record is None:
+            return OperationControllerResult(
+                operation_id, OperationState.RECEIVED,
+                {"error": "operation_not_found"},
+            )
+        if record.state != OperationState.RECEIVED:
+            return OperationControllerResult(
+                operation_id, record.state,
+                {"error": f"operation already started (state={record.state.value})"},
+            )
+
+        ctx = context or {}
+        source_kind = record.source_kind
+        prompt = record.prompt
 
         # Route based on source kind
         if source_kind == "prepared_plan" and plan is not None:
-            # Skip planning, go directly to review
             record.transition(OperationState.REVIEWING, reason="prepared_plan_submitted")
             record.artifacts["candidate_plan"] = json.dumps(plan)
             self._store.save(record)
             return self._do_review(record, plan, ctx)
 
         elif source_kind == "task":
-            # Planning phase
             record.transition(OperationState.PLANNING, reason="task_accepted")
             self._store.save(record)
             self._emit(record, "state_transition", {"to_state": "planning"})
             return self._do_planning(record, prompt, ctx)
 
         elif source_kind == "fix":
-            # Fix operations go directly to reviewing (plan is pre-qualified)
             record.transition(OperationState.REVIEWING, reason="fix_accepted")
             self._store.save(record)
             if plan:
                 return self._do_review(record, plan, ctx)
-            return OperationControllerResult(op_id, record.state, {"awaiting": "plan"})
+            return OperationControllerResult(operation_id, record.state, {"awaiting": "plan"})
+
+        elif source_kind == "chat":
+            return self._do_chat(record, ctx)
 
         else:
-            return OperationControllerResult(op_id, record.state, {"error": f"unknown source_kind: {source_kind}"})
+            return OperationControllerResult(operation_id, record.state, {"error": f"unknown source_kind: {source_kind}"})
 
     def resume(
         self,
@@ -729,6 +803,33 @@ class OperationController:
                 record.operation_id, record.state,
                 {"unresolved_count": len(unresolved)},
             )
+
+    def _do_chat(self, record: OperationRecord, context: dict[str, Any]) -> OperationControllerResult:
+        """Execute a chat turn via the chat adapter."""
+        if self._chat is None:
+            return OperationControllerResult(
+                record.operation_id, record.state,
+                {"awaiting": "chat_adapter"},
+            )
+        record.transition(OperationState.SANDBOX_RUNNING, reason="chat_turn_started")
+        self._store.save(record)
+        self._emit(record, "chat_turn_started", {})
+        history = context.get("history", [])
+        result = self._chat.chat_turn(record.prompt, history, context)
+        if result.get("error"):
+            record.transition(OperationState.CANCELLED_BY_USER, reason="chat_error")
+            self._store.save(record)
+            return OperationControllerResult(
+                record.operation_id, record.state,
+                {"error": result["error"]},
+            )
+        record.transition(OperationState.COMPLETED, reason="chat_turn_completed")
+        self._store.save(record)
+        self._emit(record, "chat_turn_completed", {"usage": result.get("usage", {})})
+        return OperationControllerResult(
+            record.operation_id, record.state,
+            {"response": result.get("response", ""), "usage": result.get("usage", {})},
+        )
 
     def _handle_approval_decision(
         self, record: OperationRecord, resume_input: dict[str, Any]

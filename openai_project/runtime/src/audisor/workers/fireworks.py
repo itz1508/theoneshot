@@ -35,15 +35,17 @@ class ResponseLike(Protocol):
 RequestFunction = Callable[..., ResponseLike]
 SleepFunction = Callable[[float], None]
 
-DEFAULT_FIREWORKS_BASE_URL = "https://api.fireworks.ai/inference/v1"
-
 
 @dataclass
 class FireworksWorker:
-    """Translate typed Audisor tasks to and from the Fireworks HTTP API."""
+    """Translate typed Audisor tasks to and from an explicit HTTP endpoint.
+
+    The endpoint URL must be provided explicitly — no default server,
+    base URL, or path is inferred. A blank endpoint means unconfigured.
+    """
 
     api_key: str = field(repr=False)
-    base_url: str
+    endpoint_url: str
     model: str
     max_attempts: int = 2
     retry_delay_seconds: float = 0.25
@@ -56,29 +58,21 @@ class FireworksWorker:
     transient_status_codes = frozenset({500, 502, 503, 504})
 
     def __post_init__(self) -> None:
-        if not self.base_url.strip():
-            self.base_url = DEFAULT_FIREWORKS_BASE_URL
+        pass
 
     @classmethod
     def from_environment(cls) -> "FireworksWorker":
         return cls(
             api_key=os.environ.get("FIREWORKS_API_KEY", ""),
-            base_url=os.environ.get("FIREWORKS_BASE_URL", ""),
+            endpoint_url=os.environ.get("FIREWORKS_BASE_URL", ""),
             model=os.environ.get("FIREWORKS_MODEL", ""),
         )
 
     def configuration_status(self) -> bool:
-        return all(value.strip() for value in (self.api_key, self.model))
+        return all(value.strip() for value in (self.api_key, self.endpoint_url, self.model))
 
     def capabilities(self) -> ProviderCapabilities:
         return ProviderCapabilities(text=True)
-
-    @staticmethod
-    def normalize_base_url(base_url: str) -> str:
-        normalized = base_url.rstrip("/")
-        if normalized and not normalized.endswith("/v1"):
-            normalized += "/v1"
-        return normalized
 
     def _validate_configuration(self) -> None:
         if self.configuration_status():
@@ -87,6 +81,7 @@ class FireworksWorker:
             name
             for name, value in (
                 ("FIREWORKS_API_KEY", self.api_key),
+                ("FIREWORKS_BASE_URL", self.endpoint_url),
                 ("FIREWORKS_MODEL", self.model),
             )
             if not value.strip()
@@ -118,7 +113,7 @@ class FireworksWorker:
     def execute(self, task: TaskInput) -> TaskOutput:
         self._validate_configuration()
         attempts = max(1, self.max_attempts)
-        endpoint = f"{self.normalize_base_url(self.base_url)}/completions"
+        endpoint = self.endpoint_url.strip()
         payload = {
             "model": self.model,
             "prompt": task.prompt,

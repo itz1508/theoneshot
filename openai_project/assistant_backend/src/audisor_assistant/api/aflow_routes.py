@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from audisor.audisor_lifecycle.management import (
     get_issue,
     link_issue_retry,
+    list_issue_events,
     list_issues,
     provider_status,
     workspace_identity,
@@ -32,7 +33,15 @@ aflow_router = APIRouter(prefix="/v1/aflow", tags=["aflow-management"])
 
 def _assert_workspace(auth: AuthContext) -> None:
     expected = workspace_identity(default_state_root())
-    if auth.workspace_id is not None and auth.workspace_id != expected:
+    if auth.workspace_id is None:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "issue_code": "workspace_identity_required",
+                "direct_cause": "Authenticated request has no workspace identity.",
+            },
+        )
+    if auth.workspace_id != expected:
         raise HTTPException(
             status_code=409,
             detail={
@@ -75,6 +84,16 @@ def aflow_issue(
     if issue is None:
         raise HTTPException(status_code=404, detail="issue_not_found")
     return issue
+
+
+@aflow_router.get("/issue-events")
+def aflow_issue_events(
+    after: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=200),
+    auth: AuthContext = Depends(get_auth_context),
+) -> dict[str, Any]:
+    _assert_workspace(auth)
+    return list_issue_events(after=after, limit=limit)
 
 
 def _retry(issue_id: str, payload: RetryRequest, provider: Literal["local-openai-compatible", "fireworks"]):

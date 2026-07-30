@@ -64,7 +64,7 @@ def adapter(provider_id: str, request: Callable[..., FakeResponse]) -> WorkerPro
     if provider_id == "fireworks":
         return FireworksWorker(
             "credential",
-            "https://provider.example",
+            "https://provider.example/v1/completions",
             "opaque-model",
             max_attempts=1,
             request=request,

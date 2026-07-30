@@ -4,6 +4,9 @@ Accepts a caller-declared identity header only when the server runs in
 ``development`` or ``test`` mode.  In ``production`` mode every request is
 rejected: no production authentication vendor has been selected, and this
 adapter must never masquerade as one.
+
+Derives workspace_id from the configured state root so that workspace
+isolation checks have a concrete identity to compare.
 """
 from __future__ import annotations
 
@@ -46,4 +49,10 @@ class DevelopmentAuthProvider(AuthProvider):
             raise AuthenticationError(
                 "Missing development identity header."
             )
-        return AuthContext(subject=subject, environment=environment)
+        from audisor.audisor_lifecycle.persistence import default_state_root
+        from audisor.audisor_lifecycle.management import workspace_identity
+        return AuthContext(
+            subject=subject,
+            environment=environment,
+            workspace_id=workspace_identity(default_state_root()),
+        )

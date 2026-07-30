@@ -104,10 +104,40 @@ class ManagedStageWorker:
         attempt: int,
         selection_reason: str,
         fallback_usage: bool,
+        deadline: float | None = None,
     ) -> Mapping[str, Any]:
         started = time.monotonic()
         provider_id = provider.provider_id
-        budget = float(getattr(provider, "timeout_seconds", 0.0) or 0.0)
+        provider_budget = float(getattr(provider, "timeout_seconds", 0.0) or 0.0)
+        # Clamp budget to the remaining stage deadline to prevent overlap.
+        if deadline is not None:
+            remaining = max(0.0, deadline - started)
+            budget = min(provider_budget, remaining) if provider_budget > 0 else remaining
+        else:
+            budget = provider_budget
+        # Enforce the deadline contract: if no time remains, fail fast.
+        if deadline is not None and budget <= 0:
+            record: dict[str, Any] = {
+                "stage": stage_name,
+                "attempt": attempt,
+                "provider": provider_id,
+                "model": self._model(provider),
+                "selection_reason": selection_reason,
+                "fallback_usage": fallback_usage,
+                "budget_seconds": 0.0,
+                "elapsed_ms": 0,
+                "outcome": "provider_timeout",
+                "diagnostic_state": "not_valid",
+                "detail": "stage deadline exhausted before attempt started",
+            }
+            self.attempts.append(record)
+            raise ProviderTimeoutError(
+                f"stage deadline exhausted before attempt {attempt}",
+                internal_detail=f"provider={provider_id}",
+            )
+        # Apply the clamped budget to the provider so its internal timeout matches.
+        if hasattr(provider, "timeout_seconds"):
+            provider.timeout_seconds = budget
         if self.progress:
             self.progress(stage_name, provider_id, attempt, 0.0, budget)
         record: dict[str, Any] = {
@@ -159,7 +189,10 @@ class ManagedStageWorker:
             self.progress(stage_name, provider_id, attempt, elapsed, max(0.0, budget - elapsed))
         return parsed
 
-    def run_stage(self, stage_name: str, payload: Mapping[str, Any]) -> Mapping[str, Any]:
+    def run_stage(
+        self, stage_name: str, payload: Mapping[str, Any],
+        *, stage_deadline: float | None = None,
+    ) -> Mapping[str, Any]:
         prompt = self._prompt(stage_name, payload)
         try:
             return self._run_attempt(
@@ -169,6 +202,7 @@ class ManagedStageWorker:
                 attempt=1,
                 selection_reason="configured_primary",
                 fallback_usage=False,
+                deadline=stage_deadline,
             )
         except _FALLBACK_ELIGIBLE:
             if self.fallback is None or not self.fallback_ready:
@@ -180,4 +214,5 @@ class ManagedStageWorker:
             attempt=2,
             selection_reason="single_transient_primary_fallback",
             fallback_usage=True,
+            deadline=stage_deadline,
         )
