@@ -1,9 +1,10 @@
 /**
  * Explorer — collapsible panel showing multiple independent workspace roots.
- * Derives all state from the zustand store via props.
+ * File tree is wrapped in a shadcn Card for a built-in container layer.
  */
 
 import { Plus } from 'lucide-react'
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { WorkspaceRoot } from './WorkspaceRoot'
 import type { Workspace } from '../agent/types'
 import styles from './Explorer.module.css'
@@ -26,25 +27,30 @@ export function Explorer({ workspaces, participatingWorkspaceIds, collapsed, onL
           <span className={styles.title}>Explorer</span>
         </div>
 
-        <div className={styles.list}>
-          {/* Task-grouped workspaces */}
-          {grouped.map((ws) => (
-            <WorkspaceRoot
-              key={ws.id}
-              workspace={ws}
-              onLEDClick={() => onLEDClick(ws.id)}
-            />
-          ))}
+        <Card className={styles.treeCard}>
+          <CardHeader className={styles.treeCardHeader}>
+            <span className={styles.treeCardTitle}>Files</span>
+          </CardHeader>
+          <CardContent className={styles.treeCardContent}>
+            {/* Task-grouped workspaces */}
+            {grouped.map((ws) => (
+              <WorkspaceRoot
+                key={ws.id}
+                workspace={ws}
+                onLEDClick={() => onLEDClick(ws.id)}
+              />
+            ))}
 
-          {/* Independent workspaces */}
-          {ungrouped.map((ws) => (
-            <WorkspaceRoot
-              key={ws.id}
-              workspace={ws}
-              onLEDClick={() => onLEDClick(ws.id)}
-            />
-          ))}
-        </div>
+            {/* Independent workspaces */}
+            {ungrouped.map((ws) => (
+              <WorkspaceRoot
+                key={ws.id}
+                workspace={ws}
+                onLEDClick={() => onLEDClick(ws.id)}
+              />
+            ))}
+          </CardContent>
+        </Card>
 
         <button className={styles.addBtn}>
           <Plus size={14} />
