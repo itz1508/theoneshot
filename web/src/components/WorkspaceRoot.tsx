@@ -30,7 +30,7 @@ function FileTreeNode({ node, depth }: { node: FileNode; depth: number }) {
           <FolderIcon size={12} className={styles.folderIcon} />
           <span className={styles.folderName}>{node.name}</span>
         </CollapsibleTrigger>
-        <CollapsibleContent>
+        <CollapsibleContent className={styles.collapsibleContent}>
           {node.children?.map((child) => (
             <FileTreeNode key={child.id} node={child} depth={depth + 1} />
           ))}

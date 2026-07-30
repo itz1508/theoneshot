@@ -72,6 +72,37 @@
   /* container for trigger + collapsible content */
 }
 
+/* Radix CollapsibleContent requires animation to become visible */
+.collapsibleContent {
+  overflow: hidden;
+}
+
+.collapsibleContent[data-state='open'] {
+  animation: slideDown 120ms ease-out;
+}
+
+.collapsibleContent[data-state='closed'] {
+  animation: slideUp 120ms ease-in;
+}
+
+@keyframes slideDown {
+  from {
+    height: 0;
+  }
+  to {
+    height: var(--radix-collapsible-content-height);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    height: var(--radix-collapsible-content-height);
+  }
+  to {
+    height: 0;
+  }
+}
+
 /* ── Tree rows (folder trigger & file rows) ── */
 
 .row,
