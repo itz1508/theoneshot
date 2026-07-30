@@ -1,11 +1,10 @@
 /**
  * WorkspaceRoot — a single project root in the Explorer.
- * Uses nested shadcn Collapsibles to build a file tree.
+ * Uses nested collapsibles to build a file tree with shadcn/ui components.
  */
 
 import { useState } from 'react'
-import { ChevronRightIcon, FileIcon, FolderIcon } from 'lucide-react'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { ChevronRightIcon, FileIcon, FolderIcon, FolderOpenIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Workspace, FileNode } from '../agent/types'
 import { ActivityLED } from './ActivityLED'
@@ -19,23 +18,35 @@ interface WorkspaceRootProps {
 /* ── Recursive file-tree node ── */
 
 function FileTreeNode({ node, depth }: { node: FileNode; depth: number }) {
+  const [open, setOpen] = useState(depth === 0)
+
   if (node.type === 'folder') {
     return (
-      <Collapsible defaultOpen={depth === 0} className={styles.folderNode}>
-        <CollapsibleTrigger
+      <div className={styles.folderNode}>
+        <button
           className={styles.row}
           style={{ paddingLeft: 8 + depth * 16 }}
+          onClick={() => setOpen(!open)}
         >
-          <ChevronRightIcon size={10} className={styles.chevron} />
-          <FolderIcon size={12} className={styles.folderIcon} />
+          <ChevronRightIcon
+            size={10}
+            className={cn(styles.chevron, open && styles.chevronOpen)}
+          />
+          {open ? (
+            <FolderOpenIcon size={12} className={styles.folderIconOpen} />
+          ) : (
+            <FolderIcon size={12} className={styles.folderIcon} />
+          )}
           <span className={styles.folderName}>{node.name}</span>
-        </CollapsibleTrigger>
-        <CollapsibleContent className={styles.collapsibleContent}>
-          {node.children?.map((child) => (
-            <FileTreeNode key={child.id} node={child} depth={depth + 1} />
-          ))}
-        </CollapsibleContent>
-      </Collapsible>
+        </button>
+        {open && node.children && (
+          <div className={styles.children}>
+            {node.children.map((child) => (
+              <FileTreeNode key={child.id} node={child} depth={depth + 1} />
+            ))}
+          </div>
+        )}
+      </div>
     )
   }
 
@@ -55,7 +66,7 @@ export function WorkspaceRoot({ workspace, onLEDClick }: WorkspaceRootProps) {
   return (
     <div className={styles.root}>
       <div className={styles.header}>
-        <button className={styles.expandBtn} onClick={() => setExpanded((prev) => !prev)}>
+        <button className={styles.expandBtn} onClick={() => setExpanded(!expanded)}>
           <ChevronRightIcon
             size={12}
             className={cn(styles.rootChevron, expanded && styles.rootChevronOpen)}

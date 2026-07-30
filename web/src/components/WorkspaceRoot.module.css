@@ -30,7 +30,7 @@
 }
 
 .rootChevron {
-  transition: transform 0.12s ease;
+  transition: transform 0.15s ease;
 }
 
 .rootChevronOpen {
@@ -66,41 +66,14 @@
   padding: 2px 0 8px 4px;
 }
 
-/* ── Folder node (shadcn Collapsible) ── */
+/* ── Folder node ── */
 
 .folderNode {
-  /* container for trigger + collapsible content */
+  /* container for trigger + children */
 }
 
-/* Radix CollapsibleContent requires animation to become visible */
-.collapsibleContent {
-  overflow: hidden;
-}
-
-.collapsibleContent[data-state='open'] {
-  animation: slideDown 120ms ease-out;
-}
-
-.collapsibleContent[data-state='closed'] {
-  animation: slideUp 120ms ease-in;
-}
-
-@keyframes slideDown {
-  from {
-    height: 0;
-  }
-  to {
-    height: var(--radix-collapsible-content-height);
-  }
-}
-
-@keyframes slideUp {
-  from {
-    height: var(--radix-collapsible-content-height);
-  }
-  to {
-    height: 0;
-  }
+.children {
+  /* child container — no extra styling needed, just a wrapper */
 }
 
 /* ── Tree rows (folder trigger & file rows) ── */
@@ -119,6 +92,8 @@
   transition: background 0.08s ease;
   cursor: pointer;
   text-decoration: none;
+  border: none;
+  background: none;
 }
 
 .row:hover,
@@ -126,15 +101,15 @@
   background: #18181b;
 }
 
-/* ── Chevron rotation via data-state from Radix Collapsible ── */
+/* ── Chevron ── */
 
 .chevron {
   flex-shrink: 0;
   color: #52525b;
-  transition: transform 0.12s ease;
+  transition: transform 0.15s ease;
 }
 
-.folderNode[data-state='open'] > .row .chevron {
+.chevronOpen {
   transform: rotate(90deg);
 }
 
@@ -145,7 +120,8 @@
   color: #71717a;
 }
 
-.folderNode[data-state='open'] > .row .folderIcon {
+.folderIconOpen {
+  flex-shrink: 0;
   color: #eab308;
 }
 
