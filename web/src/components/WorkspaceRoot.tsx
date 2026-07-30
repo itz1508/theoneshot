@@ -1,9 +1,9 @@
 /**
  * WorkspaceRoot — a single project root in the Explorer.
- * Shows expand/collapse, file tree, Sandbox badge, and ActivityLED.
+ * Uses nested <details>/<summary> for a native collapsible file tree.
  */
 
-import { useState, useCallback } from 'react'
+import { useState } from 'react'
 import { FolderOpen, File, ChevronRight } from 'lucide-react'
 import type { Workspace, FileNode } from '../agent/types'
 import { ActivityLED } from './ActivityLED'
@@ -15,47 +15,31 @@ interface WorkspaceRootProps {
 }
 
 function FileTreeNode({ node, depth }: { node: FileNode; depth: number }) {
-  const [expanded, setExpanded] = useState(depth === 0)
-
-  const toggle = useCallback(() => {
-    if (node.type === 'folder') setExpanded((prev) => !prev)
-  }, [node.type])
-
   if (node.type === 'folder') {
     return (
-      <div>
-        <button
-          className={styles.row}
-          style={{ paddingLeft: 8 + depth * 14 }}
-          onClick={toggle}
-        >
-          <ChevronRight
-            size={10}
-            className={`${styles.chevron} ${expanded ? styles.chevronOpen : ''}`}
-          />
+      <details open={depth === 0} className={styles.details}>
+        <summary className={styles.row} style={{ paddingLeft: 8 + depth * 14 }}>
+          <ChevronRight size={10} className={styles.chevron} />
           <FolderOpen size={12} className={styles.folderIcon} />
           <span className={styles.folderName}>{node.name}</span>
-        </button>
-        {expanded && node.children && (
+        </summary>
+        {node.children && (
           <div>
             {node.children.map((child) => (
               <FileTreeNode key={child.id} node={child} depth={depth + 1} />
             ))}
           </div>
         )}
-      </div>
+      </details>
     )
   }
 
   return (
-    <button
-      className={styles.row}
-      style={{ paddingLeft: 8 + depth * 14 }}
-    >
+    <div className={styles.row} style={{ paddingLeft: 8 + depth * 14 }}>
       <span className={styles.fileIndent} />
       <File size={11} className={styles.fileIcon} />
       <span className={styles.fileName}>{node.name}</span>
-    </button>
+    </div>
   )
 }
 

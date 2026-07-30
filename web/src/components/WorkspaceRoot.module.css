@@ -62,6 +62,20 @@
   padding: 2px 0 4px 4px;
 }
 
+/* Native <details> collapsible — no default marker */
+.details {
+  /* reset browser default */
+}
+
+.details > summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.details > summary::-webkit-details-marker {
+  display: none;
+}
+
 /* Tree rows (shared for folders and files) */
 .row {
   display: flex;
@@ -86,7 +100,8 @@
   transition: transform 0.12s ease;
 }
 
-.chevronOpen {
+/* Rotate chevron when the parent <details> is open */
+.details[open] > summary .chevron {
   transform: rotate(90deg);
 }
 
