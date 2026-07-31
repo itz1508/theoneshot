@@ -1,0 +1,67 @@
+{
+  "schema_version": "1.0.0",
+  "build_id": "VC-00",
+  "plan_id": "visual-capture-system-2026-07-31",
+  "plan_version": "1.0.0",
+  "contract_version": null,
+  "status": "planned",
+  "repository": {
+    "full_name": "itz1508/theoneshot",
+    "baseline_branch": "main",
+    "baseline_head": "bb353ba2d3d1aabd23736743b8eec5ff1d0be11a",
+    "working_branch": null,
+    "observed_head": null,
+    "dirty_state_recorded": false,
+    "submodule_state_recorded": false
+  },
+  "execution": {
+    "current_phase": "preflight",
+    "current_task": null,
+    "current_step": null,
+    "completed_steps": [],
+    "next_executable_step": "Read authority files and record literal repository state.",
+    "attempt": 0,
+    "started_at": null,
+    "updated_at": "2026-07-31T20:59:00Z",
+    "completed_at": null
+  },
+  "ownership": {
+    "owned_paths": [],
+    "excluded_paths": [],
+    "protected_paths_checked": false,
+    "parallel_builds": [],
+    "shared_contract_mutation_allowed": false
+  },
+  "recovery": {
+    "snapshot_id": null,
+    "snapshot_required": true,
+    "pre_mutation_hashes": {},
+    "rollback_instructions": [],
+    "non_idempotent_steps": [],
+    "last_safe_checkpoint": "planning documents persisted",
+    "resume_requirements": [
+      "Read the master plan and this build document.",
+      "Read this state file and the append-only run log.",
+      "Record current branch, HEAD, literal status, and submodule state.",
+      "Inspect the current diff before repeating any step.",
+      "Verify the frozen contract and fixture hashes when applicable."
+    ]
+  },
+  "validation": {
+    "last_command": null,
+    "last_exit_code": null,
+    "last_result": "not_run",
+    "targeted": "not_run",
+    "integration": "not_run",
+    "repository": "not_run",
+    "delivery": "not_run"
+  },
+  "artifacts": [],
+  "unresolved": [],
+  "failures": [],
+  "notes": [
+    "Update atomically after each state-changing step.",
+    "Append attempt events to run-log.jsonl; do not erase failure history.",
+    "Do not infer completion from file presence alone."
+  ]
+}
