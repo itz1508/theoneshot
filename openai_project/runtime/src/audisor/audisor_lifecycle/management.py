@@ -11,7 +11,9 @@ import hashlib
 import json
 import os
 import re
+import tempfile
 import time
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
@@ -36,6 +38,10 @@ FALLBACK_BUDGET_SECONDS = 150.0
 RESERVED_BUDGET_SECONDS = 30.0
 STAGE_BUDGET_SECONDS = 300.0
 PROBE_TIMEOUT_SECONDS = 30.0
+READINESS_TTL_SECONDS = 300.0
+LIVE_CHECK_TIMEOUT_SECONDS = 5.0
+READINESS_CONTRACT_REVISION = "2"
+SCHEMA_CONTRACT_REVISION = "1"
 
 ISSUE_CODES = frozenset(
     {
@@ -46,6 +52,14 @@ ISSUE_CODES = frozenset(
         "provider_authentication_error",
         "model_unavailable",
         "provider_invalid_response",
+        "provider_response_not_json",
+        "provider_schema_unsupported",
+        "provider_schema_request_rejected",
+        "provider_contract_invalid",
+        "provider_response_too_large",
+        "provider_process_reap_failed",
+        "stage_budget_exhausted",
+        "provider_capability_unsupported",
         "stage_schema_error",
         "persisted_state_corrupt",
         "active_run_conflict",
@@ -64,14 +78,55 @@ def _utc_now() -> str:
 
 def _atomic_json(path: Path, value: Mapping[str, Any]) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(path.suffix + ".tmp")
-    temporary.write_text(
-        json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-        newline="\n",
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=path.parent
     )
-    os.replace(temporary, path)
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as handle:
+            handle.write(json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+        if os.name != "nt":
+            directory_fd = os.open(path.parent, os.O_RDONLY)
+            try:
+                os.fsync(directory_fd)
+            finally:
+                os.close(directory_fd)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
     return path
+
+
+@contextmanager
+def _probe_write_lock(root: Path):
+    lock_path = root / "management" / "provider-probes.lock"
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with lock_path.open("a+b") as handle:
+        if os.name == "nt":
+            import msvcrt
+
+            handle.seek(0)
+            if handle.tell() == 0 and lock_path.stat().st_size == 0:
+                handle.write(b"0")
+                handle.flush()
+            handle.seek(0)
+            msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+            try:
+                yield
+            finally:
+                handle.seek(0)
+                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
 def _read_json(path: Path) -> dict[str, Any] | None:
@@ -103,7 +158,45 @@ def _provider_endpoint(provider: WorkerProvider) -> str:
     return str(value or "")
 
 
-def _configuration_fingerprint(provider_id: str, model: str, endpoint: str) -> str:
+def _readiness_identity(provider: WorkerProvider) -> dict[str, Any]:
+    identity_factory = getattr(provider, "readiness_identity", None)
+    if callable(identity_factory):
+        identity = dict(identity_factory())
+    else:
+        identity = {
+            "provider_protocol": "injected",
+            "normalized_endpoint": _provider_endpoint(provider).rstrip("/"),
+            "model_id": _provider_model(provider),
+            "structured_output_mode": str(
+                getattr(provider, "schema_mode", "prompt_validated_json")
+            ),
+            "adapter_identity": f"{type(provider).__module__}.{type(provider).__qualname__}",
+            "adapter_version": "1",
+            "behavior": {},
+        }
+    behavior = identity.pop("behavior", {})
+    identity.update(
+        provider_id=provider.provider_id,
+        provider_configuration_digest=hashlib.sha256(
+            json.dumps(behavior, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")
+        ).hexdigest(),
+        readiness_contract_revision=READINESS_CONTRACT_REVISION,
+        schema_contract_revision=SCHEMA_CONTRACT_REVISION,
+    )
+    return identity
+
+
+def _configuration_fingerprint(provider: WorkerProvider) -> str:
+    body = json.dumps(
+        _readiness_identity(provider),
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(body.encode("utf-8")).hexdigest()
+
+
+def _status_configuration_fingerprint(provider_id: str, model: str, endpoint: str) -> str:
+    """Pure cache lookup key for read-only status; constructs no provider."""
     body = json.dumps(
         {"provider": provider_id, "model": model, "endpoint": endpoint.rstrip("/")},
         sort_keys=True,
@@ -153,11 +246,57 @@ def _load_probes(root: Path) -> dict[str, Any]:
 
 
 def _save_probe(root: Path, record: Mapping[str, Any]) -> None:
-    probes = _load_probes(root)
-    providers = probes.setdefault("providers", {})
-    providers[str(record["provider"])] = dict(record)
-    probes["updated_at"] = _utc_now()
-    _atomic_json(_probe_path(root), probes)
+    with _probe_write_lock(root):
+        probes = _load_probes(root)
+        providers = probes.setdefault("providers", {})
+        previous = providers.get(str(record["provider"]))
+        previous_generation = (
+            int(previous.get("generation", 0)) if isinstance(previous, Mapping) else 0
+        )
+        candidate = dict(record)
+        candidate_generation = int(candidate.get("generation", previous_generation + 1))
+        if candidate_generation <= previous_generation:
+            return
+        candidate["generation"] = candidate_generation
+        providers[str(record["provider"])] = candidate
+        probes["updated_at"] = _utc_now()
+        _atomic_json(_probe_path(root), probes)
+
+
+def invalidate_provider_readiness(
+    provider: WorkerProvider,
+    *,
+    root: Path,
+    reason: str,
+    schema_only: bool = False,
+) -> None:
+    with _probe_write_lock(root):
+        probes = _load_probes(root)
+        providers = probes.setdefault("providers", {})
+        previous = providers.get(provider.provider_id)
+        generation = int(previous.get("generation", 0)) + 1 if isinstance(previous, Mapping) else 1
+        record = dict(previous) if isinstance(previous, Mapping) else {
+            "provider": provider.provider_id,
+            "model": _provider_model(provider),
+            "fingerprint": _readiness_identity(provider),
+            "configuration_fingerprint": _configuration_fingerprint(provider),
+        }
+        record.update(
+            generation=generation,
+            outcome="invalidated",
+            diagnostic_state="not_valid",
+            readiness_state="invalidated",
+            invalidation_reason=reason,
+            invalidated_at=_utc_now(),
+        )
+        if schema_only:
+            record["structured_output_ready"] = "not_valid"
+        else:
+            record["endpoint_reachable"] = "not_valid"
+            record["model_ready"] = "not_valid"
+        providers[provider.provider_id] = record
+        probes["updated_at"] = _utc_now()
+        _atomic_json(_probe_path(root), probes)
 
 
 def _run_probe(provider: WorkerProvider, *, root: Path, selection_reason: str) -> dict[str, Any]:
@@ -168,7 +307,11 @@ def _run_probe(provider: WorkerProvider, *, root: Path, selection_reason: str) -
     record: dict[str, Any] = {
         "provider": provider_id,
         "model": model,
-        "configuration_fingerprint": _configuration_fingerprint(provider_id, model, endpoint),
+        "configuration_fingerprint": _configuration_fingerprint(provider),
+        "status_configuration_fingerprint": _status_configuration_fingerprint(
+            provider_id, model, endpoint
+        ),
+        "fingerprint": _readiness_identity(provider),
         "selection_reason": selection_reason,
         "checked_at": _utc_now(),
         "diagnostic_state": "uncertainty",
@@ -178,19 +321,25 @@ def _run_probe(provider: WorkerProvider, *, root: Path, selection_reason: str) -
         "structured_output_ready": "uncertainty",
     }
     try:
-        output = provider.execute(
-            TaskInput(
-                task_id=f"aflow-provider-probe-{provider_id}",
-                prompt=(
-                    "Return exactly one JSON object and no prose: "
-                    '{"aflow_provider_probe":"ready"}'
-                ),
+        adapter_probe = getattr(provider, "run_full_readiness_probe", None)
+        if callable(adapter_probe):
+            adapter_probe()
+        else:
+            output = provider.execute(
+                TaskInput(
+                    task_id=f"aflow-provider-probe-{provider_id}",
+                    prompt='Return exactly {"aflow_provider_probe":"ready"}.',
+                )
             )
-        )
-        parsed = _parse_json_object(output.answer)
-        if parsed != {"aflow_provider_probe": "ready"}:
-            raise ValueError("structured probe response did not match the required object")
+            parsed = _parse_json_object(output.answer)
+            if parsed != {"aflow_provider_probe": "ready"}:
+                raise ValueError("structured probe response did not match the required object")
+        checked = datetime.now(timezone.utc)
         record.update(
+            checked_at=checked.isoformat(),
+            expires_at=datetime.fromtimestamp(
+                checked.timestamp() + READINESS_TTL_SECONDS, timezone.utc
+            ).isoformat(),
             diagnostic_state="valid",
             outcome="ready",
             endpoint_reachable="valid",
@@ -219,18 +368,22 @@ def _run_probe(provider: WorkerProvider, *, root: Path, selection_reason: str) -
         )
     record["elapsed_ms"] = round((time.monotonic() - started) * 1000)
     _save_probe(root, record)
-    return record
+    stored = _load_probes(root).get("providers", {}).get(provider_id)
+    return dict(stored) if isinstance(stored, Mapping) else record
 
 
 def _probe_is_current(record: Mapping[str, Any] | None, provider: WorkerProvider) -> bool:
     if not record or record.get("outcome") != "ready":
         return False
-    expected = _configuration_fingerprint(
-        provider.provider_id,
-        _provider_model(provider),
-        _provider_endpoint(provider),
-    )
-    return record.get("configuration_fingerprint") == expected
+    if record.get("configuration_fingerprint") != _configuration_fingerprint(provider):
+        return False
+    try:
+        checked = datetime.fromisoformat(str(record["checked_at"]))
+        expires = datetime.fromisoformat(str(record["expires_at"]))
+    except (KeyError, TypeError, ValueError):
+        return False
+    now = datetime.now(timezone.utc)
+    return checked <= now <= expires and checked >= datetime.fromtimestamp(now.timestamp() - READINESS_TTL_SECONDS, timezone.utc)
 
 
 def _probe_matches_configuration(
@@ -240,12 +393,102 @@ def _probe_matches_configuration(
     model: str,
     endpoint: str,
 ) -> bool:
+    if not record or record.get("outcome") != "ready":
+        return False
+    status_key = record.get("status_configuration_fingerprint")
+    if status_key is not None and status_key != _status_configuration_fingerprint(
+        provider_id, model, endpoint
+    ):
+        return False
+    fingerprint = record.get("fingerprint")
+    if not isinstance(fingerprint, Mapping):
+        return False
+    try:
+        checked = datetime.fromisoformat(str(record["checked_at"]))
+        expires = datetime.fromisoformat(str(record["expires_at"]))
+    except (KeyError, TypeError, ValueError):
+        return False
+    now = datetime.now(timezone.utc)
     return bool(
-        record
-        and record.get("outcome") == "ready"
-        and record.get("configuration_fingerprint")
-        == _configuration_fingerprint(provider_id, model, endpoint)
+        fingerprint.get("provider_id") == provider_id
+        and fingerprint.get("model_id") == model
+        and (
+            status_key is not None
+            or str(fingerprint.get("normalized_endpoint", "")).rstrip("/")
+            == endpoint.rstrip("/")
+        )
+        and checked <= now <= expires
+        and checked >= datetime.fromtimestamp(now.timestamp() - READINESS_TTL_SECONDS, timezone.utc)
     )
+
+
+def _cached_readiness_state(
+    record: Mapping[str, Any] | None,
+    *,
+    provider_id: str,
+    model: str,
+    endpoint: str,
+) -> str:
+    if not record:
+        return "missing"
+    if record.get("outcome") == "invalidated":
+        return "invalidated"
+    status_key = record.get("status_configuration_fingerprint")
+    if status_key is not None and status_key != _status_configuration_fingerprint(
+        provider_id, model, endpoint
+    ):
+        return "configuration_mismatch"
+    try:
+        checked = datetime.fromisoformat(str(record["checked_at"]))
+        expires = datetime.fromisoformat(str(record["expires_at"]))
+    except (KeyError, TypeError, ValueError):
+        return "missing"
+    now = datetime.now(timezone.utc)
+    if checked > now:
+        return "clock_invalid"
+    if now > expires or checked < datetime.fromtimestamp(
+        now.timestamp() - READINESS_TTL_SECONDS, timezone.utc
+    ):
+        return "expired"
+    return "current" if record.get("outcome") == "ready" else "full_probe_failed"
+
+
+def authorize_submission(
+    provider: WorkerProvider, *, state_root: Path | None = None
+) -> dict[str, Any]:
+    """Require current qualification plus a same-call provider-owned live check."""
+    root = state_root or default_state_root()
+    record = _load_probes(root).get("providers", {}).get(provider.provider_id)
+    if not _probe_is_current(record, provider):
+        qualified = _run_probe(provider, root=root, selection_reason="submission_full_probe")
+        if qualified.get("outcome") != "ready":
+            return qualified
+        return qualified
+    live_check = getattr(provider, "run_live_submission_check", None)
+    try:
+        if callable(live_check):
+            previous = getattr(provider, "timeout_seconds", None)
+            if previous is not None:
+                provider.timeout_seconds = min(float(previous), LIVE_CHECK_TIMEOUT_SECONDS)
+            try:
+                live_check()
+            finally:
+                if previous is not None:
+                    provider.timeout_seconds = previous
+        else:
+            # Deterministic injected providers still cross the same contract.
+            probe = getattr(provider, "run_full_readiness_probe", None)
+            if callable(probe):
+                probe()
+    except ProviderError as exc:
+        return {
+            **dict(record),
+            "diagnostic_state": "not_valid",
+            "outcome": exc.code,
+            "readiness_state": "live_check_failed",
+            "detail": _redact(exc),
+        }
+    return {**dict(record), "live_check": "valid", "readiness_state": "current"}
 
 
 def provider_status(
@@ -372,6 +615,12 @@ def provider_status(
                 else "uncertainty"
             ),
             "last_probe": primary_probe,
+            "readiness_state": _cached_readiness_state(
+                primary_probe,
+                provider_id=primary_provider_id,
+                model=primary_model,
+                endpoint=primary_endpoint,
+            ),
         },
         "fallback": {
             "provider": fallback_selected or None,
@@ -394,7 +643,10 @@ def provider_status(
             "reserved": RESERVED_BUDGET_SECONDS,
             "stage_total": STAGE_BUDGET_SECONDS,
         },
-        "can_submit": bool(enabled and primary_configured and active is None),
+        "can_submit": bool(
+            False
+        ),
+        "live_check_required": bool(enabled and primary_configured and active is None),
     }
 
 
@@ -498,6 +750,14 @@ def _direct_cause(code: str) -> str:
         "provider_authentication_error": "The selected provider rejected authentication.",
         "model_unavailable": "The configured model is not available from the selected provider.",
         "provider_invalid_response": "The provider response did not satisfy the A-Flow stage contract.",
+        "provider_response_not_json": "The provider response was not a JSON object.",
+        "provider_schema_unsupported": "The provider cannot preserve the canonical stage schema.",
+        "provider_schema_request_rejected": "The provider rejected the requested schema mechanism.",
+        "provider_contract_invalid": "The provider response violated the canonical stage schema.",
+        "provider_response_too_large": "The provider response exceeded the bounded transport limit.",
+        "provider_process_reap_failed": "The isolated provider process could not be confirmed absent.",
+        "stage_budget_exhausted": "No provider execution budget remained after the termination reserve.",
+        "provider_capability_unsupported": "The production provider cannot guarantee terminable execution.",
         "stage_schema_error": "The stage output did not satisfy its strict schema.",
         "persisted_state_corrupt": "The newest persisted lifecycle state is corrupt or incomplete.",
         "active_run_conflict": "An identical lifecycle is already active.",

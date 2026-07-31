@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from audisor.audisor_lifecycle.management import (
+    _run_probe,
     create_root_cause_issue,
     get_issue,
     initialize_management_state,
@@ -22,6 +23,16 @@ from audisor.workers.base import (
     ProviderTimeoutError,
 )
 from audisor.workers.fireworks import FireworksWorker
+
+
+def _tree_snapshot(root: Path) -> list[tuple[str, bytes]]:
+    if not root.exists():
+        return []
+    return sorted(
+        (str(path.relative_to(root)), path.read_bytes())
+        for path in root.rglob("*")
+        if path.is_file()
+    )
 
 
 class FakeProvider:
@@ -44,6 +55,61 @@ class FakeProvider:
         if self.error:
             raise self.error
         return TaskOutput(task_id=task.task_id, answer=self.answer)
+
+
+def test_read_only_status_constructs_nothing_and_writes_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import audisor.audisor_lifecycle.management as management
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("read-only status constructed a router or provider")
+
+    monkeypatch.setattr(management, "ProviderRouter", forbidden)
+    monkeypatch.setattr(management, "_make_primary_provider", forbidden)
+    monkeypatch.setattr(management, "_make_fallback_provider", forbidden)
+    before = _tree_snapshot(tmp_path)
+    status = provider_status(state_root=tmp_path, probe=False)
+    assert status["primary"]["last_probe"] is None
+    assert status["primary"]["endpoint_reachable"] == "uncertainty"
+    assert status["can_submit"] is False
+    assert _tree_snapshot(tmp_path) == before
+
+
+def test_read_only_status_returns_matching_cached_readiness_without_writes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import audisor.audisor_lifecycle.management as management
+    from audisor.config import set_provider_config
+
+    config_path = tmp_path / "config.json"
+    set_provider_config("local-openai-compatible", "http://fixture.test", "fixture-model", config_path)
+    monkeypatch.setenv("AUDISOR_CONFIG_PATH", str(config_path))
+    provider = FakeProvider("local-openai-compatible")
+    provider.base_url = "http://fixture.test"
+    provider.run_full_readiness_probe = lambda: None
+    provider.readiness_identity = lambda: {
+        "provider_protocol": "fixture",
+        "normalized_endpoint": "http://fixture.test",
+        "model_id": "fixture-model",
+        "structured_output_mode": "prompt_validated_json",
+        "adapter_identity": "fixture",
+        "adapter_version": "1",
+        "behavior": {},
+    }
+    _run_probe(provider, root=tmp_path, selection_reason="fixture")
+    before = _tree_snapshot(tmp_path)
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("read-only status constructed a router or provider")
+
+    monkeypatch.setattr(management, "ProviderRouter", forbidden)
+    monkeypatch.setattr(management, "_make_primary_provider", forbidden)
+    monkeypatch.setattr(management, "_make_fallback_provider", forbidden)
+    status = provider_status(state_root=tmp_path, probe=False)
+    assert status["primary"]["last_probe"]["outcome"] == "ready"
+    assert status["primary"]["endpoint_reachable"] == "valid"
+    assert _tree_snapshot(tmp_path) == before
 
 
 def test_blank_fallback_endpoint_means_unconfigured_and_blocks_probe_gate(

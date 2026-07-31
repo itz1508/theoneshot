@@ -1,0 +1,7 @@
+[
+  {"name":"fresh_matching_cache","cache_age_seconds":30,"fingerprint_match":true,"live_check":"success","expected":{"full_probe_calls":0,"live_check_calls":1,"can_submit":true}},
+  {"name":"ancient_cache_provider_down","checked_at":"2000-01-01T00:00:00Z","fingerprint_match":true,"full_probe":"transport_failure","expected":{"state":"expired","can_submit":false,"stale_fallback":false}},
+  {"name":"adapter_version_mismatch","cached_adapter_version":"1","active_adapter_version":"2","full_probe":"success","expected":{"initial_state":"configuration_mismatch","full_probe_calls":1,"can_submit":true}},
+  {"name":"fresh_cache_live_failure","cache_age_seconds":20,"fingerprint_match":true,"live_check":"model_unavailable","expected":{"can_submit":false,"stale_fallback":false,"lifecycle_started":false}},
+  {"name":"prompt_contract_failure","schema_mode":"prompt_validated_json","provider_response":{"analysis":"No gaps found"},"expected":{"attempt_result":"provider_contract_invalid","endpoint_readiness_invalidated":false,"model_readiness_invalidated":false}}
+]

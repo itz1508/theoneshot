@@ -14,6 +14,7 @@ from audisor.schemas.task_input import TaskInput
 from audisor.schemas.task_output import TaskOutput
 from audisor.workers.base import (
     ProviderAuthenticationError,
+    ProviderCapabilityError,
     ProviderCapabilities,
     ProviderConfigurationError,
     ProviderInvalidResponseError,
@@ -22,6 +23,17 @@ from audisor.workers.base import (
     ProviderRateLimitedError,
     ProviderTimeoutError,
     ProviderUnavailableError,
+    ProviderProcessReapError,
+    ProviderResponseTooLargeError,
+    StageBudgetExhaustedError,
+)
+from audisor.workers.isolated_http import (
+    IsolatedHttpBudgetError,
+    IsolatedHttpError,
+    IsolatedHttpReapError,
+    IsolatedHttpResponseTooLarge,
+    IsolatedHttpTimeout,
+    isolated_post,
 )
 
 
@@ -51,7 +63,7 @@ class FireworksWorker:
     retry_delay_seconds: float = 0.25
     timeout_seconds: float = 300.0
     max_tokens: int = 4096
-    request: RequestFunction = field(default=requests.post, repr=False)
+    request: RequestFunction = field(default=isolated_post, repr=False)
     sleep: SleepFunction = field(default=time.sleep, repr=False)
 
     provider_id = "fireworks"
@@ -72,7 +84,59 @@ class FireworksWorker:
         return all(value.strip() for value in (self.api_key, self.endpoint_url, self.model))
 
     def capabilities(self) -> ProviderCapabilities:
-        return ProviderCapabilities(text=True)
+        return ProviderCapabilities(
+            text=True,
+            terminable_execution=self.request is isolated_post,
+        )
+
+    @property
+    def schema_mode(self) -> str:
+        return "prompt_validated_json"
+
+    def readiness_identity(self) -> dict[str, Any]:
+        return {
+            "provider_protocol": "fireworks-completions",
+            "normalized_endpoint": self.endpoint_url.rstrip("/"),
+            "model_id": self.model,
+            "structured_output_mode": self.schema_mode,
+            "adapter_identity": f"{type(self).__module__}.{type(self).__qualname__}",
+            "adapter_version": "2",
+            "behavior": {
+                "max_tokens": self.max_tokens,
+                "max_attempts": self.max_attempts,
+                "retry_delay_seconds": self.retry_delay_seconds,
+                "timeout_seconds": self.timeout_seconds,
+                "credential_present": bool(self.api_key.strip()),
+                "terminable_execution": self.request is isolated_post,
+            },
+        }
+
+    def run_full_readiness_probe(self) -> None:
+        output = self.execute(
+            TaskInput(
+                task_id="aflow-provider-readiness",
+                prompt='Return only {"aflow_provider_probe":"ready"}.',
+            )
+        )
+        if output.answer.strip() != '{"aflow_provider_probe":"ready"}':
+            raise ProviderInvalidResponseError("Selected provider failed its structured readiness proof")
+
+    def run_live_submission_check(self) -> None:
+        # Fireworks owns its endpoint semantics; a tiny request proves the exact
+        # configured endpoint/model without lifecycle code guessing a models URL.
+        self.run_full_readiness_probe()
+
+    def execute_structured(
+        self,
+        task: TaskInput,
+        *,
+        schema: dict[str, Any],
+        schema_name: str,
+        schema_mode: str,
+    ) -> TaskOutput:
+        if schema_mode == "native_json_schema":
+            raise ProviderCapabilityError("Native JSON Schema is not proven for this provider")
+        return self.execute(task)
 
     def _validate_configuration(self) -> None:
         if self.configuration_status():
@@ -134,6 +198,17 @@ class FireworksWorker:
                     json=payload,
                     timeout=self.timeout_seconds,
                 )
+            except IsolatedHttpTimeout as exc:
+                if attempt < attempts:
+                    self.sleep(self.retry_delay_seconds * (2 ** (attempt - 1)))
+                    continue
+                raise ProviderTimeoutError(
+                    "Selected provider request timed out",
+                    internal_detail=(
+                        f"attempt={attempt};child_pid={exc.child_pid};"
+                        "client_process_terminated=true;server_inference_cancelled=unverified"
+                    ),
+                ) from None
             except requests.Timeout:
                 if attempt < attempts:
                     self.sleep(self.retry_delay_seconds * (2 ** (attempt - 1)))
@@ -142,7 +217,13 @@ class FireworksWorker:
                     "Selected provider request timed out",
                     internal_detail=f"attempt={attempt}",
                 ) from None
-            except requests.RequestException as exc:
+            except IsolatedHttpResponseTooLarge:
+                raise ProviderResponseTooLargeError("Selected provider response exceeded its byte limit") from None
+            except IsolatedHttpReapError:
+                raise ProviderProcessReapError("Selected provider process could not be reaped") from None
+            except IsolatedHttpBudgetError:
+                raise StageBudgetExhaustedError("No provider budget remains after reap reserve") from None
+            except (requests.RequestException, IsolatedHttpError) as exc:
                 if attempt < attempts:
                     self.sleep(self.retry_delay_seconds * (2 ** (attempt - 1)))
                     continue

@@ -22,6 +22,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
+from audisor.workers.base import (
+    ProviderAuthenticationError,
+    ProviderContractInvalidError,
+    ProviderError,
+    ProviderPermanentRequestError,
+    ProviderTimeoutError,
+    ProviderUnavailableError,
+)
+
 from .operation import FrozenAudisorPolicy, read_frozen_audisor_policy
 
 # Compatibility surface: every name previously defined in this module stays
@@ -55,7 +64,9 @@ from .persistence import (
 from .result_builder import _LifecycleRunState
 from .management import (
     STAGE_BUDGET_SECONDS,
+    authorize_submission,
     create_root_cause_issue,
+    invalidate_provider_readiness,
     persist_submission_snapshot,
     resolve_stage_providers,
     update_active_progress,
@@ -173,11 +184,47 @@ def _resolve_worker(
                         "detail": str(exc),
                     },
                 )
+            if not primary.capabilities().terminable_execution:
+                return (
+                    None,
+                    stage_timeout_seconds,
+                    {
+                        "status": "error",
+                        "stage": "configuration",
+                        "issue_code": "provider_capability_unsupported",
+                        "detail": "Production A-Flow provider cannot guarantee terminable execution",
+                    },
+                )
+
+            def invalidate(provider, error: ProviderError, schema_mode: str) -> None:
+                endpoint_failure = isinstance(
+                    error,
+                    (
+                        ProviderUnavailableError,
+                        ProviderTimeoutError,
+                        ProviderAuthenticationError,
+                    ),
+                ) or (
+                    isinstance(error, ProviderPermanentRequestError)
+                    and "model=unavailable" in error.internal_detail
+                )
+                native_contract_failure = (
+                    isinstance(error, ProviderContractInvalidError)
+                    and schema_mode == "native_json_schema"
+                )
+                if endpoint_failure or native_contract_failure:
+                    invalidate_provider_readiness(
+                        provider,
+                        root=state_root or default_state_root(),
+                        reason=error.code,
+                        schema_only=native_contract_failure and not endpoint_failure,
+                    )
             worker = ManagedStageWorker(
                 primary=primary,
                 fallback=fallback,
                 fallback_ready=fallback_ready,
                 progress=progress,
+                invalidate_readiness=invalidate,
             )
     return worker, stage_timeout_seconds, None
 
@@ -341,6 +388,30 @@ def run_artifact_lifecycle(
         return early
     state.revision = revision
 
+    # Admission precedes immutable submission persistence and active-run
+    # creation. Production providers must prove current readiness using the
+    # exact provider instance that will execute the stages.
+    worker, stage_timeout_seconds, config_error = _resolve_worker(
+        worker,
+        stage_timeout_seconds,
+        state_root=root,
+        progress=None,
+    )
+    if config_error is not None:
+        return state.finish(config_error)
+    if isinstance(worker, ManagedStageWorker):
+        admission = authorize_submission(worker.primary, state_root=root)
+        if admission.get("outcome") != "ready":
+            return state.finish(
+                {
+                    "status": "error",
+                    "stage": "provider_readiness",
+                    "issue_code": admission.get("outcome", "provider_unavailable"),
+                    "detail": admission.get("detail", "Provider readiness did not authorize submission"),
+                }
+            )
+        state.provider_attempts = worker.attempts
+
     try:
         persist_submission_snapshot(
             root,
@@ -376,16 +447,8 @@ def run_artifact_lifecycle(
             remaining_seconds=remaining,
         )
 
-    worker, stage_timeout_seconds, config_error = _resolve_worker(
-        worker,
-        stage_timeout_seconds,
-        state_root=root,
-        progress=progress,
-    )
-    if config_error is not None:
-        return state.finish(config_error)
     if isinstance(worker, ManagedStageWorker):
-        state.provider_attempts = worker.attempts
+        worker.progress = progress
 
     common = {
         "artifact_id": artifact_id,

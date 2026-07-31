@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import time
 from dataclasses import dataclass
 from typing import Any, Callable, Mapping
@@ -10,17 +11,21 @@ from typing import Any, Callable, Mapping
 from audisor.schemas.task_input import TaskInput
 from audisor.workers.base import (
     ProviderError,
+    ProviderContractInvalidError,
+    ProviderCapabilityError,
     ProviderInvalidResponseError,
     ProviderRateLimitedError,
     ProviderTimeoutError,
     ProviderUnavailableError,
+    ProviderResponseNotJsonError,
+    ProviderSchemaUnsupportedError,
     WorkerProvider,
 )
 from audisor.workers.local import LocalWorker
 
 from .operation import FrozenAudisorPolicy
 from .output_processing import _drop_empty_optionals, _parse_json_object, _prune_to_schema
-from .stage_contracts import STAGE_OUTPUT_SCHEMAS, _STAGE_VALIDATORS
+from .stage_contracts import STAGE_OUTPUT_SCHEMAS, StageOutputError, _STAGE_VALIDATORS
 from .stage_prompts import _STAGE_INSTRUCTIONS, _STAGE_OUTPUT_EXAMPLES
 
 
@@ -45,9 +50,9 @@ class LocalStageWorker:
         prompt = "\n\n".join(
             (
                 _STAGE_INSTRUCTIONS[stage_name],
-                "Respond with one JSON object in exactly this shape (fill the "
-                "placeholder values; add or repeat array items as needed; no "
-                "other keys, no prose outside the JSON):",
+                "Return only the JSON value. The complete canonical JSON Schema is:",
+                json.dumps(STAGE_OUTPUT_SCHEMAS[stage_name], ensure_ascii=False, sort_keys=True),
+                "A shape example is:",
                 _STAGE_OUTPUT_EXAMPLES[stage_name],
                 "Input payload:",
                 json.dumps(dict(payload), ensure_ascii=False, indent=2, default=str),
@@ -64,6 +69,27 @@ _FALLBACK_ELIGIBLE = (
     ProviderInvalidResponseError,
 )
 
+_UNSUPPORTED_NATIVE_SCHEMA_KEYS = frozenset(
+    {"$ref", "$defs", "definitions", "oneOf", "anyOf", "allOf", "not", "if", "then", "else", "patternProperties", "dependentSchemas"}
+)
+
+
+def _schema_supports_native_mode(schema: Any) -> bool:
+    if isinstance(schema, Mapping):
+        if any(key in schema for key in _UNSUPPORTED_NATIVE_SCHEMA_KEYS):
+            return False
+        return all(_schema_supports_native_mode(value) for value in schema.values())
+    if isinstance(schema, list):
+        return all(_schema_supports_native_mode(value) for value in schema)
+    return True
+
+
+def _select_schema_mode(provider: WorkerProvider, schema: Mapping[str, Any]) -> str:
+    capabilities = provider.capabilities()
+    if capabilities.native_json_schema and _schema_supports_native_mode(schema):
+        return "native_json_schema"
+    return "prompt_validated_json"
+
 
 @dataclass
 class ManagedStageWorker:
@@ -73,6 +99,7 @@ class ManagedStageWorker:
     fallback: WorkerProvider | None = None
     fallback_ready: bool = False
     progress: Callable[[str, str, int, float, float], None] | None = None
+    invalidate_readiness: Callable[[WorkerProvider, ProviderError, str], None] | None = None
 
     def __post_init__(self) -> None:
         self.attempts: list[dict[str, Any]] = []
@@ -82,9 +109,9 @@ class ManagedStageWorker:
         return "\n\n".join(
             (
                 _STAGE_INSTRUCTIONS[stage_name],
-                "Respond with one JSON object in exactly this shape (fill the "
-                "placeholder values; add or repeat array items as needed; no "
-                "other keys, no prose outside the JSON):",
+                "Return only the JSON value. The complete canonical JSON Schema is:",
+                json.dumps(STAGE_OUTPUT_SCHEMAS[stage_name], ensure_ascii=False, sort_keys=True),
+                "A shape example is:",
                 _STAGE_OUTPUT_EXAMPLES[stage_name],
                 "Input payload:",
                 json.dumps(dict(payload), ensure_ascii=False, indent=2, default=str),
@@ -150,9 +177,33 @@ class ManagedStageWorker:
             "budget_seconds": budget,
         }
         try:
-            output = provider.execute(
-                TaskInput(task_id=f"aflow-{stage_name}-{attempt}", prompt=prompt)
-            )
+            task = TaskInput(task_id=f"aflow-{stage_name}-{attempt}", prompt=prompt)
+            schema_mode = _select_schema_mode(provider, STAGE_OUTPUT_SCHEMAS[stage_name])
+            execute_structured = getattr(provider, "execute_structured", None)
+            if callable(execute_structured):
+                try:
+                    output = execute_structured(
+                        task,
+                        schema=STAGE_OUTPUT_SCHEMAS[stage_name],
+                        schema_name=f"aflow_{stage_name}",
+                        schema_mode=schema_mode,
+                    )
+                except (ProviderCapabilityError, ProviderSchemaUnsupportedError):
+                    if schema_mode != "native_json_schema":
+                        raise
+                    schema_mode = "prompt_validated_json"
+                    output = execute_structured(
+                        task,
+                        schema=STAGE_OUTPUT_SCHEMAS[stage_name],
+                        schema_name=f"aflow_{stage_name}",
+                        schema_mode=schema_mode,
+                    )
+            else:
+                output = provider.execute(task)
+            answer_bytes = output.answer.encode("utf-8")
+            schema_digest = hashlib.sha256(
+                json.dumps(STAGE_OUTPUT_SCHEMAS[stage_name], sort_keys=True, separators=(",", ":")).encode("utf-8")
+            ).hexdigest()
             try:
                 parsed = _drop_empty_optionals(stage_name, _parse_json_object(output.answer))
                 candidate, _ = _prune_to_schema(
@@ -160,12 +211,43 @@ class ManagedStageWorker:
                 )
                 errors = list(_STAGE_VALIDATORS[stage_name].iter_errors(candidate))
                 if errors:
-                    raise ValueError(errors[0].message)
-            except Exception as exc:
-                raise ProviderInvalidResponseError(
-                    "Selected provider returned an invalid or non-schema response",
-                    internal_detail=f"parse={type(exc).__name__}",
+                    first = errors[0]
+                    detail = {
+                        "stage": stage_name,
+                        "json_path": first.json_path,
+                        "validator_keyword": str(first.validator),
+                        "validator_message": first.message[:300],
+                        "provider_id": provider_id,
+                        "model_id": self._model(provider),
+                        "attempt_id": attempt,
+                        "schema_mode": schema_mode,
+                        "schema_digest": schema_digest,
+                        "response_digest": hashlib.sha256(answer_bytes).hexdigest(),
+                        "response_byte_count": len(answer_bytes),
+                    }
+                    raise ProviderContractInvalidError(
+                        "Selected provider response violated the canonical stage contract",
+                        internal_detail=json.dumps(detail, sort_keys=True),
+                    )
+            except StageOutputError:
+                raise ProviderResponseNotJsonError(
+                    "Selected provider response was not a JSON object",
+                    internal_detail=json.dumps(
+                        {
+                            "stage": stage_name,
+                            "provider_id": provider_id,
+                            "model_id": self._model(provider),
+                            "attempt_id": attempt,
+                            "schema_mode": schema_mode,
+                            "schema_digest": schema_digest,
+                            "response_digest": hashlib.sha256(answer_bytes).hexdigest(),
+                            "response_byte_count": len(answer_bytes),
+                        },
+                        sort_keys=True,
+                    ),
                 ) from None
+            except ProviderError:
+                raise
         except ProviderError as exc:
             elapsed = time.monotonic() - started
             record.update(
@@ -177,6 +259,11 @@ class ManagedStageWorker:
             self.attempts.append(record)
             if self.progress:
                 self.progress(stage_name, provider_id, attempt, elapsed, max(0.0, budget - elapsed))
+            if self.invalidate_readiness and not (
+                isinstance(exc, ProviderContractInvalidError)
+                and schema_mode == "prompt_validated_json"
+            ):
+                self.invalidate_readiness(provider, exc, schema_mode)
             raise
         elapsed = time.monotonic() - started
         record.update(

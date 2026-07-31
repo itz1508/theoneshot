@@ -20,6 +20,8 @@ class ProviderCapabilities(BaseModel):
     tool_calls: bool = False
     structured_output: bool = False
     streaming: bool = False
+    terminable_execution: bool = False
+    native_json_schema: bool = False
 
 
 class ProviderError(RuntimeError):
@@ -54,6 +56,34 @@ class ProviderTimeoutError(ProviderError):
 
 class ProviderInvalidResponseError(ProviderError):
     code = "provider_invalid_response"
+
+
+class ProviderResponseNotJsonError(ProviderInvalidResponseError):
+    code = "provider_response_not_json"
+
+
+class ProviderContractInvalidError(ProviderInvalidResponseError):
+    code = "provider_contract_invalid"
+
+
+class ProviderSchemaUnsupportedError(ProviderError):
+    code = "provider_schema_unsupported"
+
+
+class ProviderSchemaRequestRejectedError(ProviderError):
+    code = "provider_schema_request_rejected"
+
+
+class ProviderResponseTooLargeError(ProviderError):
+    code = "provider_response_too_large"
+
+
+class ProviderProcessReapError(ProviderError):
+    code = "provider_process_reap_failed"
+
+
+class StageBudgetExhaustedError(ProviderError):
+    code = "stage_budget_exhausted"
 
 
 class ProviderPermanentRequestError(ProviderError):

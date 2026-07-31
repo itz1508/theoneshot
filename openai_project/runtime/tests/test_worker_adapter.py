@@ -19,6 +19,7 @@ from audisor.schemas.task_input import TaskInput
 from audisor.schemas.task_output import TaskOutput
 from audisor.service import TaskService
 from audisor.workers.base import (
+    ProviderCapabilities,
     ProviderConfigurationError,
     ProviderInvalidResponseError,
     ProviderPermanentRequestError,
@@ -26,6 +27,7 @@ from audisor.workers.base import (
 )
 from audisor.workers.fireworks import FireworksWorker
 from audisor.workers.local import LocalWorker
+from audisor.workers.isolated_http import isolated_post
 from provider_testkit import provider_router
 
 
@@ -63,6 +65,31 @@ def client_for(worker: FireworksWorker | LocalWorker, selected: str) -> TestClie
 
 def task_input(prompt: str = "prompt") -> TaskInput:
     return TaskInput(task_id="task-001", prompt=prompt)
+
+
+@pytest.mark.parametrize(
+    "worker",
+    [
+        LocalWorker("http://example.test", "model", request=lambda *a, **k: None),
+        FireworksWorker("key", "http://example.test", "model", request=lambda *a, **k: None),
+    ],
+)
+def test_injected_transports_retain_existing_capability_contract(worker: object) -> None:
+    assert worker.capabilities() == ProviderCapabilities(text=True)
+
+
+@pytest.mark.parametrize(
+    "worker",
+    [
+        LocalWorker("http://example.test", "model"),
+        FireworksWorker("key", "http://example.test", "model"),
+    ],
+)
+def test_default_isolated_transport_advertises_only_terminable_execution(worker: object) -> None:
+    assert worker.request is isolated_post
+    assert worker.capabilities() == ProviderCapabilities(
+        text=True, terminable_execution=True
+    )
 
 
 def test_router_has_no_default_when_selector_is_absent(monkeypatch: pytest.MonkeyPatch) -> None:

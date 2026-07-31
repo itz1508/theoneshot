@@ -1,0 +1,7 @@
+[
+  {"name":"hang_until_terminated","expected":{"result":"provider_timeout","child_reaped":true,"remaining_children":0,"retry_started_before_reap":false,"late_output_accepted":false}},
+  {"name":"ignore_terminate_then_kill","expected":{"terminate_attempted":true,"kill_attempted":true,"child_reaped":true,"remaining_children":0}},
+  {"name":"oversized_response","expected":{"result":"provider_response_too_large","response_parsed":false,"child_reaped":true}},
+  {"name":"budget_below_reap_reserve","expected":{"result":"stage_budget_exhausted","child_started":false}},
+  {"name":"timeout_then_retry","expected":{"first_attempt":"provider_timeout","first_child_reaped_before_retry":true,"second_attempt_started":true,"overlap_count":0}}
+]
