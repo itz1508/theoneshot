@@ -1,0 +1,50 @@
+{
+  "schema_version": "1.0.0",
+  "build_id": "VC-00",
+  "plan_id": "visual-capture-system-2026-07-31",
+  "plan_version": "1.0.0",
+  "contract_version": null,
+  "status": "planned",
+  "repository": {
+    "full_name": "itz1508/theoneshot",
+    "baseline_branch": "main",
+    "baseline_head": "bb353ba2d3d1aabd23736743b8eec5ff1d0be11a",
+    "planning_branch": "agent/visual-capture-build-plans",
+    "working_branch": null,
+    "observed_head": null
+  },
+  "execution": {
+    "current_phase": "Phase 0 — Repository preflight",
+    "current_task": "Task 0.1 — Resolve active ownership",
+    "current_step": 1,
+    "completed_steps": [],
+    "next_executable_step": "Read repository authority files and applicable skills, then record branch, HEAD, literal dirty state, and submodule state.",
+    "attempt": 0,
+    "updated_at": "2026-07-31T20:59:00Z"
+  },
+  "ownership": {
+    "candidate_paths": ["audisor_visual/"],
+    "owned_paths": [],
+    "excluded_paths": ["openai_project/runtime/", ".codex/", "Agents.md", "audisor/.agents/skills/"],
+    "parallel_builds": []
+  },
+  "recovery": {
+    "snapshot_id": null,
+    "last_safe_checkpoint": "VC-00 plan persisted",
+    "rollback_instructions": [],
+    "resume_requirements": [
+      "Read README.md and BUILD-00-backend-foundation.md.",
+      "Inspect current repository state before mutation.",
+      "Confirm the standalone package owner before creating files."
+    ]
+  },
+  "validation": {
+    "last_result": "not_run"
+  },
+  "artifacts": [],
+  "unresolved": [
+    "Active implementation owner and exact package paths require repository preflight.",
+    "A-Flow review has not been run from this planning session."
+  ],
+  "failures": []
+}
