@@ -2,49 +2,91 @@
   "schema_version": "1.0.0",
   "build_id": "VC-00",
   "plan_id": "visual-capture-system-2026-07-31",
-  "plan_version": "1.0.0",
+  "plan_version": "1.1.0",
   "contract_version": null,
-  "status": "planned",
+  "status": "planned_reviewed",
   "repository": {
     "full_name": "itz1508/theoneshot",
     "baseline_branch": "main",
     "baseline_head": "bb353ba2d3d1aabd23736743b8eec5ff1d0be11a",
-    "planning_branch": "agent/visual-capture-build-plans",
-    "working_branch": null,
-    "observed_head": null
+    "working_branch": "agent/visual-capture-build-plans",
+    "observed_head": null,
+    "dirty_state_recorded": false,
+    "submodule_state_recorded": false
   },
   "execution": {
-    "current_phase": "Phase 0 — Repository preflight",
-    "current_task": "Task 0.1 — Resolve active ownership",
-    "current_step": 1,
-    "completed_steps": [],
-    "next_executable_step": "Read repository authority files and applicable skills, then record branch, HEAD, literal dirty state, and submodule state.",
+    "current_phase": "preflight",
+    "current_task": "Resolve active ownership and freeze implementation boundaries",
+    "current_step": null,
+    "completed_steps": [
+      "Planning gap review GR-VC-00-02-2026-07-31 completed.",
+      "Success criteria SC-VC-00-02-1.0.0 specified and not run."
+    ],
+    "next_executable_step": "Read authority files, the gap-review amendment, and success criteria; record literal repository and submodule state; then prove one active package owner and one operation owner before mutation.",
     "attempt": 0,
-    "updated_at": "2026-07-31T20:59:00Z"
+    "started_at": null,
+    "updated_at": "2026-07-31T21:11:00-07:00",
+    "completed_at": null
   },
   "ownership": {
-    "candidate_paths": ["audisor_visual/"],
     "owned_paths": [],
-    "excluded_paths": ["openai_project/runtime/", ".codex/", "Agents.md", "audisor/.agents/skills/"],
-    "parallel_builds": []
+    "excluded_paths": [
+      "openai_project/runtime/",
+      ".codex/",
+      "Agents.md",
+      "audisor/.agents/skills/"
+    ],
+    "protected_paths_checked": false,
+    "parallel_builds": [],
+    "shared_contract_mutation_allowed": false
   },
   "recovery": {
     "snapshot_id": null,
-    "last_safe_checkpoint": "VC-00 plan persisted",
+    "snapshot_required": true,
+    "pre_mutation_hashes": {},
     "rollback_instructions": [],
+    "non_idempotent_steps": [],
+    "last_safe_checkpoint": "Gap review and versioned success criteria persisted; no implementation started.",
     "resume_requirements": [
       "Read README.md and BUILD-00-backend-foundation.md.",
-      "Inspect current repository state before mutation.",
-      "Confirm the standalone package owner before creating files."
+      "Read GAP-REVIEW-VC-00-VC-02.md.",
+      "Read SUCCESS-CRITERIA-VC-00-VC-02.md and preserve criteria version SC-VC-00-02-1.0.0.",
+      "Record current branch, HEAD, literal dirty state, and submodule state.",
+      "Inspect the current diff before repeating any step.",
+      "Confirm the standalone package owner and operation owner before creating files.",
+      "Do not infer completion from planning artifacts."
     ]
   },
   "validation": {
-    "last_result": "not_run"
+    "last_command": null,
+    "last_exit_code": null,
+    "last_result": "plan_review_passed_with_preflight_blockers",
+    "targeted": "not_run",
+    "integration": "not_run",
+    "repository": "not_run",
+    "delivery": "not_run"
   },
-  "artifacts": [],
+  "artifacts": [
+    {
+      "artifact_id": "GR-VC-00-02-2026-07-31",
+      "path": "docs/plans/2026-07-31-visual-capture-system/GAP-REVIEW-VC-00-VC-02.md",
+      "status": "accepted_plan_amendment"
+    },
+    {
+      "artifact_id": "SC-VC-00-02-1.0.0",
+      "path": "docs/plans/2026-07-31-visual-capture-system/SUCCESS-CRITERIA-VC-00-VC-02.md",
+      "status": "specified_not_run"
+    }
+  ],
   "unresolved": [
     "Active implementation owner and exact package paths require repository preflight.",
-    "A-Flow review has not been run from this planning session."
+    "DEC-001 deployment class must be resolved before the selected persistence and security architecture is frozen.",
+    "A-Flow review remains an implementation preflight requirement when the current lifecycle tool is available."
   ],
-  "failures": []
+  "failures": [],
+  "notes": [
+    "Every domain task inherits the execution contract in the gap-review amendment.",
+    "VC-00 must produce contract-freeze-manifest.json before VC-01 or VC-02 can mutate implementation paths.",
+    "Update state atomically after each state-changing step and preserve failure history."
+  ]
 }
