@@ -1,0 +1,58 @@
+{
+  "schema_version": "1.0.0",
+  "build_id": "VC-03",
+  "plan_id": "visual-capture-system-2026-07-31",
+  "plan_version": "1.0.0",
+  "contract_version": null,
+  "status": "blocked_by_dependency",
+  "repository": {
+    "full_name": "itz1508/theoneshot",
+    "baseline_branch": "main",
+    "baseline_head": "bb353ba2d3d1aabd23736743b8eec5ff1d0be11a",
+    "planning_branch": "agent/visual-capture-build-plans",
+    "working_branch": null,
+    "observed_head": null
+  },
+  "execution": {
+    "current_phase": "Phase 0 — Build preflight",
+    "current_task": "Task 0.1 — Verify prerequisites",
+    "current_step": 1,
+    "completed_steps": [],
+    "next_executable_step": "Wait for VC-02 to freeze an approved preview and interaction timeline; an isolated fixture-only prototype may begin after VC-00 if separately authorized.",
+    "attempt": 0,
+    "updated_at": "2026-07-31T20:59:00Z"
+  },
+  "ownership": {
+    "candidate_paths": [
+      "audisor_media/"
+    ],
+    "owned_paths": [],
+    "excluded_paths": [
+      "audisor_visual/src/audisor_visual/contracts/",
+      "audisor_visual/src/audisor_visual/extractors/",
+      "audisor_visual/src/audisor_visual/html/",
+      "web/"
+    ],
+    "parallel_builds": []
+  },
+  "recovery": {
+    "snapshot_id": null,
+    "last_safe_checkpoint": "VC-03 plan persisted; no implementation started",
+    "rollback_instructions": [],
+    "resume_requirements": [
+      "Read README.md and BUILD-03-video-renderer.md.",
+      "Verify VC-02 approved preview and timeline hashes.",
+      "Probe FFmpeg/ffprobe without changing system installations.",
+      "Confirm storage and process-isolation limits before rendering."
+    ]
+  },
+  "validation": {
+    "last_result": "not_run"
+  },
+  "artifacts": [],
+  "unresolved": [
+    "Blocked until stable VC-02 timeline and preview identity.",
+    "Encoder capability, deployment boundary, and license evidence require implementation-time verification."
+  ],
+  "failures": []
+}

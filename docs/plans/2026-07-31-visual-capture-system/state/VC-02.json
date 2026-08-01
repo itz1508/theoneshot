@@ -1,0 +1,99 @@
+{
+  "schema_version": "1.0.0",
+  "build_id": "VC-02",
+  "plan_id": "visual-capture-system-2026-07-31",
+  "plan_version": "1.1.0",
+  "contract_version": null,
+  "status": "blocked_by_dependency",
+  "repository": {
+    "full_name": "itz1508/theoneshot",
+    "baseline_branch": "main",
+    "baseline_head": "bb353ba2d3d1aabd23736743b8eec5ff1d0be11a",
+    "working_branch": "agent/visual-capture-build-plans",
+    "observed_head": null,
+    "dirty_state_recorded": false,
+    "submodule_state_recorded": false
+  },
+  "execution": {
+    "current_phase": "preflight",
+    "current_task": "Reattach to the accepted VC-00 freeze and resolve delivery ownership",
+    "current_step": null,
+    "completed_steps": [
+      "Planning gap review GR-VC-00-02-2026-07-31 completed.",
+      "Success criteria SC-VC-00-02-1.0.0 specified and not run."
+    ],
+    "next_executable_step": "Wait for VC-00 to publish an accepted contract-freeze-manifest.json; then verify the freeze identity, inspect the active web and WebContainer owners, resolve DEC-003, and freeze exact renderer/capture/comparison paths before mutation.",
+    "attempt": 0,
+    "started_at": null,
+    "updated_at": "2026-07-31T21:11:00-07:00",
+    "completed_at": null
+  },
+  "ownership": {
+    "owned_paths": [],
+    "excluded_paths": [
+      "audisor_visual/src/audisor_visual/contracts/",
+      "audisor_visual/src/audisor_visual/extractors/",
+      "audisor_visual/src/audisor_visual/patterns/",
+      "audisor_visual/src/audisor_visual/wireframe/",
+      "audisor_visual/src/audisor_visual/guidance/",
+      "audisor_media/"
+    ],
+    "protected_paths_checked": false,
+    "parallel_builds": [
+      "VC-01"
+    ],
+    "shared_contract_mutation_allowed": false
+  },
+  "recovery": {
+    "snapshot_id": null,
+    "snapshot_required": true,
+    "pre_mutation_hashes": {},
+    "rollback_instructions": [],
+    "non_idempotent_steps": [],
+    "last_safe_checkpoint": "Gap review and versioned success criteria persisted; VC-02 remains blocked and no implementation started.",
+    "resume_requirements": [
+      "Read README.md and BUILD-02-html-generation-and-verification.md.",
+      "Read GAP-REVIEW-VC-00-VC-02.md.",
+      "Read SUCCESS-CRITERIA-VC-00-VC-02.md and preserve criteria version SC-VC-00-02-1.0.0.",
+      "Read VC-00 state and verify an accepted contract-freeze-manifest.json exists.",
+      "Record current branch, HEAD, literal dirty state, and submodule state.",
+      "Inspect the active web host and existing WebContainer integration before assigning paths.",
+      "Keep direct offline HTML output independent of WebContainer.",
+      "Verify VC-01 does not own or modify HTML, capture, comparison, or delivery paths.",
+      "Resolve DEC-003 before claiming final delivery completion.",
+      "Do not edit shared schemas during parallel execution."
+    ]
+  },
+  "validation": {
+    "last_command": null,
+    "last_exit_code": null,
+    "last_result": "plan_review_passed_blocked_by_vc00",
+    "targeted": "not_run",
+    "integration": "not_run",
+    "repository": "not_run",
+    "delivery": "not_run"
+  },
+  "artifacts": [
+    {
+      "artifact_id": "GR-VC-00-02-2026-07-31",
+      "path": "docs/plans/2026-07-31-visual-capture-system/GAP-REVIEW-VC-00-VC-02.md",
+      "status": "accepted_plan_amendment"
+    },
+    {
+      "artifact_id": "SC-VC-00-02-1.0.0",
+      "path": "docs/plans/2026-07-31-visual-capture-system/SUCCESS-CRITERIA-VC-00-VC-02.md",
+      "status": "specified_not_run"
+    }
+  ],
+  "unresolved": [
+    "Blocked until VC-00 publishes and accepts the contract freeze manifest.",
+    "Exact HTML, capture, comparison, test, web-host, and optional WebContainer paths require repository preflight.",
+    "DEC-003 must decide whether standalone artifact plus API/CLI/MCP is sufficient or existing web integration is required for initial completion."
+  ],
+  "failures": [],
+  "notes": [
+    "Every VC-02 task inherits the execution contract in the gap-review amendment.",
+    "Generated previews are evidence and approval surfaces, not canonical contract authority.",
+    "Update state atomically after each state-changing step and preserve failure history."
+  ]
+}
