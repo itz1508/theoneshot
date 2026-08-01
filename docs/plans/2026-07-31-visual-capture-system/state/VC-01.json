@@ -2,61 +2,95 @@
   "schema_version": "1.0.0",
   "build_id": "VC-01",
   "plan_id": "visual-capture-system-2026-07-31",
-  "plan_version": "1.0.0",
+  "plan_version": "1.1.0",
   "contract_version": null,
   "status": "blocked_by_dependency",
   "repository": {
     "full_name": "itz1508/theoneshot",
     "baseline_branch": "main",
     "baseline_head": "bb353ba2d3d1aabd23736743b8eec5ff1d0be11a",
-    "planning_branch": "agent/visual-capture-build-plans",
-    "working_branch": null,
-    "observed_head": null
+    "working_branch": "agent/visual-capture-build-plans",
+    "observed_head": null,
+    "dirty_state_recorded": false,
+    "submodule_state_recorded": false
   },
   "execution": {
-    "current_phase": "Phase 0 — Build preflight",
-    "current_task": "Task 0.1 — Reattach to VC-00",
-    "current_step": 1,
-    "completed_steps": [],
-    "next_executable_step": "Wait for VC-00 to freeze the contract and fixture hashes; then verify branch, status, and exclusive extractor path ownership.",
+    "current_phase": "preflight",
+    "current_task": "Reattach to the accepted VC-00 freeze",
+    "current_step": null,
+    "completed_steps": [
+      "Planning gap review GR-VC-00-02-2026-07-31 completed.",
+      "Success criteria SC-VC-00-02-1.0.0 specified and not run."
+    ],
+    "next_executable_step": "Wait for VC-00 to publish an accepted contract-freeze-manifest.json; then verify the freeze identity, repository state, exact extractor ownership, and proof-first fixtures before mutation.",
     "attempt": 0,
-    "updated_at": "2026-07-31T20:59:00Z"
+    "started_at": null,
+    "updated_at": "2026-07-31T21:11:00-07:00",
+    "completed_at": null
   },
   "ownership": {
-    "candidate_paths": [
-      "audisor_visual/src/audisor_visual/extractors/",
-      "audisor_visual/src/audisor_visual/patterns/",
-      "audisor_visual/src/audisor_visual/wireframe/",
-      "audisor_visual/src/audisor_visual/guidance/",
-      "audisor_visual/tests/extraction/"
-    ],
     "owned_paths": [],
     "excluded_paths": [
+      "audisor_visual/src/audisor_visual/contracts/",
       "audisor_visual/src/audisor_visual/html/",
       "audisor_visual/src/audisor_visual/capture/",
       "audisor_visual/src/audisor_visual/comparison/",
       "audisor_media/"
     ],
-    "parallel_builds": ["VC-02"]
+    "protected_paths_checked": false,
+    "parallel_builds": [
+      "VC-02"
+    ],
+    "shared_contract_mutation_allowed": false
   },
   "recovery": {
     "snapshot_id": null,
-    "last_safe_checkpoint": "VC-01 plan persisted; no implementation started",
+    "snapshot_required": true,
+    "pre_mutation_hashes": {},
     "rollback_instructions": [],
+    "non_idempotent_steps": [],
+    "last_safe_checkpoint": "Gap review and versioned success criteria persisted; VC-01 remains blocked and no implementation started.",
     "resume_requirements": [
       "Read README.md and BUILD-01-framework-extraction.md.",
-      "Read VC-00 state and verify contract_version is frozen.",
-      "Verify VC-02 does not own or modify extractor paths.",
-      "Do not edit shared schemas during parallel execution."
+      "Read GAP-REVIEW-VC-00-VC-02.md.",
+      "Read SUCCESS-CRITERIA-VC-00-VC-02.md and preserve criteria version SC-VC-00-02-1.0.0.",
+      "Read VC-00 state and verify an accepted contract-freeze-manifest.json exists.",
+      "Record current branch, HEAD, literal dirty state, and submodule state.",
+      "Verify VC-02 does not own or modify extractor, pattern, wireframe, or guidance paths.",
+      "Do not edit shared schemas during parallel execution.",
+      "Do not enable a live vision provider before DEC-002 is resolved."
     ]
   },
   "validation": {
-    "last_result": "not_run"
+    "last_command": null,
+    "last_exit_code": null,
+    "last_result": "plan_review_passed_blocked_by_vc00",
+    "targeted": "not_run",
+    "integration": "not_run",
+    "repository": "not_run",
+    "delivery": "not_run"
   },
-  "artifacts": [],
-  "unresolved": [
-    "Blocked until VC-00 contract freeze.",
-    "Vision provider adapter selection requires capability and policy review during implementation preflight."
+  "artifacts": [
+    {
+      "artifact_id": "GR-VC-00-02-2026-07-31",
+      "path": "docs/plans/2026-07-31-visual-capture-system/GAP-REVIEW-VC-00-VC-02.md",
+      "status": "accepted_plan_amendment"
+    },
+    {
+      "artifact_id": "SC-VC-00-02-1.0.0",
+      "path": "docs/plans/2026-07-31-visual-capture-system/SUCCESS-CRITERIA-VC-00-VC-02.md",
+      "status": "specified_not_run"
+    }
   ],
-  "failures": []
+  "unresolved": [
+    "Blocked until VC-00 publishes and accepts the contract freeze manifest.",
+    "Exact extractor, pattern, wireframe, guidance, and test ownership requires repository preflight.",
+    "DEC-002 must define live vision-provider privacy, retention, cost limits, and local-only fallback before provider activation."
+  ],
+  "failures": [],
+  "notes": [
+    "Every VC-01 task inherits the execution contract in the gap-review amendment.",
+    "All generated builder instructions require exact contract or evidence anchors.",
+    "Update state atomically after each state-changing step and preserve failure history."
+  ]
 }
